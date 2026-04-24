@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect } from 'react';
 import {
   LayoutDashboard,
   Factory,
@@ -7,17 +7,20 @@ import {
   Bot,
   Menu,
   X,
-  LogOut,
 } from 'lucide-react';
 import { useAppStore } from './store/appStore';
+import { useAuthStore } from './store/authStore';
 import { Dashboard } from './pages/Dashboard';
 import { PlantNavigation } from './pages/PlantNavigation';
 import { AlertsPage } from './pages/AlertsPage';
 import { EquipmentPage } from './pages/EquipmentPage';
 import { AssistantPage } from './pages/AssistantPage';
 import { AssetDetailPanel } from './components/AssetDetailPanel';
+import { LoginPage } from './pages/LoginPage';
+import { TokenRefresher } from './components/TokenRefresher';
+import { UserProfile } from './components/UserProfile';
 
-function App() {
+function AppContent() {
   const {
     selectedTab,
     setSelectedTab,
@@ -95,12 +98,9 @@ function App() {
           })}
         </nav>
 
-        {/* Footer */}
+        {/* User Profile in Sidebar */}
         <div className="p-4 border-t border-slate-700">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors">
-            <LogOut className="w-5 h-5" />
-            <span className="text-sm font-medium">Logout</span>
-          </button>
+          <UserProfile />
         </div>
       </aside>
 
@@ -122,11 +122,6 @@ function App() {
               <p className="text-xs text-slate-400">Industrial Digital Twin Platform</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-xs font-bold">
-              TM
-            </div>
-          </div>
         </header>
 
         {/* Content Area */}
@@ -145,6 +140,36 @@ function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+function App() {
+  const { isAuthenticated, verifyAuth, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    // Verify authentication on app load
+    verifyAuth();
+  }, [verifyAuth]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-slate-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-400 mx-auto"></div>
+          <p className="mt-6 text-white text-lg font-medium">Loading authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return (
+    <TokenRefresher>
+      <AppContent />
+    </TokenRefresher>
   );
 }
 
