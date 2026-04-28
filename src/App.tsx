@@ -62,12 +62,11 @@ function AppContent() {
         className={`${
           sidebarOpen ? 'w-64' : 'w-0'
         } bg-slate-900 border-r border-slate-700 transition-all duration-300 overflow-hidden flex flex-col`}
-      >
-        {/* Logo */}
+      >        {/* Logo */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-700">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <span className="font-bold text-lg">IDT</span>
+            <span className="font-bold text-lg">Forzy</span>
           </div>
         </div>
 
@@ -114,12 +113,11 @@ function AppContent() {
               className="p-2 hover:bg-slate-800 rounded-lg transition-colors lg:hidden"
             >
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-            <div>
+            </button>            <div>
               <h1 className="text-lg font-semibold">
                 {navItems.find(item => item.id === selectedTab)?.label}
               </h1>
-              <p className="text-xs text-slate-400">Industrial Digital Twin Platform</p>
+              <p className="text-xs text-slate-400">Forzy Digital Twin Platform</p>
             </div>
           </div>
         </header>
