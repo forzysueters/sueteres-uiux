@@ -19,9 +19,11 @@ import {
   User,
   LogOut,
   ChevronDown,
+  Menu,
 } from 'lucide-react';
 import { useAppStore } from './store/appStore';
 import { translations } from './translations';
+import { useAuthStore } from './store/authStore';
 import { Dashboard } from './pages/Dashboard';
 import { PlantNavigation } from './pages/PlantNavigation';
 import { AlertsPage } from './pages/AlertsPage';
@@ -30,6 +32,9 @@ import { AssistantPage } from './pages/AssistantPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AccountPage } from './pages/AccountPage';
 import { AssetDetailPanel } from './components/AssetDetailPanel';
+import { LoginPage } from './pages/LoginPage';
+import { TokenRefresher } from './components/TokenRefresher';
+import { UserProfile } from './components/UserProfile';
 
 // Caminhos dos logos
 const logoWhite = '/src/assets/logo-forzy-branca.svg';
@@ -236,8 +241,34 @@ const AppContent = () => {
   );
 };
 
-export const App = () => (
-  <Router>
-    <AppContent />
-  </Router>
-);
+function App() {
+  const { isAuthenticated, verifyAuth, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    // Verify authentication on app load
+    verifyAuth();
+  }, [verifyAuth]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-slate-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-400 mx-auto"></div>
+          <p className="mt-6 text-white text-lg font-medium">Loading authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return (
+    <TokenRefresher>
+      <AppContent />
+    </TokenRefresher>
+  );
+}
+
+export default App;
