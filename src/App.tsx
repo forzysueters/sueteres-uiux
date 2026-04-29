@@ -241,7 +241,7 @@ const AppContent = () => {
   );
 };
 
-function App() {
+export function App() {
   const { isAuthenticated, verifyAuth, isLoading } = useAuthStore();
 
   useEffect(() => {
@@ -265,9 +265,11 @@ function App() {
   }
 
   return (
-    <TokenRefresher>
-      <AppContent />
-    </TokenRefresher>
+    <Router>
+      <TokenRefresher>
+        <AppContent />
+      </TokenRefresher>
+    </Router>
   );
 }
 
