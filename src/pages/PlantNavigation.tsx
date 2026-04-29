@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { AssetTile } from '../components/Cards';
+import { Map, AlertTriangle, CheckCircle2, WifiOff, Info } from 'lucide-react';
 
 export const PlantNavigation: React.FC = () => {
   const { assets, setAssets, selectedAssetId, setSelectedAsset } = useAppStore();
@@ -18,23 +19,53 @@ export const PlantNavigation: React.FC = () => {
   const maxX = Math.max(...assets.map(a => a.x), 3);
   const maxY = Math.max(...assets.map(a => a.y), 3);
 
+  const totalOnline = assets.filter(a => a.status !== 'offline').length;
+  const criticalCount = assets.filter(a => a.status === 'critical').length;
+  const warningCount = assets.filter(a => a.status === 'warning').length;
+
   return (
-    <div className="space-y-6">
-      {/* Plant Layout Info */}
-      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-slate-100">Factory Digital Twin</h2>
-        <p className="text-sm text-slate-400 mt-1">
-          Interactive plant layout. Click on any asset to view detailed sensor data and diagnostics.
-        </p>
+    <div className="space-y-8 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center">
+              <Map className="w-7 h-7 text-primary" />
+            </div>
+            Planta / Gêmeo Digital
+          </h1>
+          <p>
+            Layout interativo da fábrica — clique em um ativo para inspecionar a telemetria
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="badge badge-success px-3 py-1.5">
+            <CheckCircle2 size={14} />
+            {totalOnline} Online
+          </div>
+          {criticalCount > 0 && (
+            <div className="badge badge-critical px-3 py-1.5">
+              <AlertTriangle size={14} />
+              {criticalCount} Crítico
+            </div>
+          )}
+          {warningCount > 0 && (
+            <div className="badge badge-warning px-3 py-1.5">
+              <AlertTriangle size={14} />
+              {warningCount} Alerta
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Grid Layout */}
-      <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
+      <div className="saas-card p-10 overflow-auto bg-slate-900/30">
         <div
-          className="grid gap-4"
+          className="grid gap-8 relative mx-auto"
           style={{
-            gridTemplateColumns: `repeat(${maxX}, minmax(200px, 1fr))`,
+            gridTemplateColumns: `repeat(${maxX}, minmax(220px, 1fr))`,
             gridTemplateRows: `repeat(${maxY}, auto)`,
+            width: 'max-content',
+            minWidth: '100%',
           }}
         >
           {Array.from({ length: maxX }).map((_, x) =>
@@ -45,15 +76,17 @@ export const PlantNavigation: React.FC = () => {
                 return (
                   <div
                     key={`empty-${x}-${y}`}
-                    className="min-h-32 rounded-lg border-2 border-dashed border-slate-700/50 bg-slate-800/20 flex items-center justify-center"
+                    className="min-h-[160px] rounded-xl flex flex-col items-center justify-center gap-2 border border-border bg-slate-800/10"
                   >
-                    <span className="text-xs text-slate-600">Station ({x + 1}, {y + 1})</span>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      {x + 1}, {y + 1}
+                    </span>
                   </div>
                 );
               }
 
               return (
-                <div key={asset.id} className="h-full">
+                <div key={asset.id} className="h-full min-h-[160px]">
                   <AssetTile
                     asset={asset}
                     isSelected={selectedAssetId === asset.id}
@@ -66,34 +99,32 @@ export const PlantNavigation: React.FC = () => {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-slate-100 mb-3">Legend</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse-glow" />
-            <span className="text-xs text-slate-400">Normal</span>
+      <div className="saas-card p-4 flex items-center gap-8 flex-wrap">
+        <span className="section-title !mb-0">Legenda</span>
+        {[
+          { color: 'bg-emerald-500', label: 'Normal' },
+          { color: 'bg-amber-500', label: 'Alerta' },
+          { color: 'bg-red-500', label: 'Crítico' },
+          { color: 'bg-slate-500', label: 'Offline' },
+        ].map(({ color, label }) => (
+          <div key={label} className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
+            <span className="text-[11px] font-bold text-muted">{label}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-500 animate-pulse-glow" />
-            <span className="text-xs text-slate-400">Warning</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse-glow" />
-            <span className="text-xs text-slate-400">Critical</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-slate-500" />
-            <span className="text-xs text-slate-400">Offline</span>
-          </div>
+        ))}
+        <div className="ml-auto flex items-center gap-2">
+          <WifiOff size={14} className="text-muted" />
+          <span className="text-[11px] font-bold text-muted uppercase tracking-tighter">
+            {assets.filter(a => a.status === 'offline').length} offline
+          </span>
         </div>
       </div>
 
-      {/* Selected Asset Info */}
       {selectedAssetId && (
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-          <p className="text-sm text-blue-300">
-            ℹ️ Selected asset details are shown in the right panel. Click on another asset to switch or click the same asset again to deselect.
+        <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 flex items-center gap-3 text-primary">
+          <Info size={16} className="flex-shrink-0" />
+          <p className="text-xs font-medium">
+            Os detalhes do ativo são exibidos no painel lateral. Clique no mesmo ativo novamente para desmarcar.
           </p>
         </div>
       )}

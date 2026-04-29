@@ -7,6 +7,8 @@ interface AppStore {
   selectedTab: 'dashboard' | 'plant' | 'alerts' | 'equipment' | 'assistant';
   sidebarOpen: boolean;
   darkMode: boolean;
+  primaryColor: 'orange' | 'purple';
+  language: 'pt' | 'en';
 
   // Data State
   assets: Asset[];
@@ -28,6 +30,9 @@ interface AppStore {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
+  toggleDarkMode: () => void;
+  setPrimaryColor: (color: 'orange' | 'purple') => void;
+  setLanguage: (lang: 'pt' | 'en') => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -36,6 +41,8 @@ export const useAppStore = create<AppStore>((set) => ({
   selectedTab: 'dashboard',
   sidebarOpen: true,
   darkMode: true,
+  primaryColor: 'orange',
+  language: 'pt',
   assets: [],
   alerts: [],
   kpis: null,
@@ -59,4 +66,7 @@ export const useAppStore = create<AppStore>((set) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
+  toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+  setPrimaryColor: (color) => set({ primaryColor: color }),
+  setLanguage: (lang) => set({ language: lang }),
 }));

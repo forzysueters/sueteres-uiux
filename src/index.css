@@ -1,55 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-html, body, #root {
-  width: 100%;
-  height: 100%;
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(51, 65, 85, 0.5);
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.7);
-}
-
-/* Animations */
-@keyframes pulse-glow {
-  0%, 100% {
-    opacity: 1;
+@layer base {
+  :root {
+    /* Light Mode (Default) */
+    --background: #F9FAFB;
+    --card: #FFFFFF;
+    --border: #E5E7EB;
+    --foreground: #111827;
+    --muted: #6B7280;
+    --primary: #f59e0b; /* Default Orange */
+    --primary-rgb: 245, 158, 11;
   }
-  50% {
-    opacity: 0.7;
+
+  /* Orange Theme (Explicit) */
+  .theme-orange {
+    --primary: #f59e0b;
+    --primary-rgb: 245, 158, 11;
+  }
+
+  /* Purple Theme */
+  .theme-purple {
+    --primary: #7C3AED;
+    --primary-rgb: 124, 58, 237;
+  }
+
+  .dark {
+    /* Dark Mode */
+    --background: #0B1220;
+    --card: #111827;
+    --border: #1F2937;
+    --foreground: #F3F4F6;
+    --muted: #9CA3AF;
+  }
+
+  body {
+    @apply font-sans antialiased transition-colors duration-300;
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  * {
+    @apply border-border;
   }
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+@layer components {
+  .saas-card {
+    @apply bg-card border border-border rounded-xl transition-all duration-200;
+  }
+
+  .saas-card-hover {
+    @apply hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-saas-hover;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 bg-primary text-white hover:opacity-90 shadow-glow-primary;
+  }
+
+  .nav-link {
+    @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2;
+  }
+
+  .nav-link-active {
+    @apply bg-slate-100 dark:bg-white/5 text-foreground dark:text-white border-b-2 border-primary rounded-none;
+  }
+
+  .nav-link-inactive {
+    @apply text-muted hover:text-foreground dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5;
+  }
+
+  .badge {
+    @apply px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border;
+  }
+
+  .badge-critical { @apply bg-red-500/10 text-red-500 border-red-500/20; }
+  .badge-warning { @apply bg-amber-500/10 text-amber-500 border-amber-500/20; }
+  .badge-success { @apply bg-emerald-500/10 text-emerald-500 border-emerald-500/20; }
+  .badge-info { @apply bg-blue-500/10 text-blue-500 border-blue-500/20; }
+}
+
+/* Custom Scrollbar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-300 dark:bg-slate-800 hover:bg-slate-400 dark:hover:bg-slate-700 transition-colors;
+}
+
+/* Recharts Overrides */
+.recharts-tooltip-cursor {
+  stroke: var(--primary) !important;
+  stroke-opacity: 0.1;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--border);
+  stroke-opacity: 0.5;
+}
+
+.recharts-text {
+  fill: var(--muted) !important;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* Typography hierarchy */
+h1 { @apply text-3xl font-bold tracking-tight text-foreground dark:text-white mb-1; }
+h2 { @apply text-xl font-semibold tracking-tight text-foreground dark:text-white mb-1; }
+h3 { @apply text-base font-semibold text-foreground dark:text-white mb-1; }
+p { @apply text-sm text-muted leading-relaxed; }
+
+.section-title {
+  @apply text-xs font-bold uppercase tracking-[0.2em] text-muted mb-4 block;
 }
