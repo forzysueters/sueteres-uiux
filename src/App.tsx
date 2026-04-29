@@ -20,6 +20,9 @@ import {
   User,
   LogOut,
   ChevronDown,
+  Activity,
+  ClipboardList,
+  History,
 } from 'lucide-react'
 import { useAppStore } from './store/appStore'
 import { translations } from './translations'
@@ -33,6 +36,9 @@ import { SettingsPage } from './pages/SettingsPage'
 import { AccountPage } from './pages/AccountPage'
 import { AssetDetailPanel } from './components/AssetDetailPanel'
 import { LoginPage } from './pages/LoginPage'
+import { TelemetryPage } from './pages/TelemetryPage'
+import { AssetRegistryPage } from './pages/AssetRegistryPage'
+import { HistoryPage } from './pages/HistoryPage'
 import { TokenRefresher } from './components/TokenRefresher'
 import logoWhite from './assets/logo-forzy-branca.svg'
 import logoBlack from './assets/logo-forzy-preta.svg'
@@ -86,6 +92,9 @@ const AppContent = () => {
 
   const navItems = [
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
+    { id: 'telemetria', label: 'Telemetria', path: '/telemetria', icon: Activity },
+    { id: 'cadastro', label: 'Cadastro', path: '/cadastro', icon: ClipboardList },
+    { id: 'historico', label: 'Histórico', path: '/historico', icon: History },
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
     { id: 'alerts', label: t.nav.alerts, path: '/alertas', icon: Bell, badge: 3 },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
@@ -270,6 +279,9 @@ const AppContent = () => {
             >
               <Routes location={location}>
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/telemetria" element={<TelemetryPage />} />
+                <Route path="/cadastro" element={<AssetRegistryPage />} />
+                <Route path="/historico" element={<HistoryPage />} />
                 <Route path="/planta" element={<PlantNavigation />} />
                 <Route path="/alertas" element={<AlertsPage />} />
                 <Route path="/equipamentos" element={<EquipmentPage />} />
