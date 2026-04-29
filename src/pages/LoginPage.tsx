@@ -1,196 +1,352 @@
-import { useState } from 'react';
-import { Lock, Mail, AlertCircle } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
-import { LoginCredentials } from '../types/auth';
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import {
+  Lock,
+  Mail,
+  AlertCircle,
+  ArrowRight,
+  Activity,
+  Cpu,
+  ShieldCheck,
+  Sparkles,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
+import { useAuthStore } from '../store/authStore'
+import { LoginCredentials } from '../types/auth'
+import logoWhite from '../assets/logo-forzy-branca.svg'
 
 export const LoginPage = () => {
-  const { login, isLoading, error } = useAuthStore();
+  const { login, isLoading, error } = useAuthStore()
   const [credentials, setCredentials] = useState<LoginCredentials>({
     email: '',
-    password: ''
-  });  const [localError, setLocalError] = useState<string | null>(null);
-  const [showDemo, setShowDemo] = useState(false);
+    password: '',
+  })
+  const [localError, setLocalError] = useState<string | null>(null)
+  const [showDemo, setShowDemo] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setCredentials(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+    const { name, value } = e.target
+    setCredentials((prev) => ({ ...prev, [name]: value }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError(null);
+    e.preventDefault()
+    setLocalError(null)
 
-    // Validation
     if (!credentials.email || !credentials.password) {
-      setLocalError('Please enter both email and password');
-      return;
+      setLocalError('Informe e-mail e senha para continuar')
+      return
     }
-
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(credentials.email)) {
-      setLocalError('Please enter a valid email address');
-      return;
+      setLocalError('Informe um endereço de e-mail válido')
+      return
     }
-
     if (credentials.password.length < 8) {
-      setLocalError('Password must be at least 8 characters');
-      return;
+      setLocalError('A senha deve ter pelo menos 8 caracteres')
+      return
     }
 
     try {
-      await login(credentials);
-      // Redirect will happen in App.tsx based on auth state
+      await login(credentials)
     } catch (err: any) {
-      setLocalError(err.message || 'Login failed. Please try again.');
+      setLocalError(err.message || 'Falha no acesso. Tente novamente.')
     }
-  };
+  }
 
   const demoCredentials = [
-    { role: 'Admin', email: 'admin@industrial.com', password: 'password123' },
-    { role: 'Engineer', email: 'engineer@industrial.com', password: 'password123' },
-    { role: 'Technician', email: 'technician@industrial.com', password: 'password123' },
-  ];
+    { role: 'Administrador (Forzy)', email: 'admin@industrial.com', password: 'password123' },
+    { role: 'Engenheiro', email: 'engineer@industrial.com', password: 'password123' },
+    { role: 'Técnico de Manutenção', email: 'technician@industrial.com', password: 'password123' },
+  ]
 
   const handleDemoLogin = (email: string) => {
-    setCredentials({ email, password: 'password123' });
-  };
+    setCredentials({ email, password: 'password123' })
+  }
+
+  const features = [
+    {
+      icon: Activity,
+      label: 'Monitoramento em tempo real',
+      desc: 'Sensores IoT do motor — tensão, corrente, vibração, temperatura',
+    },
+    {
+      icon: Cpu,
+      label: 'Manutenção preditiva',
+      desc: 'Detecção de anomalias e predição de paradas estratégicas',
+    },
+    {
+      icon: ShieldCheck,
+      label: 'Governança & LGPD',
+      desc: 'Acesso por perfil, rastreabilidade e auditoria',
+    },
+  ]
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background gradient effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950 opacity-50"></div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl"></div>
+    <div className="min-h-screen w-full overflow-hidden bg-[#07080D] text-white relative isolate">
+      {/* Animated mesh background */}
+      <div className="mesh-bg" aria-hidden />
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Main Card */}
-        <div className="bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl p-8">          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-6">
-              <img 
-                src="/src/static/logo-forzy-branca.svg" 
-                alt="Forzy Logo" 
-                className="h-16 w-auto drop-shadow-lg"
-              />
-            </div>
+      {/* Grid pattern */}
+      <div
+        className="absolute inset-0 grid-pattern opacity-60 pointer-events-none"
+        aria-hidden
+      />
+
+      {/* Top bar */}
+      <header className="relative z-10 flex items-center justify-between px-6 md:px-10 h-28">
+        <img src={logoWhite} alt="Forzy" className="h-16 md:h-20 w-auto drop-shadow-[0_0_28px_rgba(245,158,11,0.3)]" />
+        <div className="hidden md:flex items-center gap-2 text-xs font-medium text-white/60">
+          <span className="live-dot" />
+          <span>Plataforma operacional · Online</span>
+        </div>
+      </header>
+
+      <main className="relative z-10 grid lg:grid-cols-[1.1fr_minmax(0,440px)] gap-12 lg:gap-20 items-center px-6 md:px-10 lg:px-16 pb-16">
+        {/* ─── Left: pitch ─── */}
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="hidden lg:block max-w-2xl"
+        >
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md text-xs font-medium text-white/80 mb-8">
+            <Sparkles size={13} className="text-amber-400" />
+            <span>Forzy · Plataforma de Gêmeo Digital</span>
           </div>
 
-          {/* Error Messages */}
-          {(error || localError) && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-red-300 text-sm">
-                {error || localError}
-              </p>
-            </div>
-          )}
+          <h1 className="text-5xl xl:text-6xl font-bold tracking-tight leading-[1.05] mb-6 text-white">
+            Seus motores industriais,{' '}
+            <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-orange-500 bg-clip-text text-transparent">
+              conectados, monitorados e preditivos.
+            </span>
+          </h1>
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-5 mb-6">
-            {/* Email Input */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={credentials.email}
-                  onChange={handleChange}
-                  placeholder="admin@industrial.com"
-                  disabled={isLoading}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                />
+          <p className="text-lg text-white/60 leading-relaxed mb-12 max-w-xl">
+            Conecte sensores, antecipe falhas e planeje paradas estratégicas em uma
+            única plataforma. Do dado bruto ao diagnóstico inteligente — com IoT, IA
+            e governança.
+          </p>
+
+          <div className="grid sm:grid-cols-3 gap-4 max-w-2xl">
+            {features.map((f, i) => (
+              <motion.div
+                key={f.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
+                className="group relative rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-md p-5 hover:bg-white/[0.04] transition-colors"
+              >
+                <div className="absolute inset-x-6 -top-px h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/20 flex items-center justify-center mb-4">
+                  <f.icon size={18} className="text-amber-400" />
+                </div>
+                <p className="text-sm font-semibold text-white mb-1">{f.label}</p>
+                <p className="text-xs text-white/50 leading-relaxed">{f.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="mt-12 flex items-center gap-6 text-xs text-white/40">
+            <span>Uma empresa Promon · Engenharia desde 1960</span>
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="font-mono tracking-widest">FORZY · DIGITAL TWIN</span>
+          </div>
+        </motion.section>
+
+        {/* ─── Right: login card ─── */}
+        <motion.section
+          initial={{ opacity: 0, scale: 0.97, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+          className="w-full max-w-[440px] mx-auto lg:mx-0"
+        >
+          <div className="relative">
+            {/* gradient border */}
+            <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-amber-500/40 via-white/5 to-transparent opacity-80 pointer-events-none" />
+            <div className="relative rounded-3xl bg-[#0B0D14]/90 backdrop-blur-2xl border border-white/[0.06] p-8 md:p-10 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.7)]">
+              {/* Logo on small screens */}
+              <div className="lg:hidden mb-8 flex justify-center">
+                <img src={logoWhite} alt="Forzy" className="h-16 w-auto" />
               </div>
-            </div>
 
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={credentials.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  disabled={isLoading}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                />
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-white tracking-tight mb-2">
+                  Acesse sua plataforma
+                </h2>
+                <p className="text-sm text-white/50">
+                  Entre com suas credenciais para abrir o console operacional
+                </p>
               </div>
-            </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-semibold py-3 rounded-lg transition-all duration-200 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Signing in...</span>
-                </>
-              ) : (
-                'Sign In'
+              {(error || localError) && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 p-3.5 bg-red-500/10 border border-red-500/25 rounded-xl flex gap-3"
+                >
+                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-red-300 text-xs leading-relaxed">{error || localError}</p>
+                </motion.div>
               )}
-            </button>
-          </form>
 
-          {/* Demo Credentials Toggle */}
-          <button
-            type="button"
-            onClick={() => setShowDemo(!showDemo)}
-            className="w-full text-center text-slate-400 hover:text-slate-300 text-xs font-medium transition-colors py-2 border-t border-slate-700/50"
-          >
-            {showDemo ? '▼ Hide Demo Credentials' : '▶ Show Demo Credentials'}
-          </button>
-
-          {/* Demo Credentials Info */}
-          {showDemo && (
-            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg space-y-3">
-              <p className="text-blue-300 text-xs font-semibold">Test with any credentials:</p>
-              <div className="space-y-2">
-                {demoCredentials.map((cred) => (
-                  <button
-                    key={cred.email}
-                    onClick={() => handleDemoLogin(cred.email)}
-                    type="button"
-                    className="w-full text-left p-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 rounded transition-colors group"
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-2"
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-slate-300 text-sm font-medium group-hover:text-blue-300 transition-colors">
-                          {cred.role}
-                        </p>
-                        <p className="text-slate-500 text-xs">{cred.email}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-slate-500 text-xs">Password:</p>
-                        <p className="text-slate-400 text-xs font-mono">{cred.password}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+                    E-mail corporativo
+                  </label>
+                  <div className="relative group">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within:text-amber-400 transition-colors" />
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      autoComplete="email"
+                      value={credentials.email}
+                      onChange={handleChange}
+                      placeholder="seu.nome@empresa.com.br"
+                      disabled={isLoading}
+                      className="w-full pl-11 pr-4 py-3.5 bg-white/[0.03] border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-amber-400/40 focus:bg-white/[0.05] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.08)] transition-all disabled:opacity-50"
+                    />
+                  </div>
+                </div>
 
-        {/* Security Info Footer */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label
+                      htmlFor="password"
+                      className="block text-[11px] font-semibold uppercase tracking-wider text-white/50"
+                    >
+                      Senha
+                    </label>
+                    <button
+                      type="button"
+                      className="text-[11px] font-medium text-white/50 hover:text-amber-400 transition-colors"
+                    >
+                      Esqueci minha senha
+                    </button>
+                  </div>
+                  <div className="relative group">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within:text-amber-400 transition-colors" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      id="password"
+                      name="password"
+                      autoComplete="current-password"
+                      value={credentials.password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      disabled={isLoading}
+                      className="w-full pl-11 pr-11 py-3.5 bg-white/[0.03] border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-amber-400/40 focus:bg-white/[0.05] focus:shadow-[0_0_0_4px_rgba(245,158,11,0.08)] transition-all disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="group relative w-full mt-2 py-3.5 rounded-xl font-semibold text-sm text-white overflow-hidden transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, #F59E0B 0%, #FB923C 100%)',
+                    boxShadow:
+                      '0 1px 0 0 rgba(255,255,255,0.25) inset, 0 12px 32px -8px rgba(245,158,11,0.6)',
+                  }}
+                >
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                  <span className="relative flex items-center justify-center gap-2">
+                    {isLoading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                          />
+                          <path
+                            className="opacity-90"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                        Autenticando…
+                      </>
+                    ) : (
+                      <>
+                        Entrar na plataforma
+                        <ArrowRight
+                          size={16}
+                          className="group-hover:translate-x-0.5 transition-transform"
+                        />
+                      </>
+                    )}
+                  </span>
+                </button>
+              </form>
+
+              <button
+                type="button"
+                onClick={() => setShowDemo(!showDemo)}
+                className="w-full mt-7 pt-5 border-t border-white/5 text-center text-[11px] font-medium text-white/40 hover:text-white/70 transition-colors"
+              >
+                {showDemo ? '— Ocultar credenciais de demonstração —' : '— Ver credenciais de demonstração —'}
+              </button>
+
+              {showDemo && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-4 space-y-2 overflow-hidden"
+                >
+                  {demoCredentials.map((cred) => (
+                    <button
+                      key={cred.email}
+                      onClick={() => handleDemoLogin(cred.email)}
+                      type="button"
+                      className="w-full text-left p-3 bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 rounded-xl transition-all group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-white/90 group-hover:text-amber-400 transition-colors">
+                            {cred.role}
+                          </p>
+                          <p className="text-[11px] text-white/40 font-mono">
+                            {cred.email}
+                          </p>
+                        </div>
+                        <ArrowRight
+                          size={14}
+                          className="text-white/30 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all"
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </div>
           </div>
-        </div>
-  );
-};
+
+          <p className="mt-6 text-center text-[11px] text-white/30">
+            Acesso protegido por criptografia e auditoria · © Forzy {new Date().getFullYear()} · Uma empresa Promon
+          </p>
+        </motion.section>
+      </main>
+    </div>
+  )
+}
