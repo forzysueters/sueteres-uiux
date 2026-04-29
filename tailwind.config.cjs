@@ -1,21 +1,28 @@
 module.exports = {
   darkMode: 'class',
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       colors: {
         background: 'var(--background)',
+        'background-elevated': 'var(--background-elevated)',
         card: 'var(--card)',
+        'card-hover': 'var(--card-hover)',
         border: 'var(--border)',
+        'border-strong': 'var(--border-strong)',
         muted: 'var(--muted)',
+        'muted-soft': 'var(--muted-soft)',
         foreground: 'var(--foreground)',
+        'foreground-soft': 'var(--foreground-soft)',
         primary: 'var(--primary)',
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        danger: 'var(--danger)',
+        info: 'var(--info)',
         slate: {
           950: '#0B1220',
           900: '#111827',
@@ -31,24 +38,34 @@ module.exports = {
         },
       },
       backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, var(--primary) 0%, rgba(var(--primary-rgb), 0.8) 100%)',
-        'gradient-subtle': 'linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%)',
+        'gradient-primary':
+          'linear-gradient(135deg, rgb(var(--primary-rgb)) 0%, rgba(var(--primary-rgb), 0.7) 100%)',
+        'gradient-mesh':
+          'radial-gradient(at 20% 0%, rgba(var(--primary-rgb), 0.18) 0%, transparent 50%), radial-gradient(at 100% 100%, rgba(var(--info-rgb), 0.18) 0%, transparent 50%)',
+        'gradient-subtle':
+          'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)',
       },
       boxShadow: {
-        'saas-card': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-        'saas-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-        'glow-primary': '0 0 15px rgba(var(--primary-rgb), 0.3)',
-        'panel': '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        'saas-card': '0 1px 3px 0 rgba(0,0,0,0.08), 0 1px 2px 0 rgba(0,0,0,0.04)',
+        'saas-hover':
+          '0 12px 32px -12px rgba(0,0,0,0.45), 0 1px 0 0 rgba(255,255,255,0.04) inset',
+        'glow-primary':
+          '0 0 0 1px rgba(var(--primary-rgb), 0.25), 0 8px 28px -4px rgba(var(--primary-rgb), 0.45)',
+        panel: '0 32px 64px -16px rgba(0,0,0,0.6)',
+        'inner-light': 'inset 0 1px 0 0 rgba(255,255,255,0.04)',
       },
       borderRadius: {
-        'xl': '0.75rem',
-        '2xl': '1rem',
+        xl: '0.875rem',
+        '2xl': '1.125rem',
+        '3xl': '1.5rem',
       },
       animation: {
         'slide-in-right': 'slide-in-right 0.3s ease-out',
         'slide-in-top': 'slide-in-top 0.2s ease-out',
-        'fade-in': 'fade-in 0.2s ease-out',
+        'fade-in': 'fade-in 0.4s ease-out',
         'spin-slow': 'spin 3s linear infinite',
+        'gradient-shift': 'gradient-shift 8s ease infinite',
+        float: 'float 4s ease-in-out infinite',
       },
       keyframes: {
         'pulse-glow': {
@@ -59,13 +76,13 @@ module.exports = {
           '0%, 100%': { borderColor: 'rgba(239,68,68,0.5)' },
           '50%': { borderColor: 'rgba(239,68,68,1)' },
         },
-        'shimmer': {
+        shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
-        'float': {
+        float: {
           '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-6px)' },
+          '50%': { transform: 'translateY(-8px)' },
         },
         'slide-in-right': {
           '0%': { transform: 'translateX(100%)', opacity: '0' },
@@ -76,7 +93,7 @@ module.exports = {
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
         'fade-in': {
-          '0%': { opacity: '0', transform: 'translateY(6px)' },
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         'bounce-dot': {
@@ -93,5 +110,5 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 }
