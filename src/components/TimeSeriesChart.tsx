@@ -6,11 +6,11 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   AreaChart,
   Area,
 } from 'recharts';
+import { tooltipStyle } from '../theme';
 
 interface TimeSeriesData {
   timestamp: string;
@@ -33,57 +33,80 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   title,
   dataKey,
   unit,
-  color = '#3b82f6',
+  color = 'var(--primary)',
   thresholdKey,
-  type = 'line',
+  type = 'area',
 }) => {
   const ChartComponent = type === 'area' ? AreaChart : LineChart;
-  const LineComponent = type === 'area' ? Area : Line;
+  const gradId = `ts-gradient-${dataKey}`;
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-slate-100 mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height={250}>
-        <ChartComponent data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+    <div
+      className="saas-card p-4"
+      style={{
+        background: 'rgba(15,22,35,0.8)',
+      }}
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <div
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }}
+        />
+        <h3 className="text-sm font-semibold text-slate-100">{title}</h3>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <ChartComponent data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
           <defs>
-            <linearGradient id={`gradient-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={color} stopOpacity={0.3} />
-              <stop offset="95%" stopColor={color} stopOpacity={0} />
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={color} stopOpacity={0.35} />
+              <stop offset="95%" stopColor={color} stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
           <XAxis
             dataKey="timestamp"
-            stroke="rgba(148, 163, 184, 0.5)"
-            tick={{ fontSize: 12 }}
-            tickFormatter={(value) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            stroke="rgba(168,188,212,0.3)"
+            tick={{ fill: 'rgba(168,188,212,0.4)', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            interval="preserveStartEnd"
           />
-          <YAxis stroke="rgba(148, 163, 184, 0.5)" tick={{ fontSize: 12 }} label={{ value: unit, angle: -90, position: 'insideLeft' }} />
+          <YAxis
+            stroke="rgba(168,188,212,0.3)"
+            tick={{ fill: 'rgba(168,188,212,0.4)', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            unit={` ${unit}`}
+            width={60}
+          />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'rgba(15, 23, 42, 0.95)',
-              border: '1px solid rgba(148, 163, 184, 0.3)',
-              borderRadius: '8px',
-            }}
-            formatter={(value: number) => [value.toFixed(2), dataKey]}
-            labelFormatter={(label) => new Date(label).toLocaleString()}
+            contentStyle={tooltipStyle}
+            formatter={(value: number) => [`${value.toFixed(2)} ${unit}`, dataKey]}
+            labelFormatter={(label) => new Date(label).toLocaleTimeString()}
+            cursor={{ stroke: 'rgba(var(--primary-rgb), 0.3)', strokeWidth: 1 }}
           />
-          <Legend />
           {type === 'area' ? (
             <Area
               type="monotone"
               dataKey={dataKey}
               stroke={color}
-              fill={`url(#gradient-${dataKey})`}
+              strokeWidth={2}
+              fill={`url(#${gradId})`}
+              dot={false}
+              activeDot={{ r: 4, fill: color, stroke: '#080d18', strokeWidth: 2 }}
               name={dataKey}
+              isAnimationActive={false}
             />
           ) : (
             <Line
               type="monotone"
               dataKey={dataKey}
               stroke={color}
-              dot={false}
               strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, fill: color, stroke: '#080d18', strokeWidth: 2 }}
+              name={dataKey}
               isAnimationActive={false}
             />
           )}
@@ -94,18 +117,22 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
                 dataKey={thresholdKey}
                 stroke="#f59e0b"
                 fill="none"
-                strokeDasharray="5 5"
+                strokeDasharray="6 4"
+                strokeWidth={1.5}
+                dot={false}
                 name="Threshold"
+                isAnimationActive={false}
               />
             ) : (
               <Line
                 type="monotone"
                 dataKey={thresholdKey}
                 stroke="#f59e0b"
-                strokeDasharray="5 5"
+                strokeDasharray="6 4"
+                strokeWidth={1.5}
                 dot={false}
-                strokeWidth={1}
                 name="Threshold"
+                isAnimationActive={false}
               />
             )
           )}
