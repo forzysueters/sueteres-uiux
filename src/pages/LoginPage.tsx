@@ -8,7 +8,6 @@ import {
   Activity,
   Cpu,
   ShieldCheck,
-  Sparkles,
   Eye,
   EyeOff,
 } from 'lucide-react'
@@ -84,7 +83,7 @@ export const LoginPage = () => {
   ]
 
   return (
-    <div className="min-h-screen w-full overflow-hidden bg-[#07080D] text-white relative isolate">
+    <div className="min-h-screen w-full overflow-hidden bg-[#07080D] text-white relative isolate flex flex-col">
       {/* Animated mesh background */}
       <div className="mesh-bg" aria-hidden />
 
@@ -95,26 +94,18 @@ export const LoginPage = () => {
       />
 
       {/* Top bar */}
-      <header className="relative z-10 flex items-center justify-between px-6 md:px-10 h-28">
-        <img src={logoWhite} alt="Forzy" className="h-16 md:h-20 w-auto drop-shadow-[0_0_28px_rgba(245,158,11,0.3)]" />
-        <div className="hidden md:flex items-center gap-2 text-xs font-medium text-white/60">
-          <span className="live-dot" />
-          <span>Plataforma operacional · Online</span>
-        </div>
+      <header className="relative z-10 flex items-center justify-between px-6 md:px-10 lg:px-16 h-24 shrink-0">
+        <img src={logoWhite} alt="Forzy" className="h-12 md:h-14 w-auto drop-shadow-[0_0_28px_rgba(245,158,11,0.3)]" />
       </header>
 
-      <main className="relative z-10 grid lg:grid-cols-[1.1fr_minmax(0,440px)] gap-12 lg:gap-20 items-center px-6 md:px-10 lg:px-16 pb-16">
+      <main className="relative z-10 flex-1 grid lg:grid-cols-[1.1fr_minmax(0,440px)] gap-12 lg:gap-20 items-center px-6 md:px-10 lg:px-16 pb-10 lg:pb-12">
         {/* ─── Left: pitch ─── */}
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="hidden lg:block max-w-2xl"
+          className="hidden lg:flex flex-col justify-center max-w-2xl self-center"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md text-xs font-medium text-white/80 mb-8">
-            <Sparkles size={13} className="text-amber-400" />
-            <span>Forzy · Plataforma de Gêmeo Digital</span>
-          </div>
 
           <h1 className="text-5xl xl:text-6xl font-bold tracking-tight leading-[1.05] mb-6 text-white">
             Seus motores industriais,{' '}
@@ -216,20 +207,12 @@ export const LoginPage = () => {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label
-                      htmlFor="password"
-                      className="block text-[11px] font-semibold uppercase tracking-wider text-white/50"
-                    >
-                      Senha
-                    </label>
-                    <button
-                      type="button"
-                      className="text-[11px] font-medium text-white/50 hover:text-amber-400 transition-colors"
-                    >
-                      Esqueci minha senha
-                    </button>
-                  </div>
+                  <label
+                    htmlFor="password"
+                    className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-2"
+                  >
+                    Senha
+                  </label>
                   <div className="relative group">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within:text-amber-400 transition-colors" />
                     <input
@@ -249,7 +232,15 @@ export const LoginPage = () => {
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors"
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  <div className="mt-2 flex justify-end pr-1">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-white/45 hover:text-amber-400 transition-colors"
+                    >
+                      Esqueci minha senha
                     </button>
                   </div>
                 </div>
@@ -342,9 +333,6 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          <p className="mt-6 text-center text-[11px] text-white/30">
-            Acesso protegido por criptografia e auditoria · © Forzy {new Date().getFullYear()} · Uma empresa Promon
-          </p>
         </motion.section>
       </main>
     </div>

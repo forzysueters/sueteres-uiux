@@ -24,6 +24,7 @@ import {
 import { useAppStore } from './store/appStore'
 import { translations } from './translations'
 import { useAuthStore } from './store/authStore'
+import { apiService } from './services/api'
 import { Dashboard } from './pages/Dashboard'
 import { PlantNavigation } from './pages/PlantNavigation'
 import { AlertsPage } from './pages/AlertsPage'
@@ -39,7 +40,7 @@ import logoBlack from './assets/logo-forzy-preta.svg'
 import { cn } from './lib/utils'
 
 const AppContent = () => {
-  const { selectedAssetId, setSelectedAsset, darkMode, primaryColor, language } =
+  const { selectedAssetId, setSelectedAsset, darkMode, primaryColor, language, alerts, setAlerts } =
     useAppStore()
   const { logout } = useAuthStore()
   const t = translations[language]
@@ -55,11 +56,60 @@ const AppContent = () => {
   const [time, setTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const hasUserInteractedRef = useRef(false)
+  const prevActionableAlertsCountRef = useRef(0)
   const location = useLocation()
+
+  const playNotificationSound = (severity: 'critical' | 'warning') => {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioCtx) return
+
+    const context = new AudioCtx()
+    const now = context.currentTime
+    const baseFrequency = severity === 'critical' ? 920 : 740
+
+    const playBeep = (start: number, duration: number, gainValue: number, freq: number) => {
+      const oscillator = context.createOscillator()
+      const gainNode = context.createGain()
+
+      oscillator.type = 'triangle'
+      oscillator.frequency.setValueAtTime(freq, start)
+      gainNode.gain.setValueAtTime(0.0001, start)
+      gainNode.gain.exponentialRampToValueAtTime(gainValue, start + 0.02)
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+
+      oscillator.connect(gainNode)
+      gainNode.connect(context.destination)
+
+      oscillator.start(start)
+      oscillator.stop(start + duration)
+    }
+
+    playBeep(now, 0.17, 0.05, baseFrequency)
+    playBeep(now + 0.2, 0.2, 0.06, baseFrequency * 1.12)
+
+    window.setTimeout(() => {
+      void context.close()
+    }, 600)
+  }
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      hasUserInteractedRef.current = true
+    }
+
+    window.addEventListener('pointerdown', unlockAudio, { once: true })
+    window.addEventListener('keydown', unlockAudio, { once: true })
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+    }
   }, [])
 
   useEffect(() => {
@@ -84,10 +134,56 @@ const AppContent = () => {
     setShowProfileMenu(false)
   }, [location])
 
+  useEffect(() => {
+    let mounted = true
+
+    const loadAlerts = async () => {
+      try {
+        const alertData = await apiService.getAlerts()
+        if (!mounted) return
+
+        setAlerts(alertData)
+
+        const unresolvedAlerts = alertData.filter((alert) => !alert.resolved)
+        const actionableAlerts = unresolvedAlerts.filter((alert) => alert.severity !== 'info')
+        const actionableCount = actionableAlerts.length
+        const previousCount = prevActionableAlertsCountRef.current
+
+        if (actionableCount > previousCount && hasUserInteractedRef.current) {
+          const hasCritical = actionableAlerts.some((alert) => alert.severity === 'critical')
+          playNotificationSound(hasCritical ? 'critical' : 'warning')
+        }
+
+        prevActionableAlertsCountRef.current = actionableCount
+      } catch {
+        // Keep navbar resilient even if alert polling fails.
+      }
+    }
+
+    void loadAlerts()
+    const interval = setInterval(() => {
+      void loadAlerts()
+    }, 15000)
+
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [setAlerts])
+
+  const unresolvedAlerts = alerts.filter((alert) => !alert.resolved)
+  const actionableAlerts = unresolvedAlerts.filter((alert) => alert.severity !== 'info')
+  const criticalAlertsCount = actionableAlerts.filter((alert) => alert.severity === 'critical').length
+  const hasActionableAlerts = actionableAlerts.length > 0
+  const alertLevel: 'critical' | 'warning' | 'default' = criticalAlertsCount
+    ? 'critical'
+    : hasActionableAlerts
+      ? 'warning'
+      : 'default'
+
   const navItems = [
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
-    { id: 'alerts', label: t.nav.alerts, path: '/alertas', icon: Bell, badge: 3 },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
     { id: 'assistant', label: t.nav.assistant, path: '/assistente', icon: Bot },
   ]
@@ -139,11 +235,6 @@ const AppContent = () => {
                       strokeWidth={2.2}
                     />
                     {item.label}
-                    {item.badge && (
-                      <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500/15 text-red-500 text-[10px] font-bold rounded-md border border-red-500/25">
-                        {item.badge}
-                      </span>
-                    )}
                     {isActive && (
                       <motion.div
                         layoutId="nav-active"
@@ -175,6 +266,43 @@ const AppContent = () => {
               </span>
             </div>
           </div>
+
+          <Link
+            to="/alertas"
+            aria-label={language === 'pt' ? 'Abrir alertas' : 'Open alerts'}
+            title={language === 'pt' ? 'Centro de Alertas' : 'Alert Center'}
+            className={cn(
+              'hidden md:inline-flex relative items-center justify-center w-10 h-10 rounded-xl border transition-all duration-300',
+              alertLevel === 'critical' &&
+                'text-red-400 border-red-500/50 bg-red-500/10 shadow-[0_0_0_1px_rgba(239,68,68,0.2),0_0_20px_rgba(239,68,68,0.35)]',
+              alertLevel === 'warning' &&
+                'text-amber-400 border-amber-500/45 bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.2),0_0_18px_rgba(245,158,11,0.3)]',
+              alertLevel === 'default' &&
+                'text-muted border-border bg-card hover:text-foreground-soft hover:border-border-strong',
+            )}
+          >
+            <Bell
+              size={16}
+              strokeWidth={2.2}
+              className={cn(
+                hasActionableAlerts && 'origin-top animate-[bell-ring_3.2s_ease-in-out_infinite]',
+              )}
+            />
+
+            {unresolvedAlerts.length > 0 && (
+              <span
+                className={cn(
+                  'absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold inline-flex items-center justify-center text-white',
+                  alertLevel === 'critical' && 'bg-red-500 border border-red-500/50',
+                  alertLevel === 'warning' && 'bg-amber-500 border border-amber-500/50',
+                  alertLevel === 'default' && 'bg-card border border-border',
+                )}
+              >
+                {unresolvedAlerts.length > 99 ? '99+' : unresolvedAlerts.length}
+              </span>
+            )}
+
+          </Link>
 
           <div className="hidden md:block h-6 w-px bg-border" />
 
