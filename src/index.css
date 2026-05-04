@@ -328,6 +328,53 @@
   }
 }
 
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  8% { transform: rotate(-14deg); }
+  16% { transform: rotate(12deg); }
+  24% { transform: rotate(-10deg); }
+  32% { transform: rotate(8deg); }
+  40% { transform: rotate(-6deg); }
+  48% { transform: rotate(4deg); }
+  56% { transform: rotate(0deg); }
+}
+
+@keyframes alert-pulse-critical {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes alert-pulse-warning {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+  }
+}
+
+@keyframes badge-pulse-critical {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes badge-pulse-warning {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 5px rgba(245, 158, 11, 0);
+  }
+}
+
 /* ───────── Custom scrollbar ───────── */
 .scrollbar-thin::-webkit-scrollbar {
   width: 8px;

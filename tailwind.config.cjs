@@ -66,6 +66,10 @@ module.exports = {
         'spin-slow': 'spin 3s linear infinite',
         'gradient-shift': 'gradient-shift 8s ease infinite',
         float: 'float 4s ease-in-out infinite',
+        'alert-pulse-critical': 'alert-pulse-critical 3s ease-in-out infinite',
+        'alert-pulse-warning': 'alert-pulse-warning 4s ease-in-out infinite',
+        'badge-pulse-critical': 'badge-pulse-critical 2s ease-out infinite',
+        'badge-pulse-warning': 'badge-pulse-warning 2.5s ease-out infinite',
       },
       keyframes: {
         'pulse-glow': {
@@ -103,6 +107,38 @@ module.exports = {
         'gradient-shift': {
           '0%, 100%': { backgroundPosition: '0% 50%' },
           '50%': { backgroundPosition: '100% 50%' },
+        },
+        'alert-pulse-critical': {
+          '0%': {
+            boxShadow: '0 0 0 0 rgba(239, 68, 68, 0.5)',
+          },
+          '100%': {
+            boxShadow: '0 0 0 12px rgba(239, 68, 68, 0)',
+          },
+        },
+        'alert-pulse-warning': {
+          '0%': {
+            boxShadow: '0 0 0 0 rgba(245, 158, 11, 0.4)',
+          },
+          '100%': {
+            boxShadow: '0 0 0 10px rgba(245, 158, 11, 0)',
+          },
+        },
+        'badge-pulse-critical': {
+          '0%': {
+            boxShadow: '0 0 0 0 rgba(239, 68, 68, 0.6)',
+          },
+          '100%': {
+            boxShadow: '0 0 0 6px rgba(239, 68, 68, 0)',
+          },
+        },
+        'badge-pulse-warning': {
+          '0%': {
+            boxShadow: '0 0 0 0 rgba(245, 158, 11, 0.5)',
+          },
+          '100%': {
+            boxShadow: '0 0 0 5px rgba(245, 158, 11, 0)',
+          },
         },
       },
       backdropBlur: {
