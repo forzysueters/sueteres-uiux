@@ -35,7 +35,6 @@ export interface Alert {
   description: string;
   timestamp: string;
   resolved: boolean;
-  resolvedAt?: string;
   mlInsight?: string;
 }
 

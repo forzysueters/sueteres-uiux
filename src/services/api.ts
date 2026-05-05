@@ -195,7 +195,6 @@ export const apiService = {
     const alert = mockAlerts.find(a => a.id === alertId);
     if (alert) {
       alert.resolved = true;
-      alert.resolvedAt = new Date().toISOString();
     }
   },
 

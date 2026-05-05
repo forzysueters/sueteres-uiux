@@ -2,7 +2,7 @@ export const translations = {
   pt: {
     nav: {
       dashboard: 'Painel',
-      plant: 'Digital Twin',
+      plant: 'Planta / Gêmeo Digital',
       alerts: 'Alertas',
       equipment: 'Equipamentos',
       assistant: 'Assistente IA',
@@ -52,20 +52,6 @@ export const translations = {
       edit_profile: 'Editar Perfil',
       security: 'Segurança',
       permissions: 'Permissões',
-    },
-    alerts: {
-      title: 'Central de Alertas',
-      subtitle: 'Gerencie anomalias críticas e notificações de manutenção',
-      search_placeholder: 'Buscar alertas...',
-      all: 'Todos',
-      critical: 'Críticos',
-      warnings: 'Alertas',
-      resolved: 'Resolvidos',
-      no_alerts: 'Nenhum alerta encontrado',
-      no_alerts_desc: 'Tente ajustar seus filtros ou busca para encontrar o que procura.',
-      mark_resolved: 'Marcar como resolvido',
-      view_insight: 'Ver Insight IA',
-      open_asset: 'Abrir',
     }
   },
   en: {
@@ -121,20 +107,6 @@ export const translations = {
       edit_profile: 'Edit Profile',
       security: 'Security',
       permissions: 'Permissions',
-    },
-    alerts: {
-      title: 'Alerts Center',
-      subtitle: 'Manage critical anomalies and maintenance notifications',
-      search_placeholder: 'Search alerts...',
-      all: 'All',
-      critical: 'Critical',
-      warnings: 'Warnings',
-      resolved: 'Resolved',
-      no_alerts: 'No alerts found',
-      no_alerts_desc: 'Try adjusting your filters or search to find what you\'re looking for.',
-      mark_resolved: 'Mark as resolved',
-      view_insight: 'View AI Insight',
-      open_asset: 'Open',
     }
   }
 };
