@@ -28,9 +28,9 @@ dist-ssr
 .env.local
 .env.*.local
 
-# SQLite (gerado em runtime pelo backend)
-server/data/
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
+# package-lock.json deixado fora do controle de versao porque ele
+# regenerado em diferentes plataformas (Windows local + Linux CI)
+# produz entries inconsistentes pra optional deps platform-specific
+# (ex: @esbuild/netbsd-arm64), que quebram `npm ci` no Cloudflare.
+# Sem lock no repo, Cloudflare cai em `npm install` (tolerante).
+package-lock.json
