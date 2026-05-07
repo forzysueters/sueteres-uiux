@@ -123,7 +123,7 @@ export const Dashboard: React.FC = () => {
             <Sparkles size={11} className="text-primary" />
             <span>Operations Console</span>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">{t.title}</h1>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{t.title}</h1>
           <p className="mt-1.5">
             {t.subtitle} · <span className="font-semibold text-foreground-soft tabular-nums">{assets.length}</span> {t.tracked}
           </p>

@@ -23,6 +23,8 @@ import {
   Activity,
   ClipboardList,
   History,
+  Menu,
+  X,
 } from 'lucide-react'
 import { useAppStore } from './store/appStore'
 import { translations } from './translations'
@@ -60,6 +62,7 @@ const AppContent = () => {
 
   const [time, setTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
 
@@ -88,7 +91,19 @@ const AppContent = () => {
 
   useEffect(() => {
     setShowProfileMenu(false)
+    setShowMobileMenu(false)
   }, [location])
+
+  useEffect(() => {
+    if (showMobileMenu) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showMobileMenu])
 
   const navItems = [
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
@@ -104,14 +119,24 @@ const AppContent = () => {
   return (
     <div className="flex flex-col h-screen bg-background text-foreground font-sans overflow-hidden">
       {/* Navbar */}
-      <nav className="relative h-20 border-b border-border bg-background-elevated/80 backdrop-blur-xl px-4 md:px-6 flex items-center justify-between z-40 sticky top-0">
+      <nav className="relative h-16 md:h-20 border-b border-border bg-background-elevated/80 backdrop-blur-xl px-4 md:px-6 flex items-center justify-between z-40 sticky top-0">
         {/* subtle bottom gradient */}
         <div
           aria-hidden
           className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-border-strong to-transparent"
         />
 
-        <div className="flex items-center gap-6 md:gap-8 h-full">
+        <div className="flex items-center gap-3 md:gap-8 h-full">
+          {/* Mobile hamburger */}
+          <button
+            type="button"
+            onClick={() => setShowMobileMenu(true)}
+            className="md:hidden inline-flex items-center justify-center w-10 h-10 -ml-2 rounded-lg text-foreground-soft hover:bg-card-hover transition-colors"
+            aria-label="Abrir menu"
+          >
+            <Menu size={22} strokeWidth={2.2} />
+          </button>
+
           <Link
             to="/dashboard"
             className="flex items-center h-full transition-opacity hover:opacity-80"
@@ -119,7 +144,7 @@ const AppContent = () => {
             <img
               src={darkMode ? logoWhite : logoBlack}
               alt="Forzy Logo"
-              className="h-12 w-auto object-contain"
+              className="h-9 md:h-12 w-auto object-contain"
             />
           </Link>
 
@@ -266,9 +291,108 @@ const AppContent = () => {
         </div>
       </nav>
 
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {showMobileMenu && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowMobileMenu(false)}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
+              aria-hidden
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+              className="fixed top-0 left-0 z-50 h-full w-[82vw] max-w-[320px] bg-background-elevated border-r border-border shadow-2xl md:hidden flex flex-col"
+              role="dialog"
+              aria-label="Menu de navegação"
+            >
+              <div className="h-16 px-4 flex items-center justify-between border-b border-border">
+                <img
+                  src={darkMode ? logoWhite : logoBlack}
+                  alt="Forzy"
+                  className="h-9 w-auto"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-lg text-foreground-soft hover:bg-card-hover transition-colors"
+                  aria-label="Fechar menu"
+                >
+                  <X size={20} strokeWidth={2.2} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-1">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.id}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-card-hover text-foreground border border-border'
+                          : 'text-muted hover:bg-card-hover hover:text-foreground-soft',
+                      )
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon
+                          size={18}
+                          className={isActive ? 'text-primary' : 'text-muted'}
+                          strokeWidth={2.2}
+                        />
+                        <span className="flex-1">{item.label}</span>
+                        {item.badge && (
+                          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500/15 text-red-500 text-[10px] font-bold rounded-md border border-red-500/25">
+                            {item.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+
+              <div className="p-3 border-t border-border space-y-1">
+                <Link
+                  to="/conta"
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-foreground-soft hover:bg-card-hover transition-colors"
+                >
+                  <User size={16} className="text-muted" />
+                  {t.nav.account}
+                </Link>
+                <Link
+                  to="/configuracoes"
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-foreground-soft hover:bg-card-hover transition-colors"
+                >
+                  <Settings size={16} className="text-muted" />
+                  {t.nav.settings}
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut size={16} />
+                  {t.nav.logout}
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Page content */}
       <main className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="max-w-[1600px] mx-auto p-6 md:p-8">
+        <div className="max-w-[1600px] mx-auto p-4 md:p-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
