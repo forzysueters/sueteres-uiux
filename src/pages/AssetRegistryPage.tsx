@@ -13,13 +13,10 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   Camera,
-  CheckCircle2,
   ClipboardList,
   Cog,
-  Cpu,
   FileText,
   Settings2,
-  ShieldCheck,
   Sparkles,
   Thermometer,
   Wrench,

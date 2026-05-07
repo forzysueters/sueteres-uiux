@@ -1,66 +1,82 @@
-import axios, { AxiosError, AxiosInstance } from 'axios'
-import { AuthResponse, LoginCredentials, User } from '../types/auth'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+import { AuthResponse, LoginCredentials, User, UserRole } from '../types/auth'
+import { supabase } from '../lib/supabaseClient'
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js'
 
 export type VerifyResult =
   | { status: 'authenticated'; user: User }
   | { status: 'unauthenticated' }
   | { status: 'network-error' }
 
-class AuthAPI {
-  private client: AxiosInstance
+const isNetworkError = (err: unknown): boolean => {
+  const message = err instanceof Error ? err.message.toLowerCase() : ''
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('network') ||
+    message.includes('load failed')
+  )
+}
 
-  constructor() {
-    this.client = axios.create({
-      baseURL: API_BASE_URL,
-      withCredentials: true,
-    })
+const buildUser = async (
+  supaUser: SupabaseUser,
+  fallbackName?: string,
+): Promise<User> => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('name, role')
+    .eq('id', supaUser.id)
+    .maybeSingle()
 
-    this.client.interceptors.request.use((config) => {
-      const accessToken = localStorage.getItem('accessToken')
-      if (accessToken) {
-        config.headers.Authorization = `Bearer ${accessToken}`
-      }
-      return config
-    })
+  if (error) throw error
+
+  return {
+    id: supaUser.id,
+    email: supaUser.email ?? '',
+    name: data?.name ?? fallbackName ?? supaUser.email ?? 'Usuário',
+    role: (data?.role as UserRole) ?? 'technician',
   }
+}
 
+const sessionToResponse = async (session: Session): Promise<AuthResponse> => {
+  const user = await buildUser(session.user)
+  return { accessToken: session.access_token, user }
+}
+
+class AuthAPI {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    try {
-      const response = await this.client.post<AuthResponse>(
-        '/auth/login',
-        credentials,
-      )
-      return response.data
-    } catch (error: any) {
-      throw new Error(
-        error.response?.data?.error || 'Falha no login. Tente novamente.',
-      )
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: credentials.email,
+      password: credentials.password,
+    })
+
+    if (error || !data.session) {
+      throw new Error(error?.message || 'Falha no login. Tente novamente.')
     }
+
+    return sessionToResponse(data.session)
   }
 
   async refresh(): Promise<AuthResponse> {
     try {
-      const response = await this.client.post<AuthResponse>('/auth/refresh')
-      return response.data
-    } catch (error: any) {
-      // Diferencia erro de rede vs servidor recusando explicitamente
-      const err = error as AxiosError
-      if (!err.response) {
+      const { data, error } = await supabase.auth.refreshSession()
+      if (error || !data.session) {
+        throw new Error(error?.message || 'Token refresh failed')
+      }
+      return sessionToResponse(data.session)
+    } catch (err) {
+      if (isNetworkError(err)) {
         const e = new Error('Network error during refresh') as Error & {
           isNetworkError?: boolean
         }
         e.isNetworkError = true
         throw e
       }
-      throw new Error((err.response.data as any)?.error || 'Token refresh failed')
+      throw err
     }
   }
 
   async logout(): Promise<void> {
     try {
-      await this.client.post('/auth/logout')
+      await supabase.auth.signOut()
     } catch (error) {
       console.error('Logout error:', error)
     }
@@ -68,36 +84,24 @@ class AuthAPI {
 
   async verify(): Promise<VerifyResult> {
     try {
-      const response = await this.client.get<{
-        authenticated: boolean
-        user?: User
-      }>('/auth/verify')
-      if (response.data.authenticated && response.data.user) {
-        return { status: 'authenticated', user: response.data.user }
+      const { data, error } = await supabase.auth.getSession()
+      if (error) {
+        if (isNetworkError(error)) return { status: 'network-error' }
+        return { status: 'unauthenticated' }
       }
-      return { status: 'unauthenticated' }
-    } catch (error) {
-      const err = error as AxiosError
-      // Sem response = erro de rede (servidor offline / sem internet).
-      // NÃO confundir com sessão inválida.
-      if (!err.response) {
-        return { status: 'network-error' }
-      }
+      if (!data.session) return { status: 'unauthenticated' }
+      const user = await buildUser(data.session.user)
+      return { status: 'authenticated', user }
+    } catch (err) {
+      if (isNetworkError(err)) return { status: 'network-error' }
       return { status: 'unauthenticated' }
     }
   }
 
-  setAuthHeader(token: string): void {
-    this.client.defaults.headers.common['Authorization'] = `Bearer ${token}`
-  }
-
-  clearAuthHeader(): void {
-    delete this.client.defaults.headers.common['Authorization']
-  }
-
-  getClient(): AxiosInstance {
-    return this.client
-  }
+  // Kept for backwards compatibility with existing callers.
+  // Supabase manages auth headers internally on the client, so these are no-ops.
+  setAuthHeader(_token: string): void {}
+  clearAuthHeader(): void {}
 }
 
 export const authAPI = new AuthAPI()
