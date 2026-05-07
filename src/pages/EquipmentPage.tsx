@@ -30,9 +30,9 @@ export const EquipmentPage: React.FC = () => {
         </p>
       </div>
 
-      <div className="saas-card p-6 bg-slate-900/20">
+      <div className="saas-card p-5 md:p-6 bg-slate-900/20">
         <span className="section-title">Como funciona</span>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
           {howItWorks.map(({ step, text }, i) => (
             <div key={step} className="flex items-start gap-4">
               <div className="flex items-start gap-4 flex-1">
@@ -51,21 +51,21 @@ export const EquipmentPage: React.FC = () => {
 
       <EquipmentRegistrationForm assetId={selectedAssetId || undefined} />
 
-      <div className="saas-card p-6">
+      <div className="saas-card p-5 md:p-6">
         <span className="section-title">Registros Recentes</span>
         <div className="space-y-3">
           {recentEquipment.map(({ name, spec, status, date }) => (
             <div
               key={name}
-              className="flex items-center justify-between p-4 rounded-lg bg-slate-800/20 border border-border hover:bg-slate-800/40 hover:border-primary/30 transition-all group"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-slate-800/20 border border-border hover:bg-slate-800/40 hover:border-primary/30 transition-all group"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 min-w-0">
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-slate-800 border border-border text-primary">
                   <Package size={20} />
                 </div>
-                <div>
-                  <p className="font-bold text-sm text-foreground dark:text-white">{name}</p>
-                  <p className="text-[10px] mt-0.5 font-mono text-muted">{spec}</p>
+                <div className="min-w-0">
+                  <p className="font-bold text-sm text-foreground dark:text-white truncate">{name}</p>
+                  <p className="text-[10px] mt-0.5 font-mono text-muted truncate">{spec}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4 flex-shrink-0">

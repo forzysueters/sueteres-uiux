@@ -130,21 +130,21 @@ export const HistoryPage: React.FC = () => {
             <Sparkles size={11} className="text-primary" />
             <span>Sprint 1 · Histórico Operacional</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
             Histórico do Ativo
           </h1>
-          <p className="mt-1.5 text-sm">
+          <p className="mt-1.5 text-xs md:text-sm">
             Séries temporais convertidas. Base que sustentará anomaly detection
             (Sprint 3).
           </p>
         </div>
-        <button onClick={downloadCSV} className="btn-ghost text-xs">
+        <button onClick={downloadCSV} className="btn-ghost text-xs self-start md:self-auto">
           <Download size={14} />
           Exportar CSV
         </button>
       </motion.div>
 
-      <div className="saas-card-premium p-5 space-y-4">
+      <div className="saas-card-premium p-4 md:p-5 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
             Sensor:
@@ -195,19 +195,20 @@ export const HistoryPage: React.FC = () => {
         </div>
       )}
 
-      <div className="saas-card-premium p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <History size={16} className="text-primary" />
-            <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+      <div className="saas-card-premium p-4 md:p-5">
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <History size={16} className="text-primary flex-shrink-0" />
+            <span className="text-xs font-bold uppercase tracking-wider text-foreground truncate">
               {def?.display_name ?? 'Sensor'} · janela {window}
             </span>
           </div>
-          <span className="text-[10px] text-muted-soft font-mono">
+          <span className="text-[10px] text-muted-soft font-mono flex-shrink-0">
             {readings?.length ?? 0} pontos
           </span>
         </div>
-        <ResponsiveContainer width="100%" height={360}>
+        <div className="h-[260px] md:h-[360px]">
+        <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id="historyGrad" x1="0" y1="0" x2="0" y2="1">
@@ -269,6 +270,7 @@ export const HistoryPage: React.FC = () => {
             />
           </AreaChart>
         </ResponsiveContainer>
+        </div>
         {isLoading && !readings && (
           <p className="text-xs text-muted-soft text-center py-4">
             Carregando histórico…

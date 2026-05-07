@@ -63,7 +63,7 @@ export const KPICard: React.FC<KPICardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -2 }}
-      className="group relative saas-card-premium p-5 overflow-hidden"
+      className="group relative saas-card-premium p-4 md:p-5 overflow-hidden"
     >
       {/* Decorative glow on hover */}
       <div

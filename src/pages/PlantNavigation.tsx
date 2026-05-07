@@ -58,7 +58,7 @@ export const PlantNavigation: React.FC = () => {
         </div>
       </div>
 
-      <div className="saas-card p-10 overflow-auto bg-slate-900/30">
+      <div className="saas-card p-4 md:p-10 overflow-auto bg-slate-900/30">
         <div
           className="grid gap-8 relative mx-auto"
           style={{
@@ -99,7 +99,7 @@ export const PlantNavigation: React.FC = () => {
         </div>
       </div>
 
-      <div className="saas-card p-4 flex items-center gap-8 flex-wrap">
+      <div className="saas-card p-4 flex items-center gap-4 md:gap-8 flex-wrap">
         <span className="section-title !mb-0">Legenda</span>
         {[
           { color: 'bg-emerald-500', label: 'Normal' },

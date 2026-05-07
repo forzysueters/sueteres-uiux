@@ -126,10 +126,10 @@ export const TelemetryPage: React.FC = () => {
             <Sparkles size={11} className="text-primary" />
             <span>Sprint 1 · Telemetria ao Vivo</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
             {equipment?.name ?? 'Carregando…'}
           </h1>
-          <p className="mt-1.5 text-sm">
+          <p className="mt-1.5 text-xs md:text-sm break-words">
             <span className="font-mono text-foreground-soft">{TAG}</span>
             {equipment?.modelo && (
               <>
@@ -151,7 +151,7 @@ export const TelemetryPage: React.FC = () => {
 
       {/* Sensor cards */}
       {loadingLatest && !latest ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
           {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
@@ -160,7 +160,7 @@ export const TelemetryPage: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
           {sensors.map((def, idx) => (
             <SensorCard
               key={def.sensor_key}
@@ -204,7 +204,7 @@ const SensorCard: React.FC<SensorCardProps> = ({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className="saas-card-premium p-6 relative overflow-hidden"
+      className="saas-card-premium p-4 md:p-6 relative overflow-hidden"
     >
       <div
         aria-hidden
@@ -229,8 +229,8 @@ const SensorCard: React.FC<SensorCardProps> = ({
           >
             {isOffline ? <PowerOff size={18} /> : <Icon size={18} />}
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground truncate">
               {def.display_name}
             </h3>
             <p className="text-[10px] uppercase tracking-wider text-muted-soft font-mono">
@@ -263,7 +263,7 @@ const SensorCard: React.FC<SensorCardProps> = ({
             Valor convertido
           </p>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-3xl font-bold text-foreground tabular-nums tracking-tight">
+            <span className="text-2xl md:text-3xl font-bold text-foreground tabular-nums tracking-tight">
               {isOffline ? '—' : reading?.value.toFixed(2) ?? '—'}
             </span>
             <span className="text-sm font-medium text-muted-soft">
@@ -276,7 +276,7 @@ const SensorCard: React.FC<SensorCardProps> = ({
             Raw {def.raw_unit}
           </p>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-foreground-soft tabular-nums">
+            <span className="text-xl md:text-2xl font-bold text-foreground-soft tabular-nums">
               {reading?.value_raw.toFixed(2) ?? '—'}
             </span>
             <span className="text-xs font-medium text-muted-soft">

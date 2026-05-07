@@ -63,30 +63,32 @@ export const AssetRegistryPage: React.FC = () => {
             <Sparkles size={11} className="text-primary" />
             <span>Sprint 1 · Cadastro Técnico</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
             Cadastro Técnico do Ativo
           </h1>
-          <p className="mt-1.5 text-sm">
+          <p className="mt-1.5 text-xs md:text-sm">
             Campos derivados do datasheet do fabricante. Estrutura base do
             Digital Twin.
           </p>
         </div>
       </motion.div>
 
-      <div className="flex items-center gap-2 border-b border-border">
+      <div className="flex items-center gap-2 border-b border-border overflow-x-auto scrollbar-thin -mx-4 px-4 md:mx-0 md:px-0">
         <TabButton
           active={activeTab === 'cadastro'}
           onClick={() => setActiveTab('cadastro')}
           icon={ClipboardList}
         >
-          Cadastro do Equipamento
+          <span className="hidden sm:inline">Cadastro do Equipamento</span>
+          <span className="sm:hidden">Cadastro</span>
         </TabButton>
         <TabButton
           active={activeTab === 'placa'}
           onClick={() => setActiveTab('placa')}
           icon={Camera}
         >
-          Campos da Placa (OCR Sprint 2/3)
+          <span className="hidden sm:inline">Campos da Placa (OCR Sprint 2/3)</span>
+          <span className="sm:hidden">Placa (OCR)</span>
         </TabButton>
       </div>
 

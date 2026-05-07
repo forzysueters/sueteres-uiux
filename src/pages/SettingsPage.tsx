@@ -24,7 +24,7 @@ export const SettingsPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Personalização */}
-        <div className="saas-card p-6 space-y-6">
+        <div className="saas-card p-5 md:p-6 space-y-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
               <Palette size={20} />
@@ -59,24 +59,24 @@ export const SettingsPage: React.FC = () => {
                   <p className="text-xs text-muted">{t.accent_desc}</p>
                 </div>
               </div>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 {/* Orange Option */}
-                <button 
+                <button
                   onClick={() => setPrimaryColor('orange')}
                   className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${primaryColor === 'orange' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'}`}
                 >
-                  <div className="w-6 h-6 rounded-full bg-[#f59e0b] shadow-lg flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-[#f59e0b] shadow-lg flex items-center justify-center flex-shrink-0">
                     {primaryColor === 'orange' && <Check size={14} className="text-white" />}
                   </div>
                   <span className="text-xs font-bold text-white">Forzy (Orange)</span>
                 </button>
 
                 {/* Purple Option */}
-                <button 
+                <button
                   onClick={() => setPrimaryColor('purple')}
                   className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${primaryColor === 'purple' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'}`}
                 >
-                  <div className="w-6 h-6 rounded-full bg-[#7C3AED] shadow-lg flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-[#7C3AED] shadow-lg flex items-center justify-center flex-shrink-0">
                     {primaryColor === 'purple' && <Check size={14} className="text-white" />}
                   </div>
                   <span className="text-xs font-bold text-white">Classic (Purple)</span>
@@ -87,7 +87,7 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         {/* Idioma */}
-        <div className="saas-card p-6 space-y-6">
+        <div className="saas-card p-5 md:p-6 space-y-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
               <Languages size={20} />

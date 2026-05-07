@@ -10,16 +10,16 @@ export const AccountPage: React.FC = () => {
       </div>
 
       <div className="saas-card overflow-hidden">
-        <div className="p-8 border-b border-border bg-slate-900/10 flex flex-col sm:flex-row items-center gap-6">
+        <div className="p-5 md:p-8 border-b border-border bg-slate-900/10 flex flex-col sm:flex-row items-center gap-6">
           <div className="w-24 h-24 rounded-2xl bg-slate-800 border border-border flex items-center justify-center text-muted">
             <User size={48} />
           </div>
           <div className="text-center sm:text-left">
             <h2 className="!mb-1">Gerente Técnico</h2>
             <p className="font-medium text-primary">Administrador do Sistema</p>
-            <div className="flex items-center gap-4 mt-4 text-xs font-medium text-muted">
-              <span className="flex items-center gap-1.5"><Mail size={14} /> tecnico@forzy.com.br</span>
-              <span className="flex items-center gap-1.5"><Building2 size={14} /> Unidade Industrial A</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-center sm:justify-start gap-2 sm:gap-4 mt-4 text-xs font-medium text-muted">
+              <span className="flex items-center justify-center sm:justify-start gap-1.5"><Mail size={14} /> tecnico@forzy.com.br</span>
+              <span className="flex items-center justify-center sm:justify-start gap-1.5"><Building2 size={14} /> Unidade Industrial A</span>
             </div>
           </div>
           <button className="sm:ml-auto btn-primary !py-2 !px-6 !text-xs !rounded-lg">
@@ -27,7 +27,7 @@ export const AccountPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="p-5 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
           <div className="space-y-4">
             <h3 className="flex items-center gap-2">
               <Shield size={18} className="text-primary" />

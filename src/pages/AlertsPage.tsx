@@ -88,22 +88,22 @@ export const AlertsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={14} />
             <input
               type="text"
               placeholder={t.alerts.search_placeholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-card border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50 transition-all w-64"
+              className="pl-9 pr-4 py-2 bg-card border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50 transition-all w-full sm:w-64"
             />
           </div>
         </div>
       </div>
 
       <div className="saas-card overflow-hidden">
-        <div className="border-b border-border bg-slate-900/10 px-6 flex items-center gap-6">
+        <div className="border-b border-border bg-slate-900/10 px-4 md:px-6 flex items-center gap-4 md:gap-6 overflow-x-auto scrollbar-thin">
           {[
             { id: 'all', label: t.alerts.all, count: stats.total },
             { id: 'critical', label: t.alerts.critical, count: stats.critical },
@@ -115,7 +115,7 @@ export const AlertsPage: React.FC = () => {
               <button
                 key={id}
                 onClick={() => setFilter(id as any)}
-                className={`py-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest relative transition-all ${
+                className={`py-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest relative transition-all whitespace-nowrap ${
                   isActive ? 'text-primary' : 'text-muted hover:text-foreground dark:hover:text-white'
                 }`}
               >

@@ -33,14 +33,14 @@ export const AssetDetailPanel: React.FC<AssetDetailPanelProps> = ({ assetId, onC
       
       <div className="relative w-full max-w-xl bg-card h-full border-l border-border flex flex-col animate-slide-in-right shadow-panel overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-border flex items-center justify-between bg-slate-900/20">
-          <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${cfg.bg} ${cfg.text}`}>
-              <cfg.icon size={24} />
+        <div className="p-4 md:p-6 border-b border-border flex items-center justify-between gap-3 bg-slate-900/20">
+          <div className="flex items-center gap-3 md:gap-4 min-w-0">
+            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.bg} ${cfg.text}`}>
+              <cfg.icon size={20} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-foreground dark:text-white tracking-tight leading-none mb-1">{asset.name}</h2>
-              <p className="text-[10px] font-bold text-muted uppercase tracking-widest">{asset.location}</p>
+            <div className="min-w-0">
+              <h2 className="text-base md:text-xl font-bold text-foreground dark:text-white tracking-tight leading-tight mb-1 truncate">{asset.name}</h2>
+              <p className="text-[10px] font-bold text-muted uppercase tracking-widest truncate">{asset.location}</p>
             </div>
           </div>
           <button
@@ -51,7 +51,7 @@ export const AssetDetailPanel: React.FC<AssetDetailPanelProps> = ({ assetId, onC
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8 scrollbar-thin">
           {/* Status Grid */}
           <div className="grid grid-cols-2 gap-4">
             <div className="saas-card p-4">

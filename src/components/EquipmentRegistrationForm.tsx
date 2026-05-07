@@ -72,12 +72,12 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-5 md:p-8">
         {step === 1 && (
           <div className="space-y-6">
             <div
               {...getRootProps()}
-              className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
+              className={`border-2 border-dashed rounded-xl p-8 md:p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
                 isDragActive
                   ? 'border-primary bg-primary/5'
                   : 'border-border bg-slate-900/20 hover:border-primary/50 hover:bg-slate-900/40'
