@@ -26,6 +26,7 @@ import { translations } from './translations'
 import { useAuthStore } from './store/authStore'
 import { Dashboard } from './pages/Dashboard'
 import { PlantNavigation } from './pages/PlantNavigation'
+import { AssetMonitorPage } from './pages/AssetMonitorPage'
 import { AlertsPage } from './pages/AlertsPage'
 import { EquipmentPage } from './pages/EquipmentPage'
 import { AssistantPage } from './pages/AssistantPage'
@@ -271,6 +272,7 @@ const AppContent = () => {
               <Routes location={location}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/planta" element={<PlantNavigation />} />
+                <Route path="/planta/ativo/:assetId" element={<AssetMonitorPage />} />
                 <Route path="/alertas" element={<AlertsPage />} />
                 <Route path="/equipamentos" element={<EquipmentPage />} />
                 <Route path="/assistente" element={<AssistantPage />} />

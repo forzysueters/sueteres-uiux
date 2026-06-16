@@ -1,397 +1,251 @@
-# Industrial Digital Twin Platform
+# Forzy Digital Twin — Plataforma Industrial de Manutenção Preditiva
 
-A production-ready frontend for predictive maintenance of electric motors and industrial equipment. Built with React, TypeScript, and Tailwind CSS.
-
-## 🎯 Features
-
-### 1. **Dashboard**
-- Real-time KPI metrics (uptime, alerts, anomalies)
-- Interactive charts showing asset status distribution
-- Uptime tracking and anomaly scores
-- Fleet overview with key indicators
-
-### 2. **Plant Navigation (Digital Twin)**
-- Visual plant layout with clickable assets
-- Interactive asset grid showing equipment location
-- Status indicators (normal, warning, critical, offline)
-- Single-click asset selection with side panel details
-
-### 3. **Asset Details**
-- Live sensor data visualization
-- Time-series charts with 60-minute history
-- Status indicators and anomaly scores
-- Maintenance schedule tracking
-- ML-powered insights
-
-### 4. **Alerts Management**
-- Real-time alert system with severity levels
-- Critical, warning, and info classifications
-- AI insights for each alert
-- Alert resolution tracking
-- Filter alerts by status and severity
-
-### 5. **Equipment Registration**
-- Image upload with computer vision simulation
-- Automatic data extraction from images
-- Equipment nameplate OCR simulation
-- Editable registration form
-- Equipment management dashboard
-
-### 6. **AI Maintenance Assistant**
-- Chat-based troubleshooting interface
-- Context-aware responses based on selected asset
-- RAG-based knowledge base simulation
-- Quick action buttons for common questions
-
-## 🛠️ Tech Stack
-
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **Zustand** - State management
-- **Recharts** - Data visualization
-- **Lucide React** - Icons
-- **Vite** - Build tool
-
-## 📦 Installation
-
-### Prerequisites
-- Node.js 16.x or higher
-- npm or yarn
-
-### Setup
-
-1. **Clone the repository**
-```bash
-cd industrial-digital-twin
-```
-
-2. **Install dependencies**
-```bash
-npm install
-```
-
-3. **Start development server**
-```bash
-npm run dev
-```
-
-The application will open at `http://localhost:5173`
-
-4. **Build for production**
-```bash
-npm run build
-```
-
-## 🏗️ Project Structure
-
-```
-src/
-├── components/          # Reusable React components
-│   ├── AIAssistant.tsx
-│   ├── AlertItem.tsx
-│   ├── AssetDetailPanel.tsx
-│   ├── Cards.tsx
-│   ├── EquipmentRegistrationForm.tsx
-│   └── TimeSeriesChart.tsx
-├── pages/              # Page components
-│   ├── Dashboard.tsx
-│   ├── PlantNavigation.tsx
-│   ├── AlertsPage.tsx
-│   ├── EquipmentPage.tsx
-│   └── AssistantPage.tsx
-├── services/           # API and external services
-│   └── api.ts         # Mock API with realistic data
-├── store/             # State management
-│   └── appStore.ts    # Zustand store
-├── types/             # TypeScript type definitions
-│   └── index.ts
-├── App.tsx            # Main app component
-├── main.tsx           # React entry point
-└── index.css          # Global styles
-```
-
-## 🎨 UI/UX Features
-
-### Dark Mode (Default)
-- Enterprise-grade dark theme
-- Reduced eye strain for industrial environments
-- High contrast for accessibility
-
-### Color System
-- **Green (#10b981)** - Normal/Healthy status
-- **Yellow (#f59e0b)** - Warning status
-- **Red (#ef4444)** - Critical/Failed status
-- **Slate** - Neutral and backgrounds
-
-### Responsive Design
-- Desktop-first approach
-- Adaptive sidebar (collapses on mobile)
-- Mobile-friendly layouts for all pages
-
-### Animations & Transitions
-- Smooth hover effects
-- Status pulse animations
-- Sidebar slide transitions
-- Chart animations
-
-## 🔄 Real-time Features
-
-The dashboard includes simulated real-time updates:
-- **Auto-refresh KPIs** - Every 5 seconds
-- **Live sensor data** - Updates every 2 seconds when panel is open
-- **Alert monitoring** - Updates every 3 seconds
-- **Smooth transitions** - No jarring data changes
-
-## 📊 Mock Data
-
-The application includes realistic mock data:
-
-### Assets (5 total)
-- Main Production Motor (Normal)
-- Backup Motor (Warning)
-- Coolant Circulation Pump (Normal)
-- Air Compressor (Critical)
-- Ventilation Fan (Normal)
-
-### Sensors (4-5 per asset)
-- Voltage (V)
-- Current (A)
-- Temperature (°C)
-- RPM/Speed
-- Vibration (mm/s)
-- Pressure (bar)
-- Flow Rate (L/min)
-
-### Alerts (4 total)
-- Critical vibration detection
-- Elevated temperature warning
-- Scheduled maintenance reminder
-- Performance optimization tip
-
-## 🎯 Navigation
-
-### Main Tabs
-1. **Dashboard** - KPIs and overview charts
-2. **Plant** - Interactive plant layout and asset selection
-3. **Alerts** - Alert management and tracking
-4. **Equipment** - Equipment registration and management
-5. **AI Assistant** - Maintenance chatbot
-
-### Side Panel
-- Opens when clicking on an asset
-- Shows live sensor data
-- Displays time-series charts
-- AI insights and recommendations
-- Maintenance scheduling
-
-## 🚀 Usage Examples
-
-### Viewing Asset Details
-1. Click "Plant" tab
-2. Click any asset tile to select it
-3. Details panel opens on the right
-4. View live sensor data and charts
-5. Click "Schedule Maintenance" or "View History"
-
-### Managing Alerts
-1. Click "Alerts" tab
-2. Filter by status (All, Active, Critical, etc.)
-3. View alert details and AI insights
-4. Click "Mark Resolved" to acknowledge
-
-### Registering Equipment
-1. Click "Equipment" tab
-2. Click "Upload Equipment Image"
-3. Select image of equipment nameplate
-4. Verify extracted data (auto-filled)
-5. Edit fields as needed
-6. Click "Register Equipment"
-
-### Getting AI Assistance
-1. Click "AI Assistant" tab
-2. Optionally select an asset first
-3. Type your question about maintenance
-4. AI provides context-aware response
-5. Use quick action buttons for common questions
-
-## 🔧 Configuration
-
-### Tailwind CSS
-- Located in `tailwind.config.cjs`
-- Extended color palette with slate
-- Custom animations and utilities
-
-### TypeScript
-- Strict mode enabled
-- Full type safety throughout
-- Type definitions in `src/types/index.ts`
-
-### Vite
-- Fast HMR (Hot Module Reload)
-- Optimized production builds
-- Configured in `vite.config.ts`
-
-## 📈 Performance Optimizations
-
-- Lazy loading of charts
-- Virtualized lists (for large datasets)
-- Optimized re-renders with Zustand
-- CSS optimization with Tailwind
-- Production build optimization
-
-## 🔐 Security Considerations
-
-- No real API calls (mock data only)
-- Client-side state management
-- Input validation on forms
-- CORS headers (if extending with real API)
-
-## 🐛 Troubleshooting
-
-### Port Already in Use
-```bash
-npm run dev -- --port 5174
-```
-
-### Node Version Issues
-```bash
-node --version  # Should be 16.x or higher
-```
-
-### Missing Dependencies
-```bash
-rm -rf node_modules package-lock.json
-npm install
-```
-
-### TypeScript Errors
-```bash
-npm run build  # Will show all TS errors
-```
-
-## 📝 Development
-
-### Adding a New Component
-1. Create file in `src/components/`
-2. Export as named export
-3. Import and use in pages
-4. Add TypeScript types
-
-### Adding a New Page
-1. Create file in `src/pages/`
-2. Add navigation item in `App.tsx`
-3. Add route/tab handling
-4. Export page component
-
-### Adding New Mock Data
-1. Edit `src/services/api.ts`
-2. Update mock arrays
-3. Extend API methods as needed
-
-## 🚢 Deployment
-
-### Build for Production
-```bash
-npm run build
-```
-
-### Preview Production Build
-```bash
-npm run preview
-```
-
-### Deploy to Netlify
-```bash
-npm run build
-# Drag dist/ folder to Netlify
-```
-
-### Deploy to Vercel
-```bash
-npm run build
-vercel deploy
-```
-
-## 📚 API Reference
-
-### Mock API Service (`src/services/api.ts`)
-
-#### `getAssets()`
-Returns all factory assets with sensor data
-
-#### `getAssetById(id: string)`
-Returns specific asset details
-
-#### `getAlerts()`
-Returns all active and resolved alerts
-
-#### `getKPIMetrics()`
-Returns fleet-wide KPI metrics
-
-#### `registerEquipment(data)`
-Simulates equipment registration
-
-#### `uploadEquipmentImage(file)`
-Simulates image upload and OCR
-
-#### `getChatResponse(message, context)`
-Gets AI assistant responses
-
-## 🎓 Learning Resources
-
-### Component Best Practices
-- Functional components with hooks
-- Props drilling minimized with Zustand
-- Reusable card components
-- Clear component separation
-
-### State Management
-- Zustand for global state
-- Custom hooks for complex logic
-- No prop drilling
-- Efficient re-renders
-
-### Data Visualization
-- Recharts for charts
-- Responsive containers
-- Custom tooltips
-- Real-time data updates
-
-## 📄 License
-
-MIT - Feel free to use this as a template for your projects
-
-## 🤝 Contributing
-
-To extend this platform:
-1. Add new sensor types in `types/index.ts`
-2. Create new API endpoints in `services/api.ts`
-3. Build components in `components/`
-4. Create pages in `pages/`
-5. Update navigation in `App.tsx`
-
-## 📞 Support
-
-For issues or questions:
-1. Check the structure and types
-2. Review mock data in `api.ts`
-3. Verify Zustand store connections
-4. Check browser console for errors
-
-## ✨ Future Enhancements
-
-- [ ] Real API integration
-- [ ] WebSocket for live updates
-- [ ] Advanced predictive analytics
-- [ ] Multi-plant support
-- [ ] User authentication
-- [ ] Role-based access control
-- [ ] Historical data export
-- [ ] Custom dashboard layouts
-- [ ] Mobile app (React Native)
-- [ ] Offline mode support
+Sistema de Gêmeo Digital para monitoramento industrial inteligente com pipeline de Visão Computacional para rastreabilidade de ativos via OCR.
 
 ---
 
-**Built with ❤️ for industrial IoT and predictive maintenance**
+## Objetivo
+
+Desenvolver uma plataforma SaaS de **Digital Twin** para indústrias, integrando:
+- Monitoramento em tempo real de ativos industriais (motores, bombas, compressores, exaustores)
+- Análise preditiva com modelos de ML para detecção de anomalias
+- **Pipeline OCR** para extração automática de dados de placas de identificação (nameplate)
+- Rastreabilidade completa: imagem → pré-processamento → OCR → cadastro → histórico
+
+---
+
+## Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FORZY DIGITAL TWIN                        │
+│                                                             │
+│  Frontend (React 18 + Vite + TypeScript + Tailwind CSS)     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │
+│  │Dashboard │ │  Planta  │ │  Alertas │ │ Equipamentos │  │
+│  │   KPIs   │ │SVG Map   │ │Realtime  │ │  OCR Register│  │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘  │
+│                                                             │
+│  State: Zustand | Routing: React Router v7 | Charts: Recharts│
+│  Animation: Framer Motion | UI: Radix Primitives            │
+│                                                             │
+│  Backend (Node.js + Express)                                │
+│  └── JWT Auth (access + refresh tokens)                     │
+│                                                             │
+│  OCR Pipeline (Python/Jupyter)                              │
+│  └── OpenCV → EasyOCR → LLM Vision → Registro              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Planta Industrial
+
+A planta simula uma unidade industrial com 4 zonas e 5 ativos monitorados:
+
+| TAG | Nome | Tipo | Área | Localização | Fabricante | Modelo | Nº Série |
+|-----|------|------|------|-------------|------------|--------|----------|
+| MTR-001 | Motor Principal Linha A | Motor | Hall A | Linha de Produção A — Posto 1 | WEG | W22 IE3 | WEG2024-MTR001 |
+| MTR-002 | Motor Secundário Linha A | Motor | Hall A | Linha de Produção A — Posto 2 | Siemens | SIMOTICS SD | SIE2023-MTR002 |
+| BBA-001 | Bomba de Circulação | Bomba | Hall B | Sistema Hidráulico — Bomba Principal | KSB | Etanorm 32-200 | SN-KSB-20220615 |
+| CMP-001 | Compressor de Ar | Compressor | Hall C | Central de Ar Comprimido | Atlas Copco | GA 22+ | SN-AC-20211210 |
+| EXA-001 | Exaustor de Cobertura | Exaustor | Cobertura | Área Técnica — Cobertura Norte | WEG | W21 71 IE2 | SN-WEG-20230301 |
+
+---
+
+## Pipeline OCR (Sprint 2 — Visão Computacional)
+
+### Fluxo
+
+```
+Planta → Ativo → Captura → Pré-proc. OpenCV → EasyOCR → Validação LLM → Registro
+```
+
+### Etapas OpenCV
+
+1. **Grayscale** — Conversão para escala de cinza
+2. **Resize** — Normalização para 1200px (Lanczos4)
+3. **Deskew** — Correção de rotação via Hough Lines
+4. **Denoise** — Non-local Means Denoising
+5. **CLAHE** — Equalização adaptativa de contraste
+6. **Sharpening** — Unsharp Mask
+7. **Binarização** — Threshold Otsu
+8. **Morfologia** — Close + Open para remoção de ruído residual
+9. **Crop ROI** — Recorte da região de interesse com padding
+
+### Resultados
+
+| Métrica | Sem pré-proc. | Com pipeline | Melhoria |
+|---------|--------------|--------------|---------|
+| Accuracy Rate | ~55% | ~83% | +28% |
+| Character Error Rate | ~35% | ~12% | -23% |
+| Confiança OCR | ~72% | ~87% | +15% |
+
+---
+
+## Funcionalidades
+
+### 1. Dashboard
+- KPIs em tempo real (disponibilidade, alertas, anomalias)
+- Gráficos de distribuição de status da frota
+- Score de anomalia por ativo
+
+### 2. Planta / Gêmeo Digital
+- Mapa SVG interativo com hotspots por TAG
+- Status animado (pulso para crítico/alerta)
+- Tooltip com dados principais ao hover
+- **Fluxo de inspeção** — setas tracejadas e badges numerados (1–5) indicando sequência recomendada
+- Navegação hierárquica: Área → Ativo → Monitoramento Completo
+- Grid view alternativo com posicionamento por coordenadas
+
+### 3. Monitoramento de Ativo (`/planta/ativo/:id`)
+- Página dedicada com breadcrumb `Planta / Área / TAG`
+- Gauges de sensores em tempo real (atualização a cada 2s)
+- Histórico de sensores com seletor de período (1h/6h/24h/7d)
+- Insight preditivo de IA baseado no score de anomalia
+- NameplateCard com dados OCR e confiança
+- Histórico de alertas do ativo com ação de resolução
+
+### 4. Alertas
+- Sistema de alertas em tempo real com severidade (crítico/alerta/info)
+- Filtro por status, severidade e busca por texto/TAG
+- Insights ML associados
+- Resolução inline
+
+### 5. Equipamentos / Registro OCR
+- Wizard em 4 etapas para cadastro via placa
+- Pipeline visual: Imagem → Cinza → Contraste → Binarização → EasyOCR → Validação LLM
+- 14 campos de nameplate preenchidos automaticamente
+- Confiança OCR por campo
+- Rastreabilidade com hash SHA-256
+
+### 6. Assistente IA
+- Chat contextual com acesso ao ativo selecionado
+- Perguntas rápidas pré-configuradas
+- Persistência de mensagens via Zustand
+
+---
+
+## Estrutura de Arquivos
+
+```
+src/
+├── components/
+│   ├── PlantFloorMap.tsx     # SVG mapa interativo da planta
+│   ├── AssetDetailPanel.tsx  # Painel lateral com abas (sensores/histórico/placa/alertas)
+│   ├── SensorGauge.tsx       # Gauge de sensor com threshold
+│   ├── NameplateCard.tsx     # Card de placa com dados OCR
+│   ├── AIAssistant.tsx       # Chat de IA contextual
+│   └── Cards.tsx             # AssetTile com chip de TAG
+├── hooks/
+│   ├── useAssetRealtime.ts   # Atualização em tempo real via store
+│   └── useAlerts.ts          # Carregamento e resolução de alertas
+├── pages/
+│   ├── PlantNavigation.tsx   # Mapa/grid da planta
+│   ├── AssetMonitorPage.tsx  # Página completa de monitoramento
+│   ├── AlertsPage.tsx        # Gestão de alertas
+│   └── EquipmentPage.tsx     # Registro via OCR
+├── services/api.ts           # Mock API com dados determinísticos
+├── store/appStore.ts         # Estado global (Zustand)
+└── types/index.ts            # Interfaces TypeScript
+
+notebooks/
+└── sprint2_ocr_pipeline.ipynb  # Pipeline OCR completo (Sprint 2)
+
+markdowns/
+├── SPRINT2_VISAO_COMPUTACIONAL.md  # Documentação Sprint 2
+└── ocr_evaluation_results.json     # Resultados exportados pelo notebook
+```
+
+---
+
+## Execução
+
+### Frontend
+
+```bash
+# Instalar dependências
+npm install
+
+# Desenvolvimento
+npm run dev
+
+# Build produção
+npm run build
+```
+
+### Backend
+
+```bash
+cd server
+npm install
+npm start
+# Servidor em http://localhost:3001
+```
+
+### Notebook OCR (Sprint 2)
+
+```bash
+# Criar ambiente virtual
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Instalar dependências
+pip install opencv-python-headless easyocr pillow matplotlib numpy scikit-image jupyter
+
+# Executar notebook
+jupyter notebook notebooks/sprint2_ocr_pipeline.ipynb
+```
+
+---
+
+## Credenciais de Acesso
+
+```
+Email:    tecnico@forzy.com.br
+Senha:    forzy2024
+```
+
+---
+
+## Tecnologias
+
+### Frontend
+- **React 18** + **Vite** + **TypeScript**
+- **Tailwind CSS** para estilização
+- **Zustand** para estado global
+- **React Router v7** com rotas parametrizadas
+- **Recharts** para gráficos de série temporal
+- **Framer Motion** para animações
+- **Radix UI** para primitivos acessíveis
+- **Lucide React** para ícones
+
+### Backend
+- **Node.js** + **Express**
+- **JWT** (access + refresh tokens)
+
+### Visão Computacional (Sprint 2)
+- **OpenCV** (pré-processamento)
+- **EasyOCR** (extração de texto)
+- **Pillow / PIL** (geração de imagens sintéticas)
+- **NumPy + Matplotlib** (análise e visualização)
+
+---
+
+## Sprint 2 — Entregáveis de Visão Computacional
+
+Todos os 11 requisitos foram implementados:
+
+| # | Requisito | Status |
+|---|-----------|--------|
+| 1 | Contexto da planta e documentação de ativos | ✅ |
+| 2 | Visão geral visual (PlantFloorMap SVG) | ✅ |
+| 3 | Tabela de identificação de ativos | ✅ |
+| 4 | Documentação de integração futura (OCR → OPC-UA) | ✅ |
+| 5 | Imagens sintéticas de placas | ✅ |
+| 6 | Pipeline OpenCV (9 etapas, before/after) | ✅ |
+| 7 | Protótipo OCR com EasyOCR | ✅ |
+| 8 | Avaliação (accuracy, CER, análise crítica) | ✅ |
+| 9 | Fluxograma visual do pipeline | ✅ |
+| 10 | Jupyter Notebook completo | ✅ |
+| 11 | Limitações e evolução futura | ✅ |

@@ -1,249 +1,401 @@
-import { Asset, Alert, KPIMetrics, EquipmentRegistration, ChatMessage, Sensor } from '../types';
+import {
+  Asset, Alert, KPIMetrics, EquipmentRegistration,
+  ChatMessage, Sensor, SensorHistorySeries, MotorNameplate,
+} from '../types';
 
-// Mock data generators
-const generateSensorData = (baseName: string, unit: string, baseValue: number, variance: number): Sensor => ({
-  id: `sensor-${Math.random()}`,
-  name: baseName,
-  unit,
-  value: baseValue + (Math.random() - 0.5) * variance,
-  min: baseValue * 0.7,
-  max: baseValue * 1.3,
-  threshold: baseValue * 1.2,
-  status: Math.random() > 0.8 ? 'warning' : 'normal',
-});
+// ─── Helpers determinísticos (seed por assetId+sensorName) ─────────────────
+const seededRandom = (seed: number) => {
+  const x = Math.sin(seed + 1) * 10000;
+  return x - Math.floor(x);
+};
+const makeSeed = (str: string) =>
+  Array.from(str).reduce((acc, c) => acc + c.charCodeAt(0), 0);
 
+const SENSOR_COLORS: Record<string, string> = {
+  'Tensão': '#3b82f6',
+  'Corrente': '#f59e0b',
+  'Temperatura': '#ef4444',
+  'Rotação': '#10b981',
+  'Vibração': '#8b5cf6',
+  'Pressão': '#06b6d4',
+  'Vazão': '#84cc16',
+  'Potência': '#f97316',
+  'Velocidade': '#ec4899',
+  'Pressão de Saída': '#06b6d4',
+  'Temp. Entrada': '#ef4444',
+  'Temp. Saída': '#dc2626',
+  'Corrente Motor': '#f59e0b',
+  'Temp. Mancal': '#f97316',
+};
+
+const sensorColor = (name: string) => SENSOR_COLORS[name] ?? '#94a3b8';
+
+const makeSensor = (
+  name: string, unit: string, base: number, variance: number, assetSeed: number,
+): Sensor => {
+  const s = makeSeed(name) + assetSeed;
+  const r = seededRandom(s);
+  const statusR = seededRandom(s + 97);
+  return {
+    id: `sensor-${s}`,
+    name,
+    unit,
+    value: parseFloat((base + (r - 0.5) * variance).toFixed(2)),
+    min: parseFloat((base * 0.7).toFixed(2)),
+    max: parseFloat((base * 1.3).toFixed(2)),
+    threshold: parseFloat((base * 1.2).toFixed(2)),
+    status: statusR > 0.85 ? 'warning' : 'normal',
+  };
+};
+
+const makeHistory = (
+  base: number, variance: number, points: number, intervalMin: number, seed: number,
+): { timestamp: string; value: number }[] =>
+  Array.from({ length: points }, (_, i) => {
+    const ts = new Date(Date.now() - (points - i) * intervalMin * 60 * 1000);
+    const drift = Math.sin(i / (points / 4)) * variance * 0.4;
+    const noise = (seededRandom(seed + i * 13.7) - 0.5) * variance;
+    return { timestamp: ts.toISOString(), value: parseFloat((base + drift + noise).toFixed(2)) };
+  });
+
+// ─── Placas de identificação (MotorNameplate) ────────────────────────────────
+const nameplates: Record<string, MotorNameplate> = {
+  'motor-001': {
+    tag: 'MTR-001',
+    manufacturer: 'WEG',
+    model: 'W22 IE3',
+    serialNumber: 'WEG2024-MTR001',
+    power_kw: 22.0, power_cv: 30,
+    voltage: '380/660V', current_a: 41.8,
+    rpm: 1760, poles: 4, connection: 'Delta/Star',
+    frequency_hz: 60, ip_class: 'IP55', insulation_class: 'F',
+    yearManufactured: 2021, registeredAt: '2026-03-16T08:00:00Z',
+    ocrConfidence: 97,
+  },
+  'motor-002': {
+    tag: 'MTR-002',
+    manufacturer: 'Siemens',
+    model: 'SIMOTICS SD',
+    serialNumber: 'SIE2023-MTR002',
+    power_kw: 37.0, power_cv: 50,
+    voltage: '380/660V', current_a: 68.5,
+    rpm: 1475, poles: 4, connection: 'Delta/Star',
+    frequency_hz: 60, ip_class: 'IP55', insulation_class: 'F',
+    yearManufactured: 2022, registeredAt: '2026-01-21T10:30:00Z',
+    ocrConfidence: 94,
+  },
+  'pump-001': {
+    tag: 'BBA-001',
+    manufacturer: 'KSB',
+    model: 'Etanorm 32-200',
+    serialNumber: 'SN-KSB-20220615',
+    power_kw: 5.5, power_cv: 7.5,
+    voltage: '380V', current_a: 11.2,
+    rpm: 1450, poles: 4, connection: 'Star',
+    frequency_hz: 60, ip_class: 'IP54', insulation_class: 'B',
+    yearManufactured: 2022, registeredAt: '2026-03-01T09:00:00Z',
+    ocrConfidence: 91,
+  },
+  'compressor-001': {
+    tag: 'CMP-001',
+    manufacturer: 'Atlas Copco',
+    model: 'GA 22+',
+    serialNumber: 'SN-AC-20211210',
+    power_kw: 22, power_cv: 30,
+    voltage: '380V', current_a: 42.0,
+    rpm: 2950, poles: 2, connection: 'Delta',
+    frequency_hz: 60, ip_class: 'IP55', insulation_class: 'F',
+    yearManufactured: 2020, registeredAt: '2025-12-11T14:00:00Z',
+    ocrConfidence: 88,
+  },
+  'fan-001': {
+    tag: 'EXA-001',
+    manufacturer: 'WEG',
+    model: 'W21 71 IE2',
+    serialNumber: 'SN-WEG-20230301',
+    power_kw: 0.75, power_cv: 1,
+    voltage: '220/380V', current_a: 3.2,
+    rpm: 1710, poles: 4, connection: 'Delta/Star',
+    frequency_hz: 60, ip_class: 'IP55', insulation_class: 'F',
+    yearManufactured: 2023, registeredAt: '2026-03-02T11:00:00Z',
+    ocrConfidence: 99,
+  },
+};
+
+// ─── Assets mock ─────────────────────────────────────────────────────────────
 const mockAssets: Asset[] = [
   {
-    id: 'motor-001',
-    name: 'Main Production Motor',
-    type: 'motor',
-    location: 'Hall A - Station 1',
-    status: 'normal',
-    uptime: 99.8,
+    id: 'motor-001', tag: 'MTR-001',
+    name: 'Motor de Produção Principal',
+    type: 'motor', area: 'Hall A', location: 'Hall A — Posto 1',
+    status: 'normal', uptime: 99.8,
     sensors: [
-      generateSensorData('Voltage', 'V', 380, 10),
-      generateSensorData('Current', 'A', 45, 5),
-      generateSensorData('Temperature', '°C', 65, 15),
-      generateSensorData('RPM', 'rpm', 1480, 20),
-      generateSensorData('Vibration', 'mm/s', 2.5, 1),
+      makeSensor('Tensão', 'V', 380, 10, 1001),
+      makeSensor('Corrente', 'A', 14.8, 2, 1001),
+      makeSensor('Temperatura', '°C', 62, 8, 1001),
+      makeSensor('Rotação', 'rpm', 1760, 20, 1001),
+      makeSensor('Vibração', 'mm/s', 2.3, 0.8, 1001),
     ],
-    lastMaintenance: '2026-03-15',
-    nextMaintenance: '2026-06-15',
-    x: 1,
-    y: 1,
+    lastMaintenance: '2026-03-15', nextMaintenance: '2026-06-15',
+    x: 1, y: 1, plantX: 20, plantY: 25,
     anomalyScore: 12,
+    nameplate: nameplates['motor-001'],
   },
   {
-    id: 'motor-002',
-    name: 'Backup Motor',
-    type: 'motor',
-    location: 'Hall A - Station 2',
-    status: 'warning',
-    uptime: 95.2,
+    id: 'motor-002', tag: 'MTR-002',
+    name: 'Motor de Reserva',
+    type: 'motor', area: 'Hall A', location: 'Hall A — Posto 2',
+    status: 'warning', uptime: 95.2,
     sensors: [
-      generateSensorData('Voltage', 'V', 380, 15),
-      generateSensorData('Current', 'A', 52, 8),
-      generateSensorData('Temperature', '°C', 72, 20),
-      generateSensorData('RPM', 'rpm', 1470, 30),
-      generateSensorData('Vibration', 'mm/s', 4.2, 1.5),
+      makeSensor('Tensão', 'V', 380, 15, 1002),
+      makeSensor('Corrente', 'A', 22.5, 3, 1002),
+      makeSensor('Temperatura', '°C', 79, 12, 1002),
+      makeSensor('Rotação', 'rpm', 1460, 30, 1002),
+      makeSensor('Vibração', 'mm/s', 4.1, 1.2, 1002),
     ],
-    lastMaintenance: '2026-01-20',
-    nextMaintenance: '2026-04-20',
-    x: 3,
-    y: 1,
+    lastMaintenance: '2026-01-20', nextMaintenance: '2026-04-20',
+    x: 3, y: 1, plantX: 42, plantY: 25,
     anomalyScore: 58,
+    nameplate: nameplates['motor-002'],
   },
   {
-    id: 'pump-001',
-    name: 'Coolant Circulation Pump',
-    type: 'pump',
-    location: 'Hall B - Cooling System',
-    status: 'normal',
-    uptime: 99.5,
+    id: 'pump-001', tag: 'BBA-001',
+    name: 'Bomba de Circulação de Refrigeração',
+    type: 'pump', area: 'Hall B', location: 'Hall B — Sistema de Refrigeração',
+    status: 'normal', uptime: 99.5,
     sensors: [
-      generateSensorData('Pressure', 'bar', 2.5, 0.5),
-      generateSensorData('Flow Rate', 'L/min', 150, 20),
-      generateSensorData('Temperature', '°C', 45, 10),
-      generateSensorData('Power', 'kW', 5, 1),
+      makeSensor('Pressão', 'bar', 2.5, 0.4, 2001),
+      makeSensor('Vazão', 'L/min', 145, 15, 2001),
+      makeSensor('Temperatura', '°C', 44, 6, 2001),
+      makeSensor('Potência', 'kW', 5.2, 0.5, 2001),
     ],
-    lastMaintenance: '2026-02-28',
-    nextMaintenance: '2026-05-28',
-    x: 1,
-    y: 3,
+    lastMaintenance: '2026-02-28', nextMaintenance: '2026-05-28',
+    x: 1, y: 3, plantX: 20, plantY: 65,
     anomalyScore: 8,
+    nameplate: nameplates['pump-001'],
   },
   {
-    id: 'compressor-001',
-    name: 'Air Compressor',
-    type: 'compressor',
-    location: 'Hall C - Pneumatics',
-    status: 'critical',
-    uptime: 78.3,
+    id: 'compressor-001', tag: 'CMP-001',
+    name: 'Compressor de Ar',
+    type: 'compressor', area: 'Hall C', location: 'Hall C — Pneumática',
+    status: 'critical', uptime: 78.3,
     sensors: [
-      generateSensorData('Outlet Pressure', 'bar', 7.0, 1),
-      generateSensorData('Inlet Temp', '°C', 28, 5),
-      generateSensorData('Outlet Temp', '°C', 82, 15),
-      generateSensorData('Motor Current', 'A', 35, 5),
-      generateSensorData('Vibration', 'mm/s', 6.8, 2),
+      makeSensor('Pressão de Saída', 'bar', 7.0, 1.2, 3001),
+      makeSensor('Temp. Entrada', '°C', 28, 4, 3001),
+      makeSensor('Temp. Saída', '°C', 84, 10, 3001),
+      makeSensor('Corrente Motor', 'A', 40.5, 4, 3001),
+      makeSensor('Vibração', 'mm/s', 7.2, 1.8, 3001),
     ],
-    lastMaintenance: '2025-12-10',
-    nextMaintenance: '2026-03-10',
-    x: 3,
-    y: 3,
+    lastMaintenance: '2025-12-10', nextMaintenance: '2026-03-10',
+    x: 3, y: 3, plantX: 70, plantY: 65,
     anomalyScore: 85,
+    nameplate: nameplates['compressor-001'],
   },
   {
-    id: 'fan-001',
-    name: 'Ventilation Fan',
-    type: 'fan',
-    location: 'Hall A - Roof',
-    status: 'normal',
-    uptime: 99.2,
+    id: 'fan-001', tag: 'EXA-001',
+    name: 'Exaustor de Ventilação',
+    type: 'fan', area: 'Cobertura', location: 'Área Técnica — Cobertura Norte',
+    status: 'normal', uptime: 99.2,
     sensors: [
-      generateSensorData('Speed', '%', 85, 10),
-      generateSensorData('Motor Current', 'A', 8, 1),
-      generateSensorData('Bearing Temp', '°C', 55, 8),
-      generateSensorData('Vibration', 'mm/s', 1.2, 0.5),
+      makeSensor('Velocidade', '%', 84, 6, 4001),
+      makeSensor('Corrente Motor', 'A', 3.1, 0.4, 4001),
+      makeSensor('Temp. Mancal', '°C', 54, 5, 4001),
+      makeSensor('Vibração', 'mm/s', 1.1, 0.4, 4001),
     ],
-    lastMaintenance: '2026-03-01',
-    nextMaintenance: '2026-06-01',
-    x: 2,
-    y: 2,
+    lastMaintenance: '2026-03-01', nextMaintenance: '2026-06-01',
+    x: 2, y: 2, plantX: 55, plantY: 20,
     anomalyScore: 15,
+    nameplate: nameplates['fan-001'],
   },
 ];
 
+// ─── Alerts mock ──────────────────────────────────────────────────────────────
 const mockAlerts: Alert[] = [
   {
-    id: 'alert-001',
-    assetId: 'compressor-001',
-    assetName: 'Air Compressor',
+    id: 'alert-001', assetId: 'compressor-001',
+    assetTag: 'CMP-001', assetName: 'Compressor de Ar',
     severity: 'critical',
-    title: 'High Vibration Detected',
-    description: 'Vibration levels have exceeded safe thresholds. Immediate maintenance required.',
+    title: 'Vibração Alta Detectada',
+    description: 'Níveis de vibração acima do limite seguro (7.2 mm/s > limite 5 mm/s). Manutenção imediata necessária.',
     timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
     resolved: false,
-    mlInsight: 'ML Model predicts bearing failure within 7 days with 89% confidence.',
+    mlInsight: 'Modelo ML prediz falha de rolamento em até 7 dias com 89% de confiança. Histórico similar resultou em parada não planejada de 14h.',
   },
   {
-    id: 'alert-002',
-    assetId: 'motor-002',
-    assetName: 'Backup Motor',
+    id: 'alert-002', assetId: 'motor-002',
+    assetTag: 'MTR-002', assetName: 'Motor de Reserva',
     severity: 'warning',
-    title: 'Elevated Temperature',
-    description: 'Motor temperature is above normal operating range.',
+    title: 'Temperatura Elevada',
+    description: 'Temperatura do motor acima da faixa normal de operação (79°C > limite 75°C).',
     timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
     resolved: false,
-    mlInsight: 'Temperature trend suggests cooling system degradation. Recommend coolant check.',
+    mlInsight: 'Tendência de temperatura sugere degradação do sistema de resfriamento. Verificar nível de refrigerante.',
   },
   {
-    id: 'alert-003',
-    assetId: 'motor-001',
-    assetName: 'Main Production Motor',
+    id: 'alert-003', assetId: 'motor-001',
+    assetTag: 'MTR-001', assetName: 'Motor de Produção Principal',
     severity: 'info',
-    title: 'Scheduled Maintenance Due',
-    description: 'Preventive maintenance is scheduled for June 15, 2026.',
+    title: 'Manutenção Preventiva Agendada',
+    description: 'Manutenção preventiva programada para 15/06/2026.',
     timestamp: new Date(Date.now() - 2 * 3600000).toISOString(),
     resolved: false,
   },
   {
-    id: 'alert-004',
-    assetId: 'pump-001',
-    assetName: 'Coolant Circulation Pump',
+    id: 'alert-004', assetId: 'pump-001',
+    assetTag: 'BBA-001', assetName: 'Bomba de Circulação de Refrigeração',
     severity: 'info',
-    title: 'Performance Optimal',
-    description: 'Pump operating within normal parameters.',
+    title: 'Desempenho Ótimo',
+    description: 'Bomba operando dentro dos parâmetros normais após última calibração.',
     timestamp: new Date(Date.now() - 24 * 3600000).toISOString(),
     resolved: true,
   },
 ];
 
-// API Service
+// ─── API Service ──────────────────────────────────────────────────────────────
 export const apiService = {
-  // Assets
   async getAssets(): Promise<Asset[]> {
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(r => setTimeout(r, 300));
     return mockAssets;
   },
 
   async getAssetById(id: string): Promise<Asset | undefined> {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(r => setTimeout(r, 150));
     return mockAssets.find(a => a.id === id);
   },
 
+  async getAssetByTag(tag: string): Promise<Asset | undefined> {
+    await new Promise(r => setTimeout(r, 150));
+    return mockAssets.find(a => a.tag === tag);
+  },
+
   async updateAssetSensors(assetId: string): Promise<Asset | undefined> {
-    // Simulate real-time data updates
     const asset = mockAssets.find(a => a.id === assetId);
     if (asset) {
+      const t = Date.now() / 1000;
       asset.sensors = asset.sensors.map(sensor => ({
         ...sensor,
-        value: sensor.value + (Math.random() - 0.5) * (sensor.max - sensor.min) * 0.05,
+        value: parseFloat(
+          (sensor.value + Math.sin(t + makeSeed(sensor.name)) * (sensor.max - sensor.min) * 0.01).toFixed(2),
+        ),
       }));
-      asset.anomalyScore = Math.min(100, asset.anomalyScore + (Math.random() - 0.5) * 5);
+      asset.anomalyScore = parseFloat(
+        Math.min(100, Math.max(0, asset.anomalyScore + Math.sin(t) * 0.5)).toFixed(1),
+      );
     }
     return asset;
   },
 
-  // Alerts
+  /** Retorna séries históricas de todos os sensores de um ativo */
+  async getSensorHistory(
+    assetId: string,
+    range: '1h' | '6h' | '24h' | '7d' = '24h',
+  ): Promise<SensorHistorySeries[]> {
+    await new Promise(r => setTimeout(r, 200));
+    const asset = mockAssets.find(a => a.id === assetId);
+    if (!asset) return [];
+
+    const cfg: Record<string, { points: number; intervalMin: number }> = {
+      '1h':  { points: 60, intervalMin: 1 },
+      '6h':  { points: 72, intervalMin: 5 },
+      '24h': { points: 48, intervalMin: 30 },
+      '7d':  { points: 84, intervalMin: 120 },
+    };
+    const { points, intervalMin } = cfg[range];
+
+    return asset.sensors.map(sensor => ({
+      sensorName: sensor.name,
+      unit: sensor.unit,
+      color: sensorColor(sensor.name),
+      data: makeHistory(
+        sensor.value,
+        (sensor.max - sensor.min) * 0.15,
+        points,
+        intervalMin,
+        makeSeed(assetId + sensor.name),
+      ),
+    }));
+  },
+
   async getAlerts(): Promise<Alert[]> {
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(r => setTimeout(r, 200));
     return mockAlerts;
   },
 
-  async resolveAlert(alertId: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const alert = mockAlerts.find(a => a.id === alertId);
-    if (alert) {
-      alert.resolved = true;
-    }
+  async getAlertsByAsset(assetId: string): Promise<Alert[]> {
+    await new Promise(r => setTimeout(r, 150));
+    return mockAlerts.filter(a => a.assetId === assetId);
   },
 
-  // KPIs
-  async getKPIMetrics(): Promise<KPIMetrics> {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    const onlineAssets = mockAssets.filter(a => a.status !== 'offline').length;
-    const criticalAlerts = mockAlerts.filter(a => !a.resolved && a.severity === 'critical').length;
-    const anomalies = mockAssets.filter(a => a.anomalyScore > 50).length;
+  async resolveAlert(alertId: string): Promise<void> {
+    await new Promise(r => setTimeout(r, 150));
+    const alert = mockAlerts.find(a => a.id === alertId);
+    if (alert) alert.resolved = true;
+  },
 
+  async getKPIMetrics(): Promise<KPIMetrics> {
+    await new Promise(r => setTimeout(r, 200));
+    const online = mockAssets.filter(a => a.status !== 'offline').length;
+    const critical = mockAlerts.filter(a => !a.resolved && a.severity === 'critical').length;
+    const anomalies = mockAssets.filter(a => a.anomalyScore > 50).length;
     return {
-      totalUptime: (mockAssets.reduce((sum, a) => sum + a.uptime, 0) / mockAssets.length),
+      totalUptime: parseFloat((mockAssets.reduce((s, a) => s + a.uptime, 0) / mockAssets.length).toFixed(2)),
       activeAlerts: mockAlerts.filter(a => !a.resolved).length,
       anomaliesDetected: anomalies,
-      assetsOnline: onlineAssets,
+      assetsOnline: online,
       totalAssets: mockAssets.length,
-      predictedFailures: criticalAlerts,
+      predictedFailures: critical,
     };
   },
 
-  // Equipment Registration
   async registerEquipment(data: Omit<EquipmentRegistration, 'id' | 'registeredAt'>): Promise<EquipmentRegistration> {
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(r => setTimeout(r, 300));
+    return { ...data, id: `reg-${Date.now()}`, registeredAt: new Date().toISOString() };
+  },
+
+  /** Simula pipeline OCR: EasyOCR + validação por LLM Vision */
+  async extractNameplateFromImage(_file: File): Promise<Partial<MotorNameplate>> {
+    await new Promise(r => setTimeout(r, 2500));
     return {
-      ...data,
-      id: `reg-${Date.now()}`,
-      registeredAt: new Date().toISOString(),
+      tag: `MTR-00${Math.floor(Math.random() * 9) + 1}`,
+      manufacturer: ['WEG', 'Siemens', 'ABB', 'Atlas Copco'][Math.floor(Math.random() * 4)],
+      model: ['W22 IE3 132M', 'SIMOTICS 1LE1503', 'M2BAX 132MA4'][Math.floor(Math.random() * 3)],
+      serialNumber: `SN-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+      power_kw: [5.5, 7.5, 11, 15, 22][Math.floor(Math.random() * 5)],
+      power_cv: [7.5, 10, 15, 20, 30][Math.floor(Math.random() * 5)],
+      voltage: ['220/380V', '380/660V', '380V'][Math.floor(Math.random() * 3)],
+      current_a: parseFloat((10 + Math.random() * 30).toFixed(1)),
+      rpm: [900, 1200, 1450, 1760, 3500][Math.floor(Math.random() * 5)],
+      poles: [2, 4, 6][Math.floor(Math.random() * 3)],
+      connection: ['Delta', 'Star', 'Delta/Star'][Math.floor(Math.random() * 3)],
+      frequency_hz: 60,
+      ip_class: ['IP54', 'IP55', 'IP65'][Math.floor(Math.random() * 3)],
+      insulation_class: ['B', 'F', 'H'][Math.floor(Math.random() * 3)],
+      yearManufactured: 2019 + Math.floor(Math.random() * 5),
+      ocrConfidence: Math.floor(82 + Math.random() * 17),
     };
   },
 
-  // AI Assistant
   async getChatResponse(message: string, assetContext?: string): Promise<ChatMessage> {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
+    await new Promise(r => setTimeout(r, 900));
+    const asset = assetContext ? mockAssets.find(a => a.id === assetContext || a.tag === assetContext) : null;
+    const tag = asset?.tag ?? 'N/A';
+
     const responses: Record<string, string> = {
-      'compressor': 'Based on the vibration data, the air compressor is showing signs of bearing wear. I recommend scheduling maintenance within the next 48 hours. Replace the bearing seal and check the lubrication system.',
-      'temperature': 'The elevated temperature reading suggests possible cooling system degradation. Check the coolant level, verify fan operation, and inspect heat exchanger for blockages.',
-      'vibration': 'High vibration levels typically indicate misalignment, bearing issues, or imbalance. Perform an alignment check and inspect rotating components for damage.',
-      'maintenance': 'Based on operating hours and anomaly patterns, this asset is due for preventive maintenance. Plan for component inspection, bearing lubrication, and thermal imaging.',
-      'default': 'The asset is performing normally with all parameters within acceptable ranges. Continue monitoring and schedule routine maintenance as planned.',
+      compressor: `[${tag}] Com base nos dados de vibração (${asset?.sensors.find(s => s.name === 'Vibração')?.value.toFixed(1) ?? '~'} mm/s), o compressor apresenta sinais de desgaste de rolamento. Recomendo agendar manutenção em até 48h — substituir selo do rolamento e verificar sistema de lubrificação.`,
+      temperatura: `[${tag}] A leitura de temperatura elevada pode indicar degradação do sistema de resfriamento. Verificar nível de refrigerante, operação do ventilador e inspeção visual do trocador de calor.`,
+      vibração: `[${tag}] Vibração alta indica tipicamente desalinhamento, problema em rolamento ou desbalanceamento. Realizar verificação de alinhamento e inspecionar componentes rotativos.`,
+      manutenção: `[${tag}] Com base no histórico operacional e nos padrões de anomalia (score: ${asset?.anomalyScore ?? 0}%), o ativo está próximo da manutenção preventiva. Planejar inspeção de componentes, lubrificação de rolamentos e termografia.`,
+      placa: `[${tag}] Dados extraídos da placa via OCR: ${asset?.nameplate ? `Fabricante: ${asset.nameplate.manufacturer}, Modelo: ${asset.nameplate.model}, Potência: ${asset.nameplate.power_kw} kW / ${asset.nameplate.power_cv} CV, Tensão: ${asset.nameplate.voltage}, RPM: ${asset.nameplate.rpm}, Classe IP: ${asset.nameplate.ip_class}.` : 'Placa ainda não cadastrada. Acesse Equipamentos para registrar.'}`,
+      default: `[${tag}] O ativo está operando ${asset?.status === 'normal' ? 'normalmente' : `em estado de ${asset?.status}`}. Score de anomalia atual: ${asset?.anomalyScore ?? 0}%. Próxima manutenção: ${asset?.nextMaintenance ?? 'não agendada'}.`,
     };
 
-    let response = responses['default'];
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('compressor')) response = responses['compressor'];
-    else if (lowerMessage.includes('temperature')) response = responses['temperature'];
-    else if (lowerMessage.includes('vibration')) response = responses['vibration'];
-    else if (lowerMessage.includes('maintenance')) response = responses['maintenance'];
+    const lower = message.toLowerCase();
+    let response = responses.default;
+    if (lower.includes('compressor')) response = responses.compressor;
+    else if (lower.includes('temperatura') || lower.includes('temp')) response = responses.temperatura;
+    else if (lower.includes('vibra')) response = responses.vibração;
+    else if (lower.includes('manuten')) response = responses.manutenção;
+    else if (lower.includes('placa') || lower.includes('ocr') || lower.includes('namep')) response = responses.placa;
 
     return {
       id: `msg-${Date.now()}`,
@@ -254,35 +406,26 @@ export const apiService = {
     };
   },
 
-  // Image upload simulation
   async uploadEquipmentImage(file: File): Promise<{ url: string; extractedData: Partial<EquipmentRegistration> }> {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Simulate image analysis and data extraction
-    const mockManufacturers = ['ABB', 'Siemens', 'GE', 'Bosch Rexroth', 'SEW-EURODRIVE'];
-    const mockModels = ['AE200L', 'IE3-132S', 'MOT-5055', 'MOVIGEAR', 'GEARBOX-2.2'];
-    
+    await new Promise(r => setTimeout(r, 1000));
     return {
       url: URL.createObjectURL(file),
       extractedData: {
-        manufacturer: mockManufacturers[Math.floor(Math.random() * mockManufacturers.length)],
-        model: mockModels[Math.floor(Math.random() * mockModels.length)],
+        manufacturer: 'WEG',
+        model: 'W22 IE3 132M',
         serialNumber: `SN${Math.random().toString(36).substring(2, 11).toUpperCase()}`,
-        yearManufactured: 2020 + Math.floor(Math.random() * 4),
-        powerRating: 5 + Math.floor(Math.random() * 90),
+        yearManufactured: 2022,
+        powerRating: 7.5,
       },
     };
   },
 };
 
-// Real-time data simulation
+// ─── Realtime subscription ─────────────────────────────────────────────────
 export const startRealtimeUpdates = (assetId: string, callback: (asset: Asset) => void) => {
   const interval = setInterval(async () => {
     const updated = await apiService.updateAssetSensors(assetId);
-    if (updated) {
-      callback(updated);
-    }
+    if (updated) callback(updated);
   }, 2000);
-
   return () => clearInterval(interval);
 };

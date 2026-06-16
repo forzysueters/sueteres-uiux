@@ -6,6 +6,7 @@ import {
   TrendingDown,
   Activity,
   Factory,
+  Tag,
 } from 'lucide-react'
 import { Asset } from '../types'
 import { cn } from '../lib/utils'
@@ -189,29 +190,27 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
         </div>
       </div>
 
-      <h4 className="font-semibold text-sm text-foreground mb-1 truncate">
-        {asset.name}
-      </h4>
+      <div className="flex items-center gap-2 mb-1">
+        <h4 className="font-semibold text-sm text-foreground truncate flex-1">{asset.name}</h4>
+        {asset.tag && (
+          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-bold text-primary font-mono flex-shrink-0">
+            <Tag size={8} />
+            {asset.tag}
+          </span>
+        )}
+      </div>
       <p className="text-[10px] text-muted-soft font-medium uppercase tracking-wider mb-4">
         {asset.location}
       </p>
 
       <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border">
         <div>
-          <span className="text-[9px] font-bold text-muted-soft uppercase tracking-wider">
-            Uptime
-          </span>
-          <p className="text-sm font-bold text-foreground tabular-nums">
-            {asset.uptime.toFixed(1)}%
-          </p>
+          <span className="text-[9px] font-bold text-muted-soft uppercase tracking-wider">Uptime</span>
+          <p className="text-sm font-bold text-foreground tabular-nums">{asset.uptime.toFixed(1)}%</p>
         </div>
         <div>
-          <span className="text-[9px] font-bold text-muted-soft uppercase tracking-wider">
-            Sensores
-          </span>
-          <p className="text-sm font-bold text-foreground tabular-nums">
-            {asset.sensors.length}
-          </p>
+          <span className="text-[9px] font-bold text-muted-soft uppercase tracking-wider">Sensores</span>
+          <p className="text-sm font-bold text-foreground tabular-nums">{asset.sensors.length}</p>
         </div>
       </div>
 
