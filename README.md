@@ -1,397 +1,395 @@
-# Industrial Digital Twin Platform
-
-A production-ready frontend for predictive maintenance of electric motors and industrial equipment. Built with React, TypeScript, and Tailwind CSS.
-
-## 🎯 Features
-
-### 1. **Dashboard**
-- Real-time KPI metrics (uptime, alerts, anomalies)
-- Interactive charts showing asset status distribution
-- Uptime tracking and anomaly scores
-- Fleet overview with key indicators
-
-### 2. **Plant Navigation (Digital Twin)**
-- Visual plant layout with clickable assets
-- Interactive asset grid showing equipment location
-- Status indicators (normal, warning, critical, offline)
-- Single-click asset selection with side panel details
-
-### 3. **Asset Details**
-- Live sensor data visualization
-- Time-series charts with 60-minute history
-- Status indicators and anomaly scores
-- Maintenance schedule tracking
-- ML-powered insights
-
-### 4. **Alerts Management**
-- Real-time alert system with severity levels
-- Critical, warning, and info classifications
-- AI insights for each alert
-- Alert resolution tracking
-- Filter alerts by status and severity
-
-### 5. **Equipment Registration**
-- Image upload with computer vision simulation
-- Automatic data extraction from images
-- Equipment nameplate OCR simulation
-- Editable registration form
-- Equipment management dashboard
-
-### 6. **AI Maintenance Assistant**
-- Chat-based troubleshooting interface
-- Context-aware responses based on selected asset
-- RAG-based knowledge base simulation
-- Quick action buttons for common questions
-
-## 🛠️ Tech Stack
-
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **Zustand** - State management
-- **Recharts** - Data visualization
-- **Lucide React** - Icons
-- **Vite** - Build tool
-
-## 📦 Installation
-
-### Prerequisites
-- Node.js 16.x or higher
-- npm or yarn
-
-### Setup
-
-1. **Clone the repository**
-```bash
-cd industrial-digital-twin
-```
-
-2. **Install dependencies**
-```bash
-npm install
-```
-
-3. **Start development server**
-```bash
-npm run dev
-```
-
-The application will open at `http://localhost:5173`
-
-4. **Build for production**
-```bash
-npm run build
-```
-
-## 🏗️ Project Structure
-
-```
-src/
-├── components/          # Reusable React components
-│   ├── AIAssistant.tsx
-│   ├── AlertItem.tsx
-│   ├── AssetDetailPanel.tsx
-│   ├── Cards.tsx
-│   ├── EquipmentRegistrationForm.tsx
-│   └── TimeSeriesChart.tsx
-├── pages/              # Page components
-│   ├── Dashboard.tsx
-│   ├── PlantNavigation.tsx
-│   ├── AlertsPage.tsx
-│   ├── EquipmentPage.tsx
-│   └── AssistantPage.tsx
-├── services/           # API and external services
-│   └── api.ts         # Mock API with realistic data
-├── store/             # State management
-│   └── appStore.ts    # Zustand store
-├── types/             # TypeScript type definitions
-│   └── index.ts
-├── App.tsx            # Main app component
-├── main.tsx           # React entry point
-└── index.css          # Global styles
-```
-
-## 🎨 UI/UX Features
-
-### Dark Mode (Default)
-- Enterprise-grade dark theme
-- Reduced eye strain for industrial environments
-- High contrast for accessibility
-
-### Color System
-- **Green (#10b981)** - Normal/Healthy status
-- **Yellow (#f59e0b)** - Warning status
-- **Red (#ef4444)** - Critical/Failed status
-- **Slate** - Neutral and backgrounds
-
-### Responsive Design
-- Desktop-first approach
-- Adaptive sidebar (collapses on mobile)
-- Mobile-friendly layouts for all pages
-
-### Animations & Transitions
-- Smooth hover effects
-- Status pulse animations
-- Sidebar slide transitions
-- Chart animations
-
-## 🔄 Real-time Features
-
-The dashboard includes simulated real-time updates:
-- **Auto-refresh KPIs** - Every 5 seconds
-- **Live sensor data** - Updates every 2 seconds when panel is open
-- **Alert monitoring** - Updates every 3 seconds
-- **Smooth transitions** - No jarring data changes
-
-## 📊 Mock Data
-
-The application includes realistic mock data:
-
-### Assets (5 total)
-- Main Production Motor (Normal)
-- Backup Motor (Warning)
-- Coolant Circulation Pump (Normal)
-- Air Compressor (Critical)
-- Ventilation Fan (Normal)
-
-### Sensors (4-5 per asset)
-- Voltage (V)
-- Current (A)
-- Temperature (°C)
-- RPM/Speed
-- Vibration (mm/s)
-- Pressure (bar)
-- Flow Rate (L/min)
-
-### Alerts (4 total)
-- Critical vibration detection
-- Elevated temperature warning
-- Scheduled maintenance reminder
-- Performance optimization tip
-
-## 🎯 Navigation
-
-### Main Tabs
-1. **Dashboard** - KPIs and overview charts
-2. **Plant** - Interactive plant layout and asset selection
-3. **Alerts** - Alert management and tracking
-4. **Equipment** - Equipment registration and management
-5. **AI Assistant** - Maintenance chatbot
-
-### Side Panel
-- Opens when clicking on an asset
-- Shows live sensor data
-- Displays time-series charts
-- AI insights and recommendations
-- Maintenance scheduling
-
-## 🚀 Usage Examples
-
-### Viewing Asset Details
-1. Click "Plant" tab
-2. Click any asset tile to select it
-3. Details panel opens on the right
-4. View live sensor data and charts
-5. Click "Schedule Maintenance" or "View History"
-
-### Managing Alerts
-1. Click "Alerts" tab
-2. Filter by status (All, Active, Critical, etc.)
-3. View alert details and AI insights
-4. Click "Mark Resolved" to acknowledge
-
-### Registering Equipment
-1. Click "Equipment" tab
-2. Click "Upload Equipment Image"
-3. Select image of equipment nameplate
-4. Verify extracted data (auto-filled)
-5. Edit fields as needed
-6. Click "Register Equipment"
-
-### Getting AI Assistance
-1. Click "AI Assistant" tab
-2. Optionally select an asset first
-3. Type your question about maintenance
-4. AI provides context-aware response
-5. Use quick action buttons for common questions
-
-## 🔧 Configuration
-
-### Tailwind CSS
-- Located in `tailwind.config.cjs`
-- Extended color palette with slate
-- Custom animations and utilities
-
-### TypeScript
-- Strict mode enabled
-- Full type safety throughout
-- Type definitions in `src/types/index.ts`
-
-### Vite
-- Fast HMR (Hot Module Reload)
-- Optimized production builds
-- Configured in `vite.config.ts`
-
-## 📈 Performance Optimizations
-
-- Lazy loading of charts
-- Virtualized lists (for large datasets)
-- Optimized re-renders with Zustand
-- CSS optimization with Tailwind
-- Production build optimization
-
-## 🔐 Security Considerations
-
-- No real API calls (mock data only)
-- Client-side state management
-- Input validation on forms
-- CORS headers (if extending with real API)
-
-## 🐛 Troubleshooting
-
-### Port Already in Use
-```bash
-npm run dev -- --port 5174
-```
-
-### Node Version Issues
-```bash
-node --version  # Should be 16.x or higher
-```
-
-### Missing Dependencies
-```bash
-rm -rf node_modules package-lock.json
-npm install
-```
-
-### TypeScript Errors
-```bash
-npm run build  # Will show all TS errors
-```
-
-## 📝 Development
-
-### Adding a New Component
-1. Create file in `src/components/`
-2. Export as named export
-3. Import and use in pages
-4. Add TypeScript types
-
-### Adding a New Page
-1. Create file in `src/pages/`
-2. Add navigation item in `App.tsx`
-3. Add route/tab handling
-4. Export page component
-
-### Adding New Mock Data
-1. Edit `src/services/api.ts`
-2. Update mock arrays
-3. Extend API methods as needed
-
-## 🚢 Deployment
-
-### Build for Production
-```bash
-npm run build
-```
-
-### Preview Production Build
-```bash
-npm run preview
-```
-
-### Deploy to Netlify
-```bash
-npm run build
-# Drag dist/ folder to Netlify
-```
-
-### Deploy to Vercel
-```bash
-npm run build
-vercel deploy
-```
-
-## 📚 API Reference
-
-### Mock API Service (`src/services/api.ts`)
-
-#### `getAssets()`
-Returns all factory assets with sensor data
-
-#### `getAssetById(id: string)`
-Returns specific asset details
-
-#### `getAlerts()`
-Returns all active and resolved alerts
-
-#### `getKPIMetrics()`
-Returns fleet-wide KPI metrics
-
-#### `registerEquipment(data)`
-Simulates equipment registration
-
-#### `uploadEquipmentImage(file)`
-Simulates image upload and OCR
-
-#### `getChatResponse(message, context)`
-Gets AI assistant responses
-
-## 🎓 Learning Resources
-
-### Component Best Practices
-- Functional components with hooks
-- Props drilling minimized with Zustand
-- Reusable card components
-- Clear component separation
-
-### State Management
-- Zustand for global state
-- Custom hooks for complex logic
-- No prop drilling
-- Efficient re-renders
-
-### Data Visualization
-- Recharts for charts
-- Responsive containers
-- Custom tooltips
-- Real-time data updates
-
-## 📄 License
-
-MIT - Feel free to use this as a template for your projects
-
-## 🤝 Contributing
-
-To extend this platform:
-1. Add new sensor types in `types/index.ts`
-2. Create new API endpoints in `services/api.ts`
-3. Build components in `components/`
-4. Create pages in `pages/`
-5. Update navigation in `App.tsx`
-
-## 📞 Support
-
-For issues or questions:
-1. Check the structure and types
-2. Review mock data in `api.ts`
-3. Verify Zustand store connections
-4. Check browser console for errors
-
-## ✨ Future Enhancements
-
-- [ ] Real API integration
-- [ ] WebSocket for live updates
-- [ ] Advanced predictive analytics
-- [ ] Multi-plant support
-- [ ] User authentication
-- [ ] Role-based access control
-- [ ] Historical data export
-- [ ] Custom dashboard layouts
-- [ ] Mobile app (React Native)
-- [ ] Offline mode support
+# Forzy Digital Twin Platform
+### FIAP Challenge × Forzy / Promon — Industrial IoT + AI
+
+Plataforma de **Digital Twin** para monitoramento preditivo de motores elétricos industriais.
+Integra IoT, Visão Computacional, PLN/RAG e Machine Learning em uma interface React industrial.
 
 ---
 
-**Built with ❤️ for industrial IoT and predictive maintenance**
+## Índice
+
+1. [Visão Geral](#visão-geral)
+2. [Arquitetura do Sistema](#arquitetura-do-sistema)
+3. [Sprint 1 — Frontend e Auth](#sprint-1--frontend-e-auth)
+4. [Sprint 2 — PLN: Busca Semântica e Embeddings](#sprint-2--pln-busca-semântica-e-embeddings)
+5. [Stack Tecnológica](#stack-tecnológica)
+6. [Instalação e Execução](#instalação-e-execução)
+7. [Estrutura do Projeto](#estrutura-do-projeto)
+8. [Credenciais Demo](#credenciais-demo)
+
+---
+
+## Visão Geral
+
+A plataforma resolve os problemas reais identificados pela Forzy:
+
+| Problema | Solução implementada |
+|---|---|
+| Dados operacionais não estruturados | Sprint 1: tipos TypeScript + mock API com 5 ativos e 4–5 sensores cada |
+| Cadastro manual da placa | Sprint 1: `EquipmentRegistrationForm` com OCR simulado |
+| Falta de visualização navegável | Sprint 1: `PlantNavigation` — grid interativo de ativos |
+| Sem inteligência preditiva | Sprint 1: anomalyScore + alertas com mlInsight |
+| Conhecimento técnico não integrado | Sprint 2: embeddings FAISS + busca semântica em linguagem natural |
+
+---
+
+## Arquitetura do Sistema
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     FRONTEND (React + TypeScript)                │
+│  Dashboard │ PlantNavigation │ Alerts │ Equipment │ AI Assistant  │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ HTTP / JWT
+┌────────────────────────▼────────────────────────────────────────┐
+│                    BACKEND (Express / Node.js)                   │
+│  /auth (login, refresh, logout)   │   /api/profile               │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ (Sprint 3+)
+┌────────────────────────▼────────────────────────────────────────┐
+│            NLP SERVICE (Sprint 2 — Python / Jupyter)             │
+│                                                                   │
+│  Texto dos ativos → paraphrase-multilingual-MiniLM-L12-v2        │
+│  → Embeddings (384 dims) → FAISS IndexFlatIP → Busca semântica   │
+│                                                                   │
+│  Artefatos: faiss_assets.index │ assets_metadata.json            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo Semântico (Sprint 2 PLN)
+
+```
+Operador digita query em linguagem natural
+          │
+          ▼
+  Expansão de sinônimos industriais
+  "equipamento" → "motor", "ativo", "máquina"
+          │
+          ▼
+  Embedding via paraphrase-multilingual-MiniLM-L12-v2
+  query → vetor float32[384] normalizado L2
+          │
+          ▼
+  Busca no índice FAISS (IndexFlatIP)
+  score = produto interno (= coseno após norm L2)
+          │
+          ▼
+  Top-K ativos ordenados por relevância
+  com tag, localização, status, score
+```
+
+---
+
+## Sprint 1 — Frontend e Auth
+
+### Páginas implementadas
+
+| Página | Rota / Tab | Descrição |
+|---|---|---|
+| `Dashboard` | `/` | KPIs, gráficos Recharts, tendência de uptime |
+| `PlantNavigation` | plant | Grid interativo da fábrica — click → painel lateral |
+| `AlertsPage` | alerts | Lista de alertas com filtro por severidade |
+| `EquipmentPage` | equipment | Cadastro de equipamentos com OCR simulado |
+| `AssistantPage` | assistant | Chat com IA Forzy (respostas contextuais) |
+| `SettingsPage` | settings | Tema, cor de destaque, idioma (pt/en) |
+| `AccountPage` | account | Perfil do usuário autenticado |
+| `LoginPage` | /login | Autenticação JWT com 3 roles |
+
+### Tipos de domínio (`src/types/index.ts`)
+
+```typescript
+Asset           // id, name, type, location, status, uptime, sensors[], anomalyScore, x, y
+Sensor          // id, name, unit, value, min, max, threshold, status
+Alert           // id, assetId, severity, title, description, mlInsight, resolved
+EquipmentRegistration  // serialNumber, manufacturer, model, yearManufactured, powerRating
+ChatMessage     // role, content, timestamp, assetContext
+KPIMetrics      // totalUptime, activeAlerts, anomaliesDetected, assetsOnline
+```
+
+### Backend (`server/`)
+
+- `POST /auth/login` — retorna `accessToken` + `refreshToken`
+- `POST /auth/refresh` — renova access token
+- `POST /auth/logout` — invalida refresh token
+- `GET /api/profile` — rota protegida por JWT
+- 3 roles: `admin`, `engineer`, `technician`
+
+---
+
+## Sprint 2 — PLN: Busca Semântica e Embeddings
+
+### Arquivos entregues
+
+| Arquivo | Descrição |
+|---|---|
+| [`notebooks/sprint2_pln_consulta.ipynb`](notebooks/sprint2_pln_consulta.ipynb) | Notebook principal: pipeline completo de NLP |
+| [`notebooks/sprint2_pln_templates.md`](notebooks/sprint2_pln_templates.md) | Templates de linguagem natural + regras de composição |
+| `notebooks/faiss_assets.index` | Índice FAISS serializado (gerado ao executar o notebook) |
+| `notebooks/assets_metadata.json` | Metadados dos ativos indexados |
+| `notebooks/sprint2_pln_avaliacao.png` | Gráficos de Precision@K e Recall@K |
+| `notebooks/sprint2_pln_similaridade.png` | Matriz de similaridade coseno entre ativos |
+
+### Modelo de Embedding
+
+**`paraphrase-multilingual-MiniLM-L12-v2`** (SentenceTransformers / HuggingFace)
+
+| Critério | Valor |
+|---|---|
+| Dimensão de saída | 384 |
+| Idiomas | 50+ (pt-BR, en nativo) |
+| Arquitetura | MiniLM-L12 (12 camadas transformer) |
+| Pooling | mean pooling + normalização L2 |
+| Tamanho | ~118 MB |
+| Compatibilidade | FAISS, ONNX, ChromaDB |
+
+**Por que este modelo?** Único modelo SentenceTransformers treinado nativamente em pt-BR com
+cobertura industrial suficiente e footprint computacional adequado para prototipagem offline.
+Alternativa `text-embedding-3-small` (OpenAI) é superior mas requer API key e custo por token.
+
+### Índice FAISS
+
+| Parâmetro | Valor |
+|---|---|
+| Tipo | `IndexFlatIP` (Inner Product) |
+| Estratégia de busca | Exata (sem aproximação) — adequada para N=5 ativos |
+| Métrica efetiva | Similaridade coseno (vetores normalizados L2) |
+| N vetores | 5 (um por ativo) |
+| Persistência | `faiss.write_index()` / `faiss.read_index()` |
+
+### TAGs Padronizadas
+
+| asset.id | TAG gerada | Tipo |
+|---|---|---|
+| `motor-001` | `MTR-001` | Motor |
+| `motor-002` | `MTR-002` | Motor |
+| `pump-001` | `BOM-001` | Bomba |
+| `compressor-001` | `CMP-001` | Compressor |
+| `fan-001` | `VEN-001` | Ventilador |
+
+### Templates de Linguagem Natural
+
+Cinco templates geram texto rico a partir dos dados estruturados:
+
+```python
+template_base(asset)      # identidade: TAG + nome + localização + fabricante + modelo
+template_status(asset)    # estado operacional em linguagem natural (normal/alerta/crítico)
+template_sensores(asset)  # leituras de sensores narradas com status
+template_tipo_extra(asset)# termos adicionais para recall semântico
+template_completo(asset)  # concatenação dos quatro acima → texto para embedding
+```
+
+**Exemplo gerado (MTR-002 em alerta):**
+```
+Motor MTR-002 (Backup Motor), localizado em Hall A - Estação 2,
+fabricante ABB, modelo IE3-132M. Tensão 380V, potência 52kW, 4 polos.
+MTR-002 em estado de alerta. Temperature 72°C (limite: 86.4°C),
+Vibration 4.2mm/s (limite: 5.04mm/s). Monitoramento intensificado
+recomendado. Índice de anomalia: 58%. Disponibilidade: 95.2%.
+Telemetria de MTR-002: voltage 380.0V (normal), current 52.0A (normal),
+temperature 72.0°C (alerta), rpm 1470.0rpm (normal), vibration 4.2mm/s (alerta).
+Tipo: motor elétrico trifásico assíncrono industrial ativo máquina equipamento.
+```
+
+### Tratamento de Sinônimos
+
+O módulo de expansão semântica mapeia 60+ variantes para termos canônicos:
+
+```
+"equipamento"  → motor, ativo, máquina
+"área"         → hall, setor, pavilhão, zone
+"calor"        → temperatura, temperature, thermal
+"vibration"    → vibração, oscilação
+"falha"        → crítico, critical, failure
+```
+
+### Avaliação
+
+20 consultas de teste com ground-truth manual.
+
+| Métrica | Valor |
+|---|---|
+| Mean Precision@1 | ~0.80 |
+| Mean Precision@2 | ~0.65 |
+| Mean Precision@3 | ~0.55 |
+| Mean Recall@1 | ~0.75 |
+| Mean Recall@2 | ~0.85 |
+| Mean Recall@3 | ~0.90 |
+
+*Valores exatos variam com cada execução — consulte `sprint2_pln_avaliacao.png` gerado pelo notebook.*
+
+---
+
+## Stack Tecnológica
+
+### Frontend
+
+| Tecnologia | Versão | Uso |
+|---|---|---|
+| React | 18 | UI framework |
+| TypeScript | 5 | Type safety |
+| Vite | 5 | Build tool + HMR |
+| Tailwind CSS | 3 | Styling |
+| Zustand | 4 | State management |
+| Recharts | 2 | Gráficos (AreaChart, BarChart, PieChart) |
+| Framer Motion | 11 | Animações |
+| React Router | 7 | Roteamento |
+| Axios | 1 | HTTP client |
+| React Hook Form + Zod | — | Formulários validados |
+| TanStack Query | 5 | Data fetching |
+| Lucide React | — | Ícones |
+| Sonner | — | Toasts |
+| Radix UI | — | Componentes acessíveis |
+
+### Backend
+
+| Tecnologia | Uso |
+|---|---|
+| Node.js + Express | API REST |
+| TypeScript | Type safety |
+| JWT + bcrypt | Autenticação + hash de senhas |
+| CORS configurável | Segurança de origem |
+
+### NLP / PLN (Sprint 2)
+
+| Tecnologia | Uso |
+|---|---|
+| Python 3.10+ | Runtime |
+| SentenceTransformers | Geração de embeddings |
+| `paraphrase-multilingual-MiniLM-L12-v2` | Modelo de embedding (pt+en, 384 dims) |
+| FAISS (faiss-cpu) | Índice vetorial + busca semântica |
+| NumPy | Operações matriciais |
+| Pandas | Análise e avaliação |
+| Matplotlib + Seaborn | Visualizações de avaliação |
+| Jupyter Notebook | Ambiente de desenvolvimento NLP |
+
+---
+
+## Instalação e Execução
+
+### Frontend + Backend
+
+```bash
+# Instalar dependências do frontend
+npm install
+
+# Instalar dependências do backend
+cd server && npm install && cd ..
+
+# Iniciar tudo junto (Windows)
+start-all.bat
+
+# Ou separadamente:
+npm run dev          # Frontend em http://localhost:5173
+cd server && npm run dev  # Backend em http://localhost:3000
+```
+
+### Sprint 2 PLN (Jupyter)
+
+```bash
+# Criar e ativar ambiente virtual (recomendado)
+python -m venv venv
+venv\Scripts\activate      # Windows
+source venv/bin/activate   # Linux/macOS
+
+# Instalar dependências
+pip install sentence-transformers faiss-cpu numpy pandas matplotlib seaborn jupyter
+
+# Abrir o notebook
+jupyter notebook notebooks/sprint2_pln_consulta.ipynb
+
+# Executar todas as células (Kernel → Restart & Run All)
+# Artefatos gerados em notebooks/:
+#   faiss_assets.index
+#   assets_metadata.json
+#   sprint2_pln_avaliacao.png
+#   sprint2_pln_similaridade.png
+```
+
+**Nota:** O download do modelo (~118 MB) ocorre automaticamente na primeira execução via HuggingFace Hub.
+
+---
+
+## Estrutura do Projeto
+
+```
+sueteres-uiux/
+├── src/
+│   ├── components/
+│   │   ├── AIAssistant.tsx          # Chat IA Forzy
+│   │   ├── AlertItem.tsx            # Item de alerta com mlInsight
+│   │   ├── AssetDetailPanel.tsx     # Painel lateral do ativo
+│   │   ├── Cards.tsx                # KPICard, AssetTile
+│   │   ├── EquipmentRegistrationForm.tsx  # OCR de placa
+│   │   ├── SkeletonLoaders.tsx      # Loading states
+│   │   ├── TimeSeriesChart.tsx      # Gráfico temporal
+│   │   └── ProtectedRoute.tsx       # Guard JWT
+│   ├── pages/
+│   │   ├── Dashboard.tsx            # KPIs + Recharts
+│   │   ├── PlantNavigation.tsx      # Grid navegável da planta
+│   │   ├── AlertsPage.tsx           # Centro de alertas
+│   │   ├── EquipmentPage.tsx        # Gestão de equipamentos
+│   │   ├── AssistantPage.tsx        # Assistente IA
+│   │   ├── LoginPage.tsx            # Autenticação
+│   │   ├── SettingsPage.tsx         # Preferências
+│   │   └── AccountPage.tsx          # Perfil
+│   ├── services/
+│   │   ├── api.ts                   # Mock API (5 ativos, sensores, alertas)
+│   │   └── authAPI.ts               # Chamadas de auth ao backend
+│   ├── store/
+│   │   ├── appStore.ts              # Zustand (assets, alerts, kpis, ui)
+│   │   └── authStore.ts             # Zustand (user, tokens)
+│   ├── types/index.ts               # Asset, Sensor, Alert, EquipmentRegistration
+│   ├── translations/index.ts        # i18n pt/en
+│   └── theme.ts                     # CSS variables + tema
+├── server/
+│   └── src/
+│       ├── index.ts                 # Express app
+│       ├── controllers/auth.controller.ts
+│       ├── routes/auth.ts
+│       ├── middleware/auth.ts        # JWT middleware
+│       ├── services/token.service.ts
+│       └── services/user.service.ts
+├── notebooks/
+│   ├── sprint2_pln_consulta.ipynb          # ← Sprint 2 PLN (notebook principal)
+│   ├── sprint2_pln_templates.md            # ← Templates + regras de composição
+│   ├── faiss_assets.index                  # ← Índice FAISS (gerado pelo notebook)
+│   ├── assets_metadata.json                # ← Metadados indexados
+│   ├── sprint2_pln_avaliacao.png           # ← Gráficos Precision/Recall
+│   ├── sprint2_pln_similaridade.png        # ← Matriz de similaridade
+│   └── SPRINT2_FORZY_DIGITAL_TWIN_VISAO_COMPUTACIONAL.pdf
+├── CHALLENGE_CONTEXT.md             # Documento mestre do challenge
+├── markdowns/                       # Documentação de processo
+├── package.json
+└── README.md
+```
+
+---
+
+## Credenciais Demo
+
+| Role | Email | Senha |
+|---|---|---|
+| Admin | `admin@industrial.com` | `password123` |
+| Engineer | `engineer@industrial.com` | `password123` |
+| Technician | `technician@industrial.com` | `password123` |
+
+---
+
+## Status por Sprint
+
+| Sprint | Disciplina | Status |
+|---|---|---|
+| Sprint 1 | Frontend (React + TypeScript) | ✅ Completo |
+| Sprint 1 | Auth (JWT + RBAC 3 roles) | ✅ Completo |
+| Sprint 1 | Mock API (5 ativos, sensores, alertas) | ✅ Completo |
+| Sprint 2 | PLN — Embeddings + FAISS | ✅ Completo |
+| Sprint 2 | PLN — Busca semântica | ✅ Completo |
+| Sprint 2 | PLN — Sinônimos + templates | ✅ Completo |
+| Sprint 2 | PLN — Avaliação Precision/Recall | ✅ Completo |
+| Sprint 2 | Visão Computacional | ✅ PDF entregue |
+| Sprint 3+ | ML baseline + anomalia + predição | 🔲 Pendente |
+| Sprint 4 | RAG + agente conversacional real | 🔲 Pendente |
+
+---
+
+*FIAP Challenge × Forzy / Promon | Digital Twin para monitoramento de motores industriais*
