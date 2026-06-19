@@ -1,34 +1,45 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, CheckCircle2, Bot, AlertCircle, Sparkles, Loader2, RefreshCw, Zap, Tag, Shield } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, Bot, AlertCircle, Sparkles, Loader2, RefreshCw, Zap, Tag, Shield, Cpu, Timer } from 'lucide-react';
 import { apiService } from '../services/api';
 import { MotorNameplate } from '../types';
+import type { NameplateResult, OcrMode } from '../services/ocrAPI';
 
-export const EquipmentRegistrationForm: React.FC = () => {
+type Extraction = NameplateResult;
+
+interface EquipmentRegistrationFormProps {
+  assetId?: string;
+}
+
+export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps> = () => {
   const [step, setStep] = useState(1);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [extractedData, setExtractedData] = useState<Partial<MotorNameplate> | null>(null);
+  const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [ocrError, setOcrError] = useState<string | null>(null);
+  const [mode, setMode] = useState<OcrMode>('easyocr');
+
+  const extractedData = extraction?.nameplate ?? null;
 
   const processFile = async (file: File) => {
     setPreviewUrl(URL.createObjectURL(file));
     setStep(2);
     setOcrError(null);
     try {
-      const data = await apiService.extractNameplateFromImage(file);
-      setExtractedData(data);
+      const result = await apiService.extractNameplate(file, { mode });
+      setExtraction(result);
       setStep(3);
-    } catch {
-      setOcrError('Falha na extração OCR. Tente uma imagem com melhor iluminação e resolução.');
+    } catch (err) {
+      setOcrError(
+        (err as Error)?.message ||
+          'Falha na extração OCR. Tente uma imagem com melhor iluminação e resolução.',
+      );
       setStep(1);
-    } finally {
-      // step already set inside try/catch
     }
   };
 
   const onDrop = useCallback((accepted: File[]) => {
     if (accepted[0]) processFile(accepted[0]);
-  }, []);
+  }, [mode]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -44,8 +55,16 @@ export const EquipmentRegistrationForm: React.FC = () => {
   const reset = () => {
     setStep(1);
     setPreviewUrl(null);
-    setExtractedData(null);
+    setExtraction(null);
     setOcrError(null);
+  };
+
+  const MODEL_LABELS: Record<string, string> = {
+    easyocr: 'EasyOCR',
+    gemini: 'Gemini Vision',
+    mock: 'Simulado (offline)',
+    paddleocr: 'PaddleOCR',
+    trocr: 'TrOCR',
   };
 
   const fields: { label: string; key: keyof MotorNameplate; icon: React.ElementType; type?: string }[] = [
@@ -74,7 +93,7 @@ export const EquipmentRegistrationForm: React.FC = () => {
           </div>
           <div>
             <h2 className="font-bold text-sm text-foreground">Registro de Equipamento — Pipeline OCR</h2>
-            <p className="text-[10px] text-muted">EasyOCR + Validação por LLM Vision</p>
+            <p className="text-[10px] text-muted">Modelo WEG W22 · EasyOCR + fallback Gemini Vision</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -102,6 +121,28 @@ export const EquipmentRegistrationForm: React.FC = () => {
         {/* STEP 1 — Upload */}
         {step === 1 && (
           <div className="space-y-6">
+            {/* Seletor de motor de OCR */}
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Motor de OCR</span>
+              <div className="inline-flex rounded-lg bg-slate-900/40 border border-border p-0.5">
+                {([
+                  { id: 'easyocr', label: 'EasyOCR' },
+                  { id: 'gemini', label: 'Gemini Vision' },
+                ] as const).map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setMode(id)}
+                    className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${
+                      mode === id ? 'bg-primary text-white' : 'text-muted hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
@@ -126,8 +167,9 @@ export const EquipmentRegistrationForm: React.FC = () => {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/5 border border-amber-500/10 text-amber-500/80">
               <AlertCircle size={16} className="flex-shrink-0" />
               <p className="text-xs font-medium">
-                Certifique-se de que o texto da placa esteja bem visível e iluminado.
-                O pipeline aplica pré-processamento OpenCV antes do OCR (escala de cinza, binarização, sharpening).
+                {mode === 'gemini'
+                  ? 'Modo Gemini Vision: requer GEMINI_API_KEY configurada no backend (.env). Extrai todos os campos diretamente do modelo de visão.'
+                  : 'Certifique-se de que o texto da placa esteja bem visível e iluminado. O pipeline aplica realce adaptativo (OpenCV) e remoção de linhas de grade antes do EasyOCR.'}
               </p>
             </div>
 
@@ -135,7 +177,10 @@ export const EquipmentRegistrationForm: React.FC = () => {
             <div className="p-4 rounded-xl bg-slate-900/30 border border-border">
               <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-3">Pipeline de Visão Computacional</p>
               <div className="flex items-center gap-2 flex-wrap">
-                {['Imagem', 'Cinza', 'Contraste', 'Binarização', 'EasyOCR', 'Validação LLM', 'Cadastro'].map((step, i, arr) => (
+                {(mode === 'gemini'
+                  ? ['Imagem', 'Realce', 'Gemini Vision', 'Normalização', 'Validação física', 'Cadastro']
+                  : ['Imagem', 'Realce', 'EasyOCR', 'Extração de campos', 'Validação física', 'Fallback Gemini', 'Cadastro']
+                ).map((step, i, arr) => (
                   <React.Fragment key={step}>
                     <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-[9px] font-bold text-muted uppercase">{step}</span>
                     {i < arr.length - 1 && <span className="text-slate-700 text-xs">→</span>}
@@ -162,7 +207,10 @@ export const EquipmentRegistrationForm: React.FC = () => {
             </div>
             <h3 className="text-foreground">Pipeline OCR em execução</h3>
             <div className="mt-4 space-y-1.5 text-left">
-              {['Convertendo para escala de cinza…', 'Ajustando contraste e binarização…', 'Aplicando sharpening…', 'Executando EasyOCR…', 'Validando com LLM Vision…'].map((msg, i) => (
+              {(mode === 'gemini'
+                ? ['Aplicando realce adaptativo…', 'Enviando ao Gemini Vision…', 'Normalizando campos…', 'Validação física…']
+                : ['Aplicando realce adaptativo…', 'Removendo linhas de grade…', 'Executando EasyOCR…', 'Extraindo e fundindo campos…', 'Validação física…']
+              ).map((msg, i) => (
                 <div key={i} className={`flex items-center gap-2 text-xs ${i <= 2 ? 'text-emerald-400' : 'text-muted animate-pulse'}`}>
                   {i <= 2 ? <CheckCircle2 size={12} /> : <Loader2 size={12} className="animate-spin" />}
                   {msg}
@@ -192,7 +240,55 @@ export const EquipmentRegistrationForm: React.FC = () => {
               <img src={previewUrl} alt="Placa capturada" className="w-full h-32 object-cover rounded-lg border border-border" />
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+            {/* Metadados do pipeline */}
+            {extraction && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900/50 border border-border text-[10px] font-bold text-foreground-soft">
+                  <Cpu size={11} className="text-primary" />
+                  {MODEL_LABELS[extraction.modelUsed] ?? extraction.modelUsed}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900/50 border border-border text-[10px] font-bold text-foreground-soft capitalize">
+                  <Bot size={11} className="text-primary" />
+                  {extraction.motorType}
+                </span>
+                {extraction.processingTimeMs > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900/50 border border-border text-[10px] font-bold text-foreground-soft">
+                    <Timer size={11} className="text-primary" />
+                    {(extraction.processingTimeMs / 1000).toFixed(1)}s
+                  </span>
+                )}
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[10px] font-bold ${
+                    extraction.validation.consistente
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                      : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                  }`}
+                >
+                  {extraction.validation.consistente ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
+                  {extraction.validation.consistente ? 'Validação consistente' : 'Verificar campos'}
+                </span>
+              </div>
+            )}
+
+            {/* Alertas da validação física */}
+            {extraction && extraction.validation.alertas.length > 0 && (
+              <div className="p-4 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-2">
+                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <AlertCircle size={12} />
+                  Alertas de validação física
+                </p>
+                <ul className="space-y-1">
+                  {extraction.validation.alertas.map((a, i) => (
+                    <li key={i} className="text-xs text-amber-500/90 flex items-start gap-2">
+                      <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-500 flex-shrink-0" />
+                      {a}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div key={previewUrl ?? 'fields'} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
               {fields.map(({ label, key, icon: Icon, type }) => (
                 <div key={key} className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted flex items-center gap-1.5">
@@ -233,8 +329,8 @@ export const EquipmentRegistrationForm: React.FC = () => {
             <div className="mt-6 p-4 rounded-xl bg-slate-900/40 border border-border text-left w-full max-w-xs">
               <p className="text-[10px] text-muted mb-2 font-bold uppercase tracking-wider">Rastreabilidade</p>
               <div className="space-y-1 text-xs text-muted">
-                <p>• Imagem armazenada com hash SHA-256</p>
-                <p>• Pipeline: OpenCV → EasyOCR → LLM</p>
+                <p>• Imagem armazenada no backend (storage/)</p>
+                <p>• Modelo: {extraction ? (MODEL_LABELS[extraction.modelUsed] ?? extraction.modelUsed) : 'EasyOCR'}</p>
                 <p>• Confiança OCR: {extractedData?.ocrConfidence ?? '?'}%</p>
                 <p>• Cadastro: {new Date().toLocaleString('pt-BR')}</p>
               </div>

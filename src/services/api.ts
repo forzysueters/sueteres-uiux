@@ -2,6 +2,12 @@ import {
   Asset, Alert, KPIMetrics, EquipmentRegistration,
   ChatMessage, Sensor, SensorHistorySeries, MotorNameplate,
 } from '../types';
+import {
+  ocrAPI, OcrNetworkError, OcrMode, NameplateResult,
+} from './ocrAPI';
+
+// Força o uso do mock mesmo com backend disponível (útil para demo offline)
+const FORCE_OCR_MOCK = import.meta.env.VITE_OCR_USE_MOCK === 'true';
 
 // ─── Helpers determinísticos (seed por assetId+sensorName) ─────────────────
 const seededRandom = (seed: number) => {
@@ -251,6 +257,37 @@ const mockAlerts: Alert[] = [
   },
 ];
 
+// ─── Mock OCR (fallback quando o backend Python está offline) ────────────────
+const mockNameplateExtraction = (): NameplateResult => {
+  const power_cv = [7.5, 10, 15, 20, 30][Math.floor(Math.random() * 5)];
+  return {
+    modelUsed: 'mock',
+    motorType: 'trifasico',
+    processingTimeMs: 0,
+    rawFields: {},
+    validation: {
+      consistente: true,
+      alertas: ['Backend de OCR offline — dados simulados para demonstração.'],
+    },
+    nameplate: {
+      manufacturer: 'WEG',
+      model: ['W22 132M IE3', 'W22 160L IE3', 'W22 90L IE2'][Math.floor(Math.random() * 3)],
+      serialNumber: `${Math.floor(1e9 + Math.random() * 9e9)}`,
+      power_kw: parseFloat((power_cv * 0.7355).toFixed(1)),
+      power_cv,
+      voltage: ['220/380V', '380/660V', '380V'][Math.floor(Math.random() * 3)],
+      current_a: parseFloat((10 + Math.random() * 30).toFixed(1)),
+      rpm: [1760, 1750, 3500, 1170][Math.floor(Math.random() * 4)],
+      poles: [2, 4, 6][Math.floor(Math.random() * 3)],
+      frequency_hz: 60,
+      ip_class: ['IP54', 'IP55'][Math.floor(Math.random() * 2)],
+      insulation_class: ['B', 'F', 'H'][Math.floor(Math.random() * 3)],
+      yearManufactured: 2019 + Math.floor(Math.random() * 6),
+      ocrConfidence: Math.floor(82 + Math.random() * 17),
+    },
+  };
+};
+
 // ─── API Service ──────────────────────────────────────────────────────────────
 export const apiService = {
   async getAssets(): Promise<Asset[]> {
@@ -352,27 +389,34 @@ export const apiService = {
     return { ...data, id: `reg-${Date.now()}`, registeredAt: new Date().toISOString() };
   },
 
-  /** Simula pipeline OCR: EasyOCR + validação por LLM Vision */
-  async extractNameplateFromImage(_file: File): Promise<Partial<MotorNameplate>> {
-    await new Promise(r => setTimeout(r, 2500));
-    return {
-      tag: `MTR-00${Math.floor(Math.random() * 9) + 1}`,
-      manufacturer: ['WEG', 'Siemens', 'ABB', 'Atlas Copco'][Math.floor(Math.random() * 4)],
-      model: ['W22 IE3 132M', 'SIMOTICS 1LE1503', 'M2BAX 132MA4'][Math.floor(Math.random() * 3)],
-      serialNumber: `SN-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-      power_kw: [5.5, 7.5, 11, 15, 22][Math.floor(Math.random() * 5)],
-      power_cv: [7.5, 10, 15, 20, 30][Math.floor(Math.random() * 5)],
-      voltage: ['220/380V', '380/660V', '380V'][Math.floor(Math.random() * 3)],
-      current_a: parseFloat((10 + Math.random() * 30).toFixed(1)),
-      rpm: [900, 1200, 1450, 1760, 3500][Math.floor(Math.random() * 5)],
-      poles: [2, 4, 6][Math.floor(Math.random() * 3)],
-      connection: ['Delta', 'Star', 'Delta/Star'][Math.floor(Math.random() * 3)],
-      frequency_hz: 60,
-      ip_class: ['IP54', 'IP55', 'IP65'][Math.floor(Math.random() * 3)],
-      insulation_class: ['B', 'F', 'H'][Math.floor(Math.random() * 3)],
-      yearManufactured: 2019 + Math.floor(Math.random() * 5),
-      ocrConfidence: Math.floor(82 + Math.random() * 17),
-    };
+  /**
+   * Extrai os dados da placa via modelo de OCR WEG W22 (pasta `ocr/`, FastAPI).
+   *
+   * Chama o backend real (POST /ocr/extract). Se o backend estiver offline,
+   * cai automaticamente para um mock determinístico para não quebrar a demo —
+   * o resultado vem marcado com `modelUsed: 'mock'`.
+   */
+  async extractNameplate(
+    file: File,
+    opts: { mode?: OcrMode; preprocess?: boolean } = {},
+  ): Promise<NameplateResult> {
+    if (!FORCE_OCR_MOCK) {
+      try {
+        return await ocrAPI.extractNameplate(file, opts);
+      } catch (err) {
+        // Só usa fallback quando o backend está inacessível; erros do modelo
+        // (imagem ruim, formato inválido) devem ser exibidos ao usuário.
+        if (!(err instanceof OcrNetworkError)) throw err;
+        console.warn('[ocr] backend offline — usando mock:', (err as Error).message);
+      }
+    }
+    return mockNameplateExtraction();
+  },
+
+  /** @deprecated use `extractNameplate`. Mantido por compatibilidade. */
+  async extractNameplateFromImage(file: File): Promise<Partial<MotorNameplate>> {
+    const { nameplate } = await this.extractNameplate(file);
+    return nameplate;
   },
 
   async getChatResponse(message: string, assetContext?: string): Promise<ChatMessage> {

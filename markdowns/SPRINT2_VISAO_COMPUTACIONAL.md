@@ -222,7 +222,45 @@ Imagens de campo de placas industriais sofrem de: iluminação lateral desigual,
 
 ---
 
-## 5. Integração Futura
+## 5. Implementação Real e Integração com o Frontend
+
+O modelo de OCR deixou de ser apenas um protótipo em notebook e está **implementado
+como um serviço FastAPI** (`ocr/OCR-Model-main`), **integrado ao frontend** na tela de
+**Registro de Equipamento**.
+
+### Arquitetura da integração
+
+```
+Frontend (React)  ──POST /ocr/extract (multipart)──►  Modelo OCR (FastAPI :8000)
+   src/services/ocrAPI.ts                                EasyOCR + fallback Gemini
+   ◄────────────── OCRResponse (JSON: campos + validação) ──────────────
+```
+
+- **Endpoint:** `POST /ocr/extract?mode=easyocr|gemini` e `GET /health`.
+- **Cliente HTTP:** `src/services/ocrAPI.ts` (axios), URL via `VITE_OCR_API_URL`.
+- **Mapeamento:** `mapToNameplate()` converte os `campos` extraídos (ex.: `potencia_kw`,
+  `tensao_v`, `rpm`, `grau_protecao`, `classe_isolamento`, `data_fabricacao`) para a
+  interface `MotorNameplate` exibida na UI; os polos são estimados de RPM × frequência e
+  a confiança é a média das confianças por campo.
+- **Dois modos na UI:** **EasyOCR** (padrão) e **Gemini Vision** (opcional, `GEMINI_API_KEY`).
+- **Validação física no backend** (`PhysicalValidator`): coerência kW × cv, RPM × polos × Hz,
+  carcaça × potência e nº de tensões × correntes — exibida como alertas na tela de revisão.
+- **Resiliência:** se o backend de OCR estiver offline, o frontend cai automaticamente para
+  dados simulados (marcados como "Simulado (offline)"), sem quebrar a demo.
+
+### Pipeline efetivamente executado pela API
+
+```
+Imagem → realce adaptativo (OpenCV) → remoção de linhas de grade →
+EasyOCR (bbox + texto) → extração/fusão de campos por zona →
+validação física → [fallback Gemini quando faltam campos críticos] → resposta JSON
+```
+
+> Guia de execução e tabela completa de mapeamento de campos: `ocr/INTEGRATION.md`.
+
+---
+
+## 6. Integração Futura
 
 ### Fluxo Completo de Rastreabilidade
 
@@ -258,7 +296,7 @@ Histórico de Inspeções (imagem + dados + timestamp + operador)
 
 ---
 
-## 6. Checklist Sprint 2
+## 7. Checklist Sprint 2
 
 - [x] Contexto da planta e descrição do ambiente industrial
 - [x] Importância da identificação visual documentada
@@ -274,3 +312,4 @@ Histórico de Inspeções (imagem + dados + timestamp + operador)
 - [x] Fluxograma visual do pipeline
 - [x] Jupyter Notebook executado com outputs armazenados
 - [x] Análise de limitações e sugestões de evolução (3 horizontes)
+- [x] **Modelo de OCR implementado como API FastAPI e integrado ao frontend** (tela de Registro de Equipamento)
