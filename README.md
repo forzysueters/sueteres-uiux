@@ -232,7 +232,7 @@ npm run dev          # http://localhost:3000
 
 ```bash
 cd ocr/OCR-Model-main
-python -m venv .venv
+py -3.10 -m venv .venv
 .venv\Scripts\activate          # Windows  (Linux/macOS: source .venv/bin/activate)
 pip install -r requirements.txt
 

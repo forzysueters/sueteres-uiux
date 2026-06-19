@@ -24,7 +24,7 @@ do gêmeo digital (tela **Equipamentos → Registro de Equipamento**).
 
 ```bash
 cd ocr/OCR-Model-main
-python -m venv .venv
+py -3.10 -m venv .venv
 # Windows
 .venv\Scripts\activate
 # Linux/macOS
