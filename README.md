@@ -29,13 +29,25 @@ Desenvolver uma plataforma SaaS de **Digital Twin** para indústrias, integrando
 │  State: Zustand | Routing: React Router v7 | Charts: Recharts│
 │  Animation: Framer Motion | UI: Radix Primitives            │
 │                                                             │
-│  Backend (Node.js + Express)                                │
+│  Backend de Auth (Node.js + Express) — porta 3000          │
 │  └── JWT Auth (access + refresh tokens)                     │
 │                                                             │
-│  OCR Pipeline (Python/Jupyter)                              │
-│  └── OpenCV → EasyOCR → LLM Vision → Registro              │
+│  Modelo de OCR (Python + FastAPI) — porta 8000             │
+│  └── POST /ocr/extract: realce → EasyOCR → extração de      │
+│      campos → validação física → fallback Gemini Vision     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+Os três serviços rodam como processos independentes e o frontend conversa com
+os dois backends via HTTP:
+
+| Serviço | Stack | Porta | Variável no front |
+|---------|-------|-------|-------------------|
+| Frontend | React/Vite | 5173 | — |
+| Backend (auth) | Node/Express | 3000 | `VITE_API_URL` |
+| Modelo de OCR | Python/FastAPI | 8000 | `VITE_OCR_API_URL` |
+
+> Setup e detalhes da integração OCR ↔ frontend: [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
 
 ---
 
@@ -55,10 +67,24 @@ A planta simula uma unidade industrial com 4 zonas e 5 ativos monitorados:
 
 ## Pipeline OCR (Sprint 2 — Visão Computacional)
 
+O modelo de OCR é especializado em placas de identificação de motores **WEG
+linha W22 (IP55)** e está exposto como uma **API FastAPI** (`ocr/OCR-Model-main`),
+consumida diretamente pelo frontend na tela de **Registro de Equipamento**.
+
+### Integração com o frontend
+
+- Cliente HTTP: `src/services/ocrAPI.ts` → `POST /ocr/extract` (multipart).
+- Mapeamento dos campos do OCR (`campos`) para `MotorNameplate`: `mapToNameplate()`.
+- Fallback automático para dados simulados quando o backend de OCR está offline
+  (a demo nunca quebra — o resultado vem marcado como `Simulado (offline)`).
+- Dois modos disponíveis na UI: **EasyOCR** (padrão) e **Gemini Vision** (opcional,
+  requer `GEMINI_API_KEY`).
+
 ### Fluxo
 
 ```
-Planta → Ativo → Captura → Pré-proc. OpenCV → EasyOCR → Validação LLM → Registro
+Captura → realce adaptativo (OpenCV) → EasyOCR (bbox + texto) →
+extração/fusão de campos → validação física → [fallback Gemini] → Registro
 ```
 
 ### Etapas OpenCV
@@ -113,11 +139,12 @@ Planta → Ativo → Captura → Pré-proc. OpenCV → EasyOCR → Validação L
 - Resolução inline
 
 ### 5. Equipamentos / Registro OCR
-- Wizard em 4 etapas para cadastro via placa
-- Pipeline visual: Imagem → Cinza → Contraste → Binarização → EasyOCR → Validação LLM
-- 14 campos de nameplate preenchidos automaticamente
-- Confiança OCR por campo
-- Rastreabilidade com hash SHA-256
+- Wizard em 4 etapas para cadastro via placa, integrado ao **modelo de OCR real** (FastAPI)
+- Seletor de motor de OCR: **EasyOCR** ou **Gemini Vision**
+- Campos de nameplate preenchidos automaticamente a partir da extração
+- Metadados do pipeline: modelo usado, tipo de motor, tempo de processamento
+- **Alertas de validação física** (kW×cv, RPM×polos×Hz, carcaça×potência) vindos do backend
+- Confiança OCR média por extração
 
 ### 6. Assistente IA
 - Chat contextual com acesso ao ativo selecionado
@@ -145,9 +172,22 @@ src/
 │   ├── AssetMonitorPage.tsx  # Página completa de monitoramento
 │   ├── AlertsPage.tsx        # Gestão de alertas
 │   └── EquipmentPage.tsx     # Registro via OCR
-├── services/api.ts           # Mock API com dados determinísticos
+├── services/
+│   ├── api.ts                # Fachada de serviços (mock de dados + OCR real)
+│   ├── ocrAPI.ts             # Cliente HTTP do modelo de OCR + mapeamento de campos
+│   └── authAPI.ts            # Cliente HTTP de autenticação
 ├── store/appStore.ts         # Estado global (Zustand)
+├── vite-env.d.ts             # Tipos do Vite (import.meta.env, imports de assets)
 └── types/index.ts            # Interfaces TypeScript
+
+server/                        # Backend de autenticação (Node/Express, porta 3000)
+
+ocr/
+└── OCR-Model-main/            # Modelo de OCR (Python/FastAPI, porta 8000)
+    ├── src/api/main.py        # Endpoints /ocr/extract e /health
+    ├── data/templates/        # Imagens de placa para teste
+    └── requirements.txt
+ocr/INTEGRATION.md             # Guia de integração OCR ↔ frontend
 
 notebooks/
 └── sprint2_ocr_pipeline.ipynb  # Pipeline OCR completo (Sprint 2)
@@ -161,40 +201,54 @@ markdowns/
 
 ## Execução
 
-### Frontend
+> **Atalho:** `start-all.bat` (Windows) ou `./start-all.sh` (Linux/macOS) sobem os
+> três serviços de uma vez. Antes, configure os `.env` e instale as dependências
+> (passos abaixo). O script só inicia o OCR se o venv em `ocr/OCR-Model-main/.venv`
+> já existir.
+
+### 1. Configuração (uma vez)
 
 ```bash
-# Instalar dependências
-npm install
-
-# Desenvolvimento
-npm run dev
-
-# Build produção
-npm run build
+cp .env.example .env            # frontend (define VITE_API_URL e VITE_OCR_API_URL)
+cp server/.env.example server/.env
 ```
 
-### Backend
+### 2. Frontend
+
+```bash
+npm install
+npm run dev          # http://localhost:5173
+```
+
+### 3. Backend de autenticação
 
 ```bash
 cd server
 npm install
-npm start
-# Servidor em http://localhost:3001
+npm run dev          # http://localhost:3000
 ```
 
-### Notebook OCR (Sprint 2)
+### 4. Modelo de OCR (FastAPI)
 
 ```bash
-# Criar ambiente virtual
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+cd ocr/OCR-Model-main
+python -m venv .venv
+.venv\Scripts\activate          # Windows  (Linux/macOS: source .venv/bin/activate)
+pip install -r requirements.txt
 
-# Instalar dependências
-pip install opencv-python-headless easyocr pillow matplotlib numpy scikit-image jupyter
+# Windows: force UTF-8, senão o download do modelo EasyOCR quebra na barra de progresso
+set PYTHONUTF8=1                # PowerShell: $env:PYTHONUTF8=1
+uvicorn src.api.main:app --port 8000     # http://localhost:8000  (docs em /docs)
+```
 
-# Executar notebook
-jupyter notebook notebooks/sprint2_ocr_pipeline.ipynb
+> O primeiro start baixa os pesos do EasyOCR (alguns minutos). Com o backend de
+> OCR no ar, a tela de Equipamentos passa a usar o modelo real; sem ele, usa o
+> fallback simulado. Detalhes em [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
+
+### Build de produção (frontend)
+
+```bash
+npm run build
 ```
 
 ---
@@ -220,15 +274,16 @@ Senha:    forzy2024
 - **Radix UI** para primitivos acessíveis
 - **Lucide React** para ícones
 
-### Backend
+### Backend de autenticação
 - **Node.js** + **Express**
 - **JWT** (access + refresh tokens)
 
-### Visão Computacional (Sprint 2)
-- **OpenCV** (pré-processamento)
+### Modelo de OCR (Visão Computacional — Sprint 2)
+- **FastAPI** + **Uvicorn** (API `/ocr/extract`, `/health`)
 - **EasyOCR** (extração de texto)
-- **Pillow / PIL** (geração de imagens sintéticas)
-- **NumPy + Matplotlib** (análise e visualização)
+- **OpenCV** (realce adaptativo, remoção de linhas de grade, correção de perspectiva)
+- **Gemini Vision** (fallback opcional via `google-generativeai`)
+- **Pillow / NumPy** (manipulação de imagens)
 
 ---
 

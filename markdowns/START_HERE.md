@@ -86,21 +86,36 @@ This is a **production-ready, fully functional** frontend for an Industrial Digi
 
 ---
 
-## 🚀 Quick Start (5 minutes)
+## 🚀 Quick Start
+
+A aplicação tem três serviços: **frontend** (5173), **backend de auth** (3000) e
+**modelo de OCR** (8000). Use o atalho ou suba manualmente.
 
 ```bash
-# 1. Install dependencies
-npm install
-
-# 2. Start development server
-npm run dev
-
-# 3. Open in browser
-# Automatically opens http://localhost:5173
-
-# 4. Explore the app
-# Try all 5 features and real-time updates!
+# Atalho (sobe os três)
+start-all.bat            # Windows   |   ./start-all.sh (Linux/macOS)
 ```
+
+Ou manualmente:
+
+```bash
+# 0. Configurar envs
+cp .env.example .env && cp server/.env.example server/.env
+
+# 1. Frontend → http://localhost:5173
+npm install && npm run dev
+
+# 2. Backend de auth → http://localhost:3000
+cd server && npm install && npm run dev
+
+# 3. Modelo de OCR → http://localhost:8000
+cd ocr/OCR-Model-main && python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements.txt
+set PYTHONUTF8=1 && uvicorn src.api.main:app --port 8000
+```
+
+> Sem o serviço de OCR, a tela de Equipamentos usa dados simulados.
+> Guia completo da integração: `ocr/INTEGRATION.md`.
 
 ---
 
@@ -192,15 +207,14 @@ industrial-digital-twin/
 - Mark as resolved functionality
 - Auto-refresh every 3 seconds
 
-### 5️⃣ Equipment Registration
-- 3-step workflow: Upload → Form → Success
-- Drag-drop image upload
-- Simulated Computer Vision OCR
-- Auto-fill manufacturer, model, serial number, year, power rating
-- Editable form fields
-- Validation on submit
-- Success confirmation with registration details
-- Recently registered equipment list
+### 5️⃣ Equipment Registration (OCR real)
+- Wizard: Upload → OCR → Revisão → Sucesso
+- Drag-drop de imagem da placa
+- Integração com o **modelo de OCR real** (FastAPI, porta 8000) — modos EasyOCR / Gemini Vision
+- Preenchimento automático: fabricante, modelo, nº de série, potência, tensão, RPM, classe IP, etc.
+- Metadados do pipeline + alertas de validação física
+- Campos editáveis e confirmação de registro
+- Fallback automático para dados simulados quando o backend está offline
 
 ### 6️⃣ AI Assistant
 - Chat interface with message history
@@ -473,7 +487,8 @@ You're getting a **complete, production-ready Industrial Digital Twin frontend**
 
 **Start now:**
 ```bash
-npm install && npm run dev
+start-all.bat            # Windows  (Linux/macOS: ./start-all.sh)
+# ou apenas o frontend:  npm install && npm run dev
 ```
 
 ---

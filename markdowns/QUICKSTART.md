@@ -1,18 +1,46 @@
 # Quick Start Guide
 
-## Getting Started in 3 Steps
+## Serviços da aplicação
 
-### Step 1: Install Dependencies
+| Serviço | Porta | Comando |
+|---------|-------|---------|
+| Frontend (React/Vite) | 5173 | `npm run dev` |
+| Backend de auth (Node/Express) | 3000 | `cd server && npm run dev` |
+| Modelo de OCR (Python/FastAPI) | 8000 | ver passo 4 |
+
+> Atalho: `start-all.bat` (Windows) / `./start-all.sh` (Linux/macOS) sobem os três juntos.
+
+## Getting Started
+
+### Step 1: Configure os `.env`
+```bash
+cp .env.example .env
+cp server/.env.example server/.env
+```
+
+### Step 2: Frontend
 ```bash
 npm install
+npm run dev          # http://localhost:5173
 ```
 
-### Step 2: Start Development Server
+### Step 3: Backend de auth
 ```bash
-npm run dev
+cd server && npm install && npm run dev   # http://localhost:3000
 ```
 
-The application will automatically open in your browser at `http://localhost:5173`
+### Step 4: Modelo de OCR (opcional, mas necessário para OCR real)
+```bash
+cd ocr/OCR-Model-main
+python -m venv .venv
+.venv\Scripts\activate            # Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+set PYTHONUTF8=1                   # Windows (evita erro no download do modelo)
+uvicorn src.api.main:app --port 8000   # http://localhost:8000
+```
+
+> Sem o backend de OCR no ar, a tela de Equipamentos usa dados simulados automaticamente.
+> A aplicação abre no navegador em `http://localhost:5173`.
 
 ### Step 3: Explore the Platform
 
@@ -86,13 +114,15 @@ The application will automatically open in your browser at `http://localhost:517
 5. Check sensor data and time-series trends
 6. Ask AI Assistant for maintenance recommendations
 
-### Registering New Equipment
+### Registering New Equipment (OCR real)
 1. Go to **Equipment** tab
-2. Click "Upload Equipment Image"
-3. Select a photo of equipment nameplate
-4. Review auto-extracted data (AI fills in manufacturer, model, etc.)
+2. Choose the OCR engine: **EasyOCR** (default) or **Gemini Vision**
+3. Upload a nameplate photo (PNG/JPG/WebP, ≤10 MB). For a quick test use the
+   sample plates in `ocr/OCR-Model-main/data/templates/`
+4. The frontend calls the OCR model (port 8000); review the extracted fields,
+   confidence, motor type and physical-validation alerts
 5. Edit any incorrect fields
-6. Click "Register Equipment"
+6. Click "Confirmar Registro"
 
 ### Monitoring Fleet Health
 1. Go to **Dashboard** tab
@@ -139,6 +169,13 @@ npm run dev -- --port 5174
 ### Sidebar Not Showing on Mobile
 - The sidebar collapses on small screens
 - Click the menu icon (☰) to toggle it
+
+### OCR retorna "Simulado (offline)"
+- O backend de OCR (porta 8000) não está no ar. Suba-o (passo 4) ou verifique `http://localhost:8000/health`.
+
+### Erro `UnicodeEncodeError` ao subir o OCR (Windows)
+- A barra de progresso do EasyOCR usa um caractere unicode que quebra no console cp1252.
+- Defina `set PYTHONUTF8=1` (CMD) ou `$env:PYTHONUTF8=1` (PowerShell) antes do `uvicorn`.
 
 ## Demo Data
 

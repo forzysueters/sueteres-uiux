@@ -4,8 +4,21 @@
 
 - Node.js 18+ (download from https://nodejs.org/)
 - npm 9+ (comes with Node.js)
+- **Python 3.10+** (para o modelo de OCR — https://www.python.org/)
 - Git (for version control)
 - A modern web browser (Chrome, Firefox, Safari, or Edge)
+
+## Serviços
+
+A aplicação é composta por três processos independentes:
+
+| Serviço | Stack | Porta |
+|---------|-------|-------|
+| Frontend | React/Vite | 5173 |
+| Backend de auth | Node/Express | 3000 |
+| Modelo de OCR | Python/FastAPI | 8000 |
+
+> Atalho: `start-all.bat` (Windows) / `./start-all.sh` (Linux/macOS) sobem os três.
 
 ## Local Development Setup
 
@@ -47,6 +60,28 @@ The application will open at `http://localhost:5173`
 - ✅ TypeScript compilation
 - ✅ Tailwind CSS processing
 
+### Step 3b: Backend de autenticação
+
+```bash
+cp server/.env.example server/.env
+cd server && npm install && npm run dev   # http://localhost:3000
+```
+
+### Step 3c: Modelo de OCR (FastAPI)
+
+```bash
+cd ocr/OCR-Model-main
+python -m venv .venv
+.venv\Scripts\activate              # Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+set PYTHONUTF8=1                     # Windows: evita UnicodeEncodeError no download do modelo
+uvicorn src.api.main:app --port 8000   # http://localhost:8000  (docs em /docs)
+```
+
+> O primeiro start baixa os pesos do EasyOCR (alguns minutos). Sem este serviço,
+> a tela de Equipamentos cai para dados simulados automaticamente.
+> Detalhes da integração: `ocr/INTEGRATION.md`.
+
 ### Step 4: Build for Production
 
 ```bash
@@ -73,33 +108,33 @@ This serves the production build locally to verify it works.
 
 ### Development Environment
 
-Create a `.env.local` file for local development:
+Create the `.env` files from the examples:
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env               # frontend
+cp server/.env.example server/.env # backend de auth
 ```
 
-Edit `.env.local` and customize settings:
-
-```env
-VITE_API_BASE_URL=http://localhost:5173/api
-VITE_SENSOR_UPDATE_INTERVAL=2000
-VITE_DASHBOARD_REFRESH_INTERVAL=5000
-```
-
-### Available Environment Variables
+### Available Environment Variables (frontend)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_BASE_URL` | `http://localhost:5173/api` | API endpoint |
-| `VITE_API_TIMEOUT` | `10000` | API request timeout (ms) |
+| `VITE_API_URL` | `http://localhost:3000` | Backend de autenticação (JWT) |
+| `VITE_OCR_API_URL` | `http://localhost:8000` | Modelo de OCR (FastAPI) |
+| `VITE_OCR_USE_MOCK` | `false` | Força dados simulados de OCR (demo offline) |
 | `VITE_SENSOR_UPDATE_INTERVAL` | `2000` | Sensor data refresh rate (ms) |
 | `VITE_DASHBOARD_REFRESH_INTERVAL` | `5000` | Dashboard refresh rate (ms) |
 | `VITE_ENABLE_REAL_TIME_UPDATES` | `true` | Enable real-time updates |
 | `VITE_ENABLE_AI_ASSISTANT` | `true` | Enable AI chat features |
-| `VITE_ENABLE_PREDICTIVE_MAINTENANCE` | `true` | Enable ML predictions |
 | `VITE_THEME` | `dark` | UI theme (dark/light) |
 | `VITE_ENV` | `development` | Environment (development/production/staging) |
+
+### Variáveis do modelo de OCR (`ocr/OCR-Model-main/.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEFAULT_MODEL` | `easyocr` | Motor de OCR padrão |
+| `GEMINI_API_KEY` | — | Habilita o fallback/modo Gemini Vision (opcional) |
 
 ---
 
@@ -323,6 +358,21 @@ npm run build
 # Analyze bundle
 npm run build -- --analyze
 ```
+
+### OCR: `UnicodeEncodeError` ao subir o serviço (Windows)
+
+A barra de progresso do EasyOCR usa um caractere unicode que quebra no console cp1252.
+Defina UTF-8 antes do `uvicorn`:
+
+```bash
+set PYTHONUTF8=1            # CMD
+$env:PYTHONUTF8=1          # PowerShell
+```
+
+### OCR: tela de Equipamentos mostra "Simulado (offline)"
+
+O backend de OCR (porta 8000) não está acessível. Verifique `http://localhost:8000/health`
+ou ajuste `VITE_OCR_API_URL` no `.env`.
 
 ---
 
