@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, type Variants } from 'framer-motion'
 import { Activity, AlertCircle, Zap, Cpu, TrendingUp, Sparkles } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import { translations } from '../translations'
@@ -31,7 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
   Offline: '#64748B',
 }
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -39,9 +39,9 @@ const containerVariants = {
   },
 }
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
 }
 
 export const Dashboard: React.FC = () => {
