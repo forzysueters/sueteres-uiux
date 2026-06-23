@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>Forzy — Fluxograma ML</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #07080D;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px 80px;
+  min-height: 100vh;
+}
+h1 {
+  color: #f1f5f9;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+  text-align: center;
+}
+.sub {
+  color: #475569;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 48px;
+}
+svg {
+  width: 100%;
+  max-width: 980px;
+  height: auto;
+  overflow: visible;
+}
+</style>
+</head>
+<body>
+
+<h1>Forzy · <span style="color:#f59e0b">Arquitetura dos Modelos de ML</span></h1>
+<p class="sub">Pipeline completo — da leitura IoT ao agente LLM</p>
+
+<svg viewBox="0 0 980 1580" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <!-- Arrow markers -->
+  <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#475569"/>
+  </marker>
+  <marker id="arr-split" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#334155"/>
+  </marker>
+
+  <!-- Gradients -->
+  <linearGradient id="g-iot" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0f2744"/>
+    <stop offset="100%" stop-color="#0a1929"/>
+  </linearGradient>
+  <linearGradient id="g-ingest" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0d2137"/>
+    <stop offset="100%" stop-color="#091828"/>
+  </linearGradient>
+  <linearGradient id="g-m1" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#1c1000"/>
+    <stop offset="100%" stop-color="#110a00"/>
+  </linearGradient>
+  <linearGradient id="g-m2" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0a1f0e"/>
+    <stop offset="100%" stop-color="#060f08"/>
+  </linearGradient>
+  <linearGradient id="g-m3" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#120a22"/>
+    <stop offset="100%" stop-color="#0b0616"/>
+  </linearGradient>
+  <linearGradient id="g-llm" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#1a0a0a"/>
+    <stop offset="100%" stop-color="#0f0606"/>
+  </linearGradient>
+  <linearGradient id="g-fe" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0a1929"/>
+    <stop offset="100%" stop-color="#060f18"/>
+  </linearGradient>
+</defs>
+
+<!-- ════════════════════════════════════════════════════
+     LAYER 0 — IoT SOURCE
+     ════════════════════════════════════════════════════ -->
+
+<!-- Box -->
+<rect x="240" y="20" width="500" height="110" rx="14" fill="url(#g-iot)" stroke="#1e3a5f" stroke-width="1.5"/>
+<!-- Tag -->
+<rect x="580" y="30" width="110" height="22" rx="6" fill="none" stroke="#38bdf8" stroke-width="1"/>
+<text x="635" y="45" text-anchor="middle" font-size="9" fill="#38bdf8" font-weight="700" letter-spacing="1">ENTRADA IoT</text>
+<!-- Icon area -->
+<rect x="260" y="42" width="36" height="36" rx="8" fill="#0c3a5e"/>
+<text x="278" y="65" text-anchor="middle" font-size="18">📡</text>
+<!-- Title -->
+<text x="308" y="56" font-size="13" fill="#e2e8f0" font-weight="700">Motor WEG W22 — Sensores Industriais</text>
+<text x="308" y="73" font-size="10" fill="#64748b">Protocolo 4–20 mA · Tag: MTR-001</text>
+<!-- Sensors row -->
+<rect x="260" y="88" width="80" height="28" rx="7" fill="#0f2035" stroke="#1e3a5f" stroke-width="1"/>
+<text x="300" y="105" text-anchor="middle" font-size="9" fill="#7dd3fc" font-weight="600">⚡ Tensão (V)</text>
+
+<rect x="348" y="88" width="84" height="28" rx="7" fill="#0f2035" stroke="#1e3a5f" stroke-width="1"/>
+<text x="390" y="105" text-anchor="middle" font-size="9" fill="#7dd3fc" font-weight="600">⚡ Corrente (A)</text>
+
+<rect x="440" y="88" width="100" height="28" rx="7" fill="#0f2035" stroke="#1e3a5f" stroke-width="1"/>
+<text x="490" y="105" text-anchor="middle" font-size="9" fill="#7dd3fc" font-weight="600">🌡 Temperatura (°C)</text>
+
+<rect x="548" y="88" width="84" height="28" rx="7" fill="#0f2035" stroke="#1e3a5f" stroke-width="1"/>
+<text x="590" y="105" text-anchor="middle" font-size="9" fill="#7dd3fc" font-weight="600">🔄 Rotação (rpm)</text>
+
+<rect x="640" y="88" width="82" height="28" rx="7" fill="#0f2035" stroke="#1e3a5f" stroke-width="1"/>
+<text x="681" y="105" text-anchor="middle" font-size="9" fill="#7dd3fc" font-weight="600">📳 Vibração (mm/s)</text>
+
+<!-- Arrow down -->
+<line x1="490" y1="130" x2="490" y2="168" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="430" y="142" width="120" height="18" rx="4" fill="#0b0f18"/>
+<text x="490" y="154" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">sinal bruto 4–20 mA</text>
+
+<!-- ════════════════════════════════════════════════════
+     LAYER 1 — INGESTÃO
+     ════════════════════════════════════════════════════ -->
+<rect x="190" y="170" width="600" height="116" rx="14" fill="url(#g-ingest)" stroke="#1e3a5f" stroke-width="1.5"/>
+<rect x="640" y="180" width="100" height="22" rx="6" fill="none" stroke="#7dd3fc" stroke-width="1"/>
+<text x="690" y="195" text-anchor="middle" font-size="9" fill="#7dd3fc" font-weight="700">INFRA / BACKEND</text>
+
+<rect x="210" y="192" width="36" height="36" rx="8" fill="#0c3a5e"/>
+<text x="228" y="215" text-anchor="middle" font-size="18">⚙️</text>
+
+<text x="258" y="206" font-size="13" fill="#e2e8f0" font-weight="700">Camada de Ingestão &amp; Normalização</text>
+<text x="258" y="223" font-size="10" fill="#64748b">FastAPI (Python) · SQLite histórico</text>
+
+<!-- Steps inline -->
+<rect x="210" y="238" width="270" height="34" rx="8" fill="#0a1929" stroke="#1e3a5f" stroke-width="1"/>
+<text x="226" y="252" font-size="9" fill="#94a3b8" font-weight="700">① Normalização linear</text>
+<text x="226" y="265" font-size="9" fill="#64748b">mA → V, A, °C, rpm, mm/s</text>
+
+<rect x="492" y="238" width="270" height="34" rx="8" fill="#0a1929" stroke="#1e3a5f" stroke-width="1"/>
+<text x="508" y="252" font-size="9" fill="#94a3b8" font-weight="700">② Persistência histórica</text>
+<text x="508" y="265" font-size="9" fill="#64748b">SQLite · tabela sensor_readings por TAG</text>
+
+<!-- Arrow down -->
+<line x1="490" y1="286" x2="490" y2="324" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="420" y="298" width="140" height="18" rx="4" fill="#0b0f18"/>
+<text x="490" y="310" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">leituras normalizadas</text>
+
+<!-- ════════════════════════════════════════════════════
+     LAYER 2 — MODELO 1: BASELINE
+     ════════════════════════════════════════════════════ -->
+<rect x="140" y="326" width="700" height="150" rx="14" fill="url(#g-m1)" stroke="#92400e" stroke-width="1.5"/>
+<rect x="680" y="336" width="110" height="22" rx="6" fill="none" stroke="#fbbf24" stroke-width="1"/>
+<text x="735" y="351" text-anchor="middle" font-size="9" fill="#fbbf24" font-weight="700">MODELO 1</text>
+
+<rect x="162" y="346" width="36" height="36" rx="8" fill="#78350f"/>
+<text x="180" y="369" text-anchor="middle" font-size="18">📐</text>
+
+<text x="210" y="360" font-size="13" fill="#fde68a" font-weight="700">Baseline de Operação Normal</text>
+<text x="210" y="377" font-size="10" fill="#92400e">Execução: 1× (calibração inicial) ou sob demanda do operador</text>
+
+<!-- Técnica chips -->
+<rect x="162" y="393" width="190" height="38" rx="9" fill="#1c1000" stroke="#78350f" stroke-width="1"/>
+<text x="180" y="407" font-size="8" fill="#fbbf24" font-weight="800" letter-spacing="0.5">TÉCNICA</text>
+<text x="180" y="422" font-size="10" fill="#fde68a" font-weight="700">Estatística Descritiva</text>
+
+<rect x="362" y="393" width="180" height="38" rx="9" fill="#1c1000" stroke="#78350f" stroke-width="1"/>
+<text x="380" y="407" font-size="8" fill="#fbbf24" font-weight="800" letter-spacing="0.5">BIBLIOTECA</text>
+<text x="380" y="422" font-size="10" fill="#fde68a" font-weight="700">NumPy / SciPy</text>
+
+<rect x="552" y="393" width="240" height="38" rx="9" fill="#1c1000" stroke="#78350f" stroke-width="1"/>
+<text x="570" y="407" font-size="8" fill="#fbbf24" font-weight="800" letter-spacing="0.5">PARÂMETROS</text>
+<text x="570" y="422" font-size="10" fill="#fde68a" font-weight="700">μ · σ · percentil 5–95 · UCL · LCL</text>
+
+<!-- Saída -->
+<rect x="162" y="442" width="676" height="22" rx="6" fill="#0f0800" stroke="#78350f" stroke-width="1"/>
+<text x="220" y="456" font-size="9" fill="#92400e" font-weight="700">SAÍDA →</text>
+<text x="270" y="456" font-size="9" fill="#fde68a">Perfil de baseline por ativo: média, desvio padrão, UCL e LCL de cada sensor · salvo no banco</text>
+
+<!-- Arrow: fork -->
+<line x1="490" y1="476" x2="490" y2="502" stroke="#334155" stroke-width="2"/>
+<!-- Horizontal bar -->
+<line x1="256" y1="502" x2="724" y2="502" stroke="#334155" stroke-width="2"/>
+<!-- Left drop -->
+<line x1="256" y1="502" x2="256" y2="534" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+<!-- Right drop -->
+<line x1="724" y1="502" x2="724" y2="534" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+<!-- Labels -->
+<rect x="176" y="512" width="160" height="16" rx="4" fill="#0b0f18"/>
+<text x="256" y="523" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">executa a cada leitura (~2 s)</text>
+<rect x="644" y="512" width="160" height="16" rx="4" fill="#0b0f18"/>
+<text x="724" y="523" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">executa a cada hora</text>
+
+<!-- ════════════════════════════════════════════════════
+     LAYER 3A — MODELO 2: ANOMALIA (ESQUERDA)
+     ════════════════════════════════════════════════════ -->
+<rect x="40" y="536" width="420" height="220" rx="14" fill="url(#g-m2)" stroke="#166534" stroke-width="1.5"/>
+<rect x="370" y="546" width="72" height="22" rx="6" fill="none" stroke="#34d399" stroke-width="1"/>
+<text x="406" y="561" text-anchor="middle" font-size="9" fill="#34d399" font-weight="700">MODELO 2</text>
+
+<rect x="62" y="556" width="36" height="36" rx="8" fill="#14532d"/>
+<text x="80" y="579" text-anchor="middle" font-size="18">🔍</text>
+
+<text x="110" y="570" font-size="13" fill="#a7f3d0" font-weight="700">Detecção de Anomalia</text>
+<text x="110" y="587" font-size="10" fill="#166534">Tempo real · resultado por leitura</text>
+
+<!-- Estágio 1 -->
+<rect x="62" y="602" width="180" height="58" rx="9" fill="#0a1f0e" stroke="#166534" stroke-width="1"/>
+<text x="80" y="616" font-size="8" fill="#34d399" font-weight="800" letter-spacing="0.5">ETAPA 1 — UNIVARIADO</text>
+<text x="80" y="631" font-size="11" fill="#a7f3d0" font-weight="700">Z-Score</text>
+<text x="80" y="645" font-size="9" fill="#4ade80">por sensor</text>
+<text x="80" y="657" font-size="9" fill="#166534">|z|&gt;2 → alerta · |z|&gt;3 → crítico</text>
+
+<!-- Arrow right -->
+<line x1="242" y1="631" x2="262" y2="631" stroke="#166534" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- Estágio 2 -->
+<rect x="262" y="602" width="180" height="58" rx="9" fill="#0a1f0e" stroke="#166534" stroke-width="1"/>
+<text x="280" y="616" font-size="8" fill="#34d399" font-weight="800" letter-spacing="0.5">ETAPA 2 — MULTIVARIADO</text>
+<text x="280" y="631" font-size="11" fill="#a7f3d0" font-weight="700">Isolation Forest</text>
+<text x="280" y="645" font-size="9" fill="#4ade80">scikit-learn</text>
+<text x="280" y="657" font-size="9" fill="#166534">5 sensores simultâneos</text>
+
+<!-- Saída -->
+<rect x="62" y="674" width="380" height="22" rx="6" fill="#060f08" stroke="#166534" stroke-width="1"/>
+<text x="110" y="688" font-size="9" fill="#166534" font-weight="700">SAÍDA →</text>
+<text x="158" y="688" font-size="9" fill="#a7f3d0">anomaly_score 0–100% · status por sensor · alertas automáticos</text>
+
+<!-- Decision diamond -->
+<polygon points="252,716 300,740 252,764 204,740" fill="#060f08" stroke="#166534" stroke-width="1.5"/>
+<text x="252" y="736" text-anchor="middle" font-size="8" fill="#34d399" font-weight="700">score</text>
+<text x="252" y="748" text-anchor="middle" font-size="8" fill="#34d399" font-weight="700">&gt; 70%?</text>
+<text x="170" y="738" font-size="8" fill="#4ade80">Não → Normal</text>
+<text x="307" y="738" font-size="8" fill="#f87171">Sim → Alerta</text>
+
+<!-- ════════════════════════════════════════════════════
+     LAYER 3B — MODELO 3: PREDITIVO (DIREITA)
+     ════════════════════════════════════════════════════ -->
+<rect x="520" y="536" width="420" height="220" rx="14" fill="url(#g-m3)" stroke="#4c1d95" stroke-width="1.5"/>
+<rect x="838" y="546" width="84" height="22" rx="6" fill="none" stroke="#a78bfa" stroke-width="1"/>
+<text x="880" y="561" text-anchor="middle" font-size="9" fill="#a78bfa" font-weight="700">MODELO 3</text>
+
+<rect x="542" y="556" width="36" height="36" rx="8" fill="#4c1d95"/>
+<text x="560" y="579" text-anchor="middle" font-size="18">🔮</text>
+
+<text x="590" y="570" font-size="13" fill="#ddd6fe" font-weight="700">Manutenção Preditiva</text>
+<text x="590" y="587" font-size="10" fill="#4c1d95">Periódico · sobre histórico acumulado</text>
+
+<!-- Estágio 1 -->
+<rect x="542" y="602" width="180" height="58" rx="9" fill="#120a22" stroke="#4c1d95" stroke-width="1"/>
+<text x="560" y="616" font-size="8" fill="#a78bfa" font-weight="800" letter-spacing="0.5">ETAPA 1 — TENDÊNCIA</text>
+<text x="560" y="631" font-size="11" fill="#ddd6fe" font-weight="700">Regressão Linear</text>
+<text x="560" y="645" font-size="9" fill="#c4b5fd">scikit-learn</text>
+<text x="560" y="657" font-size="9" fill="#4c1d95">inclinação do anomaly_score</text>
+
+<!-- Arrow right -->
+<line x1="722" y1="631" x2="742" y2="631" stroke="#4c1d95" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- Estágio 2 -->
+<rect x="742" y="602" width="180" height="58" rx="9" fill="#120a22" stroke="#4c1d95" stroke-width="1"/>
+<text x="760" y="616" font-size="8" fill="#a78bfa" font-weight="800" letter-spacing="0.5">ETAPA 2 — PREDIÇÃO RUL</text>
+<text x="760" y="631" font-size="11" fill="#ddd6fe" font-weight="700">XGBoost Regressor</text>
+<text x="760" y="645" font-size="9" fill="#c4b5fd">xgboost</text>
+<text x="760" y="657" font-size="9" fill="#4c1d95">features: slope, score, tempo</text>
+
+<!-- Saída -->
+<rect x="542" y="674" width="380" height="22" rx="6" fill="#0b0616" stroke="#4c1d95" stroke-width="1"/>
+<text x="590" y="688" font-size="9" fill="#4c1d95" font-weight="700">SAÍDA →</text>
+<text x="638" y="688" font-size="9" fill="#ddd6fe">RUL em dias · data prevista de falha · janela recomendada de manutenção</text>
+
+<!-- RUL output box -->
+<rect x="622" y="710" width="196" height="34" rx="8" fill="#120a22" stroke="#4c1d95" stroke-width="1"/>
+<text x="720" y="724" text-anchor="middle" font-size="10" fill="#a78bfa" font-weight="700">ex: "Falha em ~14 dias"</text>
+<text x="720" y="738" text-anchor="middle" font-size="9" fill="#4c1d95">manutenção recomendada: dia 10</text>
+
+<!-- ════════════════════════════════════════════════════
+     CONVERGE ARROWS → LLM
+     ════════════════════════════════════════════════════ -->
+<!-- Left model bottom -->
+<line x1="252" y1="764" x2="252" y2="832" stroke="#334155" stroke-width="2"/>
+<!-- Right model bottom -->
+<line x1="728" y1="756" x2="728" y2="832" stroke="#334155" stroke-width="2"/>
+<!-- Horizontal bar -->
+<line x1="252" y1="832" x2="728" y2="832" stroke="#334155" stroke-width="2"/>
+<!-- Center drop -->
+<line x1="490" y1="832" x2="490" y2="864" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="410" y="840" width="160" height="16" rx="4" fill="#0b0f18"/>
+<text x="490" y="851" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">contexto completo dos modelos</text>
+
+<!-- ════════════════════════════════════════════════════
+     LAYER 4 — LLM AGENT
+     ════════════════════════════════════════════════════ -->
+<rect x="140" y="866" width="700" height="200" rx="14" fill="url(#g-llm)" stroke="#7f1d1d" stroke-width="1.5"/>
+<rect x="680" y="876" width="116" height="22" rx="6" fill="none" stroke="#f87171" stroke-width="1"/>
+<text x="738" y="891" text-anchor="middle" font-size="9" fill="#f87171" font-weight="700">AGENTE LLM + RAG</text>
+
+<rect x="162" y="886" width="36" height="36" rx="8" fill="#7f1d1d"/>
+<text x="180" y="909" text-anchor="middle" font-size="18">🤖</text>
+
+<text x="210" y="900" font-size="13" fill="#fecaca" font-weight="700">Inteligência Forzy — Agente Conversacional</text>
+<text x="210" y="917" font-size="10" fill="#7f1d1d">RAG sobre documentação técnica + contexto dos 3 modelos em tempo real</text>
+
+<!-- RAG box -->
+<rect x="162" y="932" width="200" height="80" rx="9" fill="#1a0a0a" stroke="#7f1d1d" stroke-width="1"/>
+<text x="180" y="946" font-size="8" fill="#f87171" font-weight="800" letter-spacing="0.5">MEMÓRIA / RAG</text>
+<text x="180" y="962" font-size="10" fill="#fecaca" font-weight="700">ChromaDB</text>
+<text x="180" y="977" font-size="9" fill="#94a3b8">Embeddings locais</text>
+<text x="180" y="991" font-size="9" fill="#64748b">Manual WEG · histórico alertas</text>
+<text x="180" y="1005" font-size="9" fill="#64748b">fichas técnicas · manutenções</text>
+
+<!-- LLM Model box -->
+<rect x="378" y="932" width="200" height="80" rx="9" fill="#1a0a0a" stroke="#7f1d1d" stroke-width="1"/>
+<text x="396" y="946" font-size="8" fill="#f87171" font-weight="800" letter-spacing="0.5">MODELO DE LINGUAGEM</text>
+<text x="396" y="962" font-size="10" fill="#fecaca" font-weight="700">Claude Haiku</text>
+<text x="396" y="977" font-size="9" fill="#94a3b8">ou GPT-4o-mini</text>
+<text x="396" y="991" font-size="9" fill="#64748b">resposta em streaming</text>
+<text x="396" y="1005" font-size="9" fill="#64748b">contexto: leituras + M1 + M2 + M3</text>
+
+<!-- Prompt box -->
+<rect x="594" y="932" width="220" height="80" rx="9" fill="#1a0a0a" stroke="#7f1d1d" stroke-width="1"/>
+<text x="612" y="946" font-size="8" fill="#f87171" font-weight="800" letter-spacing="0.5">PROMPT (SYSTEM)</text>
+<text x="612" y="962" font-size="10" fill="#fecaca" font-weight="700">Injeção de contexto</text>
+<text x="612" y="977" font-size="9" fill="#64748b">leituras atuais do motor</text>
+<text x="612" y="991" font-size="9" fill="#64748b">baseline + anomaly_score + RUL</text>
+<text x="612" y="1005" font-size="9" fill="#64748b">docs relevantes (RAG)</text>
+
+<!-- Arrow down -->
+<line x1="490" y1="1066" x2="490" y2="1104" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="400" y="1078" width="180" height="16" rx="4" fill="#0b0f18"/>
+<text x="490" y="1089" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">resposta streaming (SSE)</text>
+
+<!-- Saída -->
+<rect x="162" y="1034" width="652" height="22" rx="6" fill="#0f0606" stroke="#7f1d1d" stroke-width="1"/>
+<text x="220" y="1048" font-size="9" fill="#7f1d1d" font-weight="700">SAÍDA →</text>
+<text x="270" y="1048" font-size="9" fill="#fecaca">Diagnóstico em linguagem natural · causa raiz · ação recomendada · plano de manutenção</text>
+
+<!-- ════════════════════════════════════════════════════
+     LAYER 5 — FRONTEND
+     ════════════════════════════════════════════════════ -->
+<rect x="80" y="1106" width="820" height="160" rx="14" fill="url(#g-fe)" stroke="#0ea5e9" stroke-width="1.5"/>
+<rect x="760" y="1116" width="100" height="22" rx="6" fill="none" stroke="#38bdf8" stroke-width="1"/>
+<text x="810" y="1131" text-anchor="middle" font-size="9" fill="#38bdf8" font-weight="700">FRONTEND</text>
+
+<rect x="102" y="1126" width="36" height="36" rx="8" fill="#0c4a6e"/>
+<text x="120" y="1149" text-anchor="middle" font-size="18">🖥️</text>
+
+<text x="150" y="1140" font-size="13" fill="#bae6fd" font-weight="700">Plataforma Forzy — React + TypeScript</text>
+<text x="150" y="1157" font-size="10" fill="#0369a1">Já implementado · consume as APIs acima via REST / WebSocket</text>
+
+<!-- 6 cards -->
+<rect x="102" y="1170" width="120" height="80" rx="8" fill="#0a1929" stroke="#0ea5e9" stroke-width="1"/>
+<text x="162" y="1185" text-anchor="middle" font-size="8" fill="#38bdf8" font-weight="800">DASHBOARD</text>
+<text x="162" y="1200" text-anchor="middle" font-size="9" fill="#7dd3fc">KPIs · gráficos</text>
+<text x="162" y="1214" text-anchor="middle" font-size="9" fill="#64748b">anomaly_score real</text>
+<text x="162" y="1228" text-anchor="middle" font-size="9" fill="#64748b">uptime · alertas</text>
+<text x="162" y="1242" text-anchor="middle" font-size="8" fill="#0369a1">←  M2</text>
+
+<rect x="234" y="1170" width="120" height="80" rx="8" fill="#0a1929" stroke="#0ea5e9" stroke-width="1"/>
+<text x="294" y="1185" text-anchor="middle" font-size="8" fill="#38bdf8" font-weight="800">PLANTA / HMI</text>
+<text x="294" y="1200" text-anchor="middle" font-size="9" fill="#7dd3fc">mapa interativo</text>
+<text x="294" y="1214" text-anchor="middle" font-size="9" fill="#64748b">clique → sensores</text>
+<text x="294" y="1228" text-anchor="middle" font-size="9" fill="#64748b">série temporal</text>
+<text x="294" y="1242" text-anchor="middle" font-size="8" fill="#0369a1">← ingestão</text>
+
+<rect x="366" y="1170" width="120" height="80" rx="8" fill="#0a1929" stroke="#0ea5e9" stroke-width="1"/>
+<text x="426" y="1185" text-anchor="middle" font-size="8" fill="#38bdf8" font-weight="800">ALERTAS</text>
+<text x="426" y="1200" text-anchor="middle" font-size="9" fill="#7dd3fc">gerados pelo M2</text>
+<text x="426" y="1214" text-anchor="middle" font-size="9" fill="#64748b">Z-score excedido</text>
+<text x="426" y="1228" text-anchor="middle" font-size="9" fill="#64748b">Isolation Forest</text>
+<text x="426" y="1242" text-anchor="middle" font-size="8" fill="#0369a1">← M2</text>
+
+<rect x="498" y="1170" width="136" height="80" rx="8" fill="#0a1929" stroke="#0ea5e9" stroke-width="1"/>
+<text x="566" y="1185" text-anchor="middle" font-size="8" fill="#38bdf8" font-weight="800">MANUTENÇÃO</text>
+<text x="566" y="1200" text-anchor="middle" font-size="9" fill="#7dd3fc">RUL em dias</text>
+<text x="566" y="1214" text-anchor="middle" font-size="9" fill="#64748b">data prevista falha</text>
+<text x="566" y="1228" text-anchor="middle" font-size="9" fill="#64748b">janela recomendada</text>
+<text x="566" y="1242" text-anchor="middle" font-size="8" fill="#0369a1">← M3 XGBoost</text>
+
+<rect x="646" y="1170" width="120" height="80" rx="8" fill="#0a1929" stroke="#0ea5e9" stroke-width="1"/>
+<text x="706" y="1185" text-anchor="middle" font-size="8" fill="#38bdf8" font-weight="800">ASSISTENTE IA</text>
+<text x="706" y="1200" text-anchor="middle" font-size="9" fill="#7dd3fc">chat streaming</text>
+<text x="706" y="1214" text-anchor="middle" font-size="9" fill="#64748b">diagnóstico LLM</text>
+<text x="706" y="1228" text-anchor="middle" font-size="9" fill="#64748b">RAG + contexto</text>
+<text x="706" y="1242" text-anchor="middle" font-size="8" fill="#0369a1">← LLM Agent</text>
+
+<rect x="778" y="1170" width="104" height="80" rx="8" fill="#0a1929" stroke="#0ea5e9" stroke-width="1"/>
+<text x="830" y="1185" text-anchor="middle" font-size="8" fill="#38bdf8" font-weight="800">OCR DE PLACA</text>
+<text x="830" y="1200" text-anchor="middle" font-size="9" fill="#7dd3fc">já funciona ✓</text>
+<text x="830" y="1214" text-anchor="middle" font-size="9" fill="#64748b">FastAPI real</text>
+<text x="830" y="1228" text-anchor="middle" font-size="9" fill="#64748b">WEG W22</text>
+<text x="830" y="1242" text-anchor="middle" font-size="8" fill="#22c55e">← sprint 2</text>
+
+<!-- ════════════════════════════════════════════════════
+     LEGEND
+     ════════════════════════════════════════════════════ -->
+<rect x="180" y="1290" width="620" height="36" rx="10" fill="#0b0f18" stroke="#1e293b" stroke-width="1"/>
+<rect x="200" y="1305" width="10" height="10" rx="2" fill="#0c4a6e"/>
+<text x="215" y="1314" font-size="9" fill="#64748b">Infra</text>
+<rect x="265" y="1305" width="10" height="10" rx="2" fill="#78350f"/>
+<text x="280" y="1314" font-size="9" fill="#64748b">M1 Baseline</text>
+<rect x="355" y="1305" width="10" height="10" rx="2" fill="#14532d"/>
+<text x="370" y="1314" font-size="9" fill="#64748b">M2 Anomalia</text>
+<rect x="445" y="1305" width="10" height="10" rx="2" fill="#4c1d95"/>
+<text x="460" y="1314" font-size="9" fill="#64748b">M3 Preditivo · XGBoost</text>
+<rect x="575" y="1305" width="10" height="10" rx="2" fill="#7f1d1d"/>
+<text x="590" y="1314" font-size="9" fill="#64748b">LLM + RAG</text>
+<rect x="650" y="1305" width="10" height="10" rx="2" fill="#0c4a6e"/>
+<text x="665" y="1314" font-size="9" fill="#64748b">Frontend ✓</text>
+
+<text x="490" y="1360" text-anchor="middle" font-size="9" fill="#1e293b" letter-spacing="2">FORZY · PROMON ENGENHARIA · DIGITAL TWIN</text>
+
+</svg>
+
+</body>
+</html>
