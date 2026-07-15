@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.pytest_cache/
+.ipynb_checkpoints/
+
+# O modelo único pré-treinado é versionado; outros .joblib avulsos, não.
+models/*.joblib
+!models/baseline.joblib
