@@ -5,9 +5,13 @@ import {
 import {
   ocrAPI, OcrNetworkError, OcrMode, NameplateResult,
 } from './ocrAPI';
+import {
+  anomalyAPI, AnomalyNetworkError, Reading, ScoreRequest, ScoreResult, Severity,
+} from './anomalyAPI';
 
 // Força o uso do mock mesmo com backend disponível (útil para demo offline)
 const FORCE_OCR_MOCK = import.meta.env.VITE_OCR_USE_MOCK === 'true';
+const FORCE_ANOMALY_MOCK = import.meta.env.VITE_ANOMALY_USE_MOCK === 'true';
 
 // ─── Helpers determinísticos (seed por assetId+sensorName) ─────────────────
 const seededRandom = (seed: number) => {
@@ -288,11 +292,126 @@ const mockNameplateExtraction = (): NameplateResult => {
   };
 };
 
+// ─── Anomalia: geração de leituras + fallback ────────────────────────────────
+
+/**
+ * Condição "verdadeira" de cada ativo (0-100, maior = pior), usada para gerar
+ * leituras coerentes. É estável: NÃO é o `anomalyScore` do asset (que passa a ser
+ * sobrescrito por 100 - healthIndex após a pontuação do modelo).
+ */
+const ANOMALY_CONDITION: Record<string, number> = {
+  'motor-001': 12,
+  'motor-002': 58,
+  'pump-001': 8,
+  'compressor-001': 85,
+  'fan-001': 15,
+};
+
+// Constantes calibradas empiricamente contra o serviço de anomalia (porta 8001).
+// Objetivo: saudáveis ~85-95 (ok), motor-002 em alerta, compressor em critico.
+const AN_WINDOW_POINTS = 30;         // 30 x 10s = 5 min (casa com RESAMPLE_RULE/FEATURE_WIN)
+const AN_STEP_MS = 10_000;
+const AN_BASE_VELOCITY = 6.8;        // mm/s — carga saudável (faixa de treino)
+const AN_BASE_ACCEL = 0.04;          // g
+const AN_TEMP_HEALTHY = 34;          // °C que ~zera o resíduo térmico p/ a carga base
+const AN_THERMAL_SPAN = 25;          // °C de offset térmico no desvio máximo (calibrado: motor-002→alerta, compressor→critico)
+const AN_VEL_ANOM_SPAN = 2.5;        // mm/s de anomalia de velocidade no desvio máximo
+
+/** Constrói uma janela de leituras determinística e calibrada para um ativo. */
+const buildReadings = (asset: Asset): ScoreRequest => {
+  const dev = (ANOMALY_CONDITION[asset.id] ?? asset.anomalyScore) / 100;
+  const seed = makeSeed(asset.id);
+  const now = Date.now();
+  const readings: Reading[] = [];
+  for (let i = 0; i < AN_WINDOW_POINTS; i++) {
+    const ts = new Date(now - (AN_WINDOW_POINTS - 1 - i) * AN_STEP_MS).toISOString();
+    const n = (k: number) => seededRandom(seed + i * 7.3 + k) - 0.5; // ruído centrado
+    const velocity = AN_BASE_VELOCITY + dev * AN_VEL_ANOM_SPAN * (0.5 + n(1)) + n(2) * 0.15;
+    const acceleration = AN_BASE_ACCEL * (1 + dev * 0.8) + n(3) * 0.004;
+    const temperature = AN_TEMP_HEALTHY + dev * AN_THERMAL_SPAN + n(4) * 0.5;
+    readings.push({
+      timestamp: ts,
+      sensors: {
+        velocity: parseFloat(velocity.toFixed(3)),
+        acceleration: parseFloat(Math.max(0, acceleration).toFixed(4)),
+        temperature: parseFloat(temperature.toFixed(2)),
+      },
+    });
+  }
+  return { asset_tag: asset.tag, readings };
+};
+
+const severityFromHealth = (h: number): Severity => {
+  if (h < 45) return 'critico';
+  if (h < 65) return 'alerta';
+  if (h < 85) return 'info';
+  return 'ok';
+};
+
+const MOCK_INSIGHT: Record<Severity, string> = {
+  ok: 'Operação dentro do padrão. Nenhum desvio relevante detectado. (dados simulados — serviço de anomalia offline)',
+  info: 'Desvio leve em relação à linha de base. Acompanhar nas próximas leituras. (dados simulados — serviço de anomalia offline)',
+  alerta: 'Desvio relevante detectado: tendência de aquecimento acima do esperado. Agendar inspeção preventiva. (dados simulados — serviço de anomalia offline)',
+  critico: 'Degradação crítica: aquecimento não explicado e padrão atípico. Acionar a manutenção com prioridade. (dados simulados — serviço de anomalia offline)',
+};
+
+/** Fallback determinístico quando o backend de anomalia está inacessível. */
+const mockScoreAnomaly = (asset: Asset): ScoreResult => {
+  const health = Math.round(100 - (ANOMALY_CONDITION[asset.id] ?? asset.anomalyScore));
+  const severity = severityFromHealth(health);
+  return {
+    asset_tag: asset.tag,
+    timestamp: new Date().toISOString(),
+    health_index: health,
+    health_min: health,
+    anomaly_score: parseFloat(((100 - health) / 100).toFixed(2)),
+    severity,
+    insight: MOCK_INSIGHT[severity],
+    thermal_residual: null,
+    sustained: severity === 'alerta' || severity === 'critico',
+    modelUsed: 'mock',
+  };
+};
+
 // ─── API Service ──────────────────────────────────────────────────────────────
 export const apiService = {
   async getAssets(): Promise<Asset[]> {
     await new Promise(r => setTimeout(r, 300));
+    // Pontua todos os ativos com o modelo real (fallback p/ mock se offline).
+    await Promise.all(
+      mockAssets.map(async (asset) => {
+        let result: ScoreResult;
+        try {
+          result = await apiService.scoreAnomaly(asset);
+        } catch (err) {
+          console.warn(`[anomaly] scoring falhou para ${asset.tag}:`, (err as Error).message);
+          result = mockScoreAnomaly(asset);
+        }
+        asset.healthIndex = Math.round(result.health_index);
+        asset.severity = result.severity;
+        asset.insight = result.insight;
+        asset.thermalResidual = result.thermal_residual ?? null;
+        asset.anomalyScore = Math.round(100 - result.health_index);
+      }),
+    );
     return mockAssets;
+  },
+
+  /**
+   * Pontua um ativo com o serviço de anomalia (pasta `anomaly/`, FastAPI).
+   * Cai para mock determinístico apenas quando o backend está inacessível.
+   */
+  async scoreAnomaly(asset: Asset): Promise<ScoreResult> {
+    if (!FORCE_ANOMALY_MOCK) {
+      try {
+        const resp = await anomalyAPI.score(buildReadings(asset));
+        return { ...resp, modelUsed: 'anomaly' };
+      } catch (err) {
+        if (!(err instanceof AnomalyNetworkError)) throw err;
+        console.warn('[anomaly] backend offline — usando mock:', (err as Error).message);
+      }
+    }
+    return mockScoreAnomaly(asset);
   },
 
   async getAssetById(id: string): Promise<Asset | undefined> {
@@ -315,9 +434,8 @@ export const apiService = {
           (sensor.value + Math.sin(t + makeSeed(sensor.name)) * (sensor.max - sensor.min) * 0.01).toFixed(2),
         ),
       }));
-      asset.anomalyScore = parseFloat(
-        Math.min(100, Math.max(0, asset.anomalyScore + Math.sin(t) * 0.5)).toFixed(1),
-      );
+      // anomalyScore/healthIndex agora vêm do modelo (getAssets/scoreAnomaly);
+      // o tick apenas perturba os valores de sensor para o "live" visual.
     }
     return asset;
   },

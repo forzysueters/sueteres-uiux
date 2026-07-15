@@ -55,6 +55,20 @@ export const AssetDetailPanel: React.FC<AssetDetailPanelProps> = ({ assetId, onC
   };
   const cfg = statusConfig[asset.status] || statusConfig.normal;
 
+  // Diagnóstico do modelo de anomalia (Índice de Saúde: maior = melhor).
+  const health = asset.healthIndex ?? Math.round(100 - asset.anomalyScore);
+  const severity =
+    asset.severity ??
+    (health < 45 ? 'critico' : health < 65 ? 'alerta' : health < 85 ? 'info' : 'ok');
+  const healthColor =
+    health >= 85 ? 'text-emerald-400' : health >= 65 ? 'text-amber-400' : 'text-red-400';
+  const insightColor =
+    severity === 'critico'
+      ? 'text-red-300'
+      : severity === 'alerta'
+        ? 'text-amber-200/80'
+        : 'text-emerald-200/80';
+
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'sensors',   label: 'Sensores',  icon: Settings },
     { id: 'history',   label: 'Histórico', icon: TrendingUp },
@@ -96,7 +110,7 @@ export const AssetDetailPanel: React.FC<AssetDetailPanelProps> = ({ assetId, onC
         <div className="grid grid-cols-3 border-b border-border flex-shrink-0">
           {[
             { label: 'Disponibilidade', value: `${asset.uptime.toFixed(1)}%`, color: 'text-emerald-400' },
-            { label: 'Score Anomalia', value: `${asset.anomalyScore}%`, color: asset.anomalyScore > 50 ? 'text-red-400' : 'text-emerald-400' },
+            { label: 'Índice de Saúde', value: `${health}%`, color: healthColor },
             { label: 'Sensores', value: `${asset.sensors.length}`, color: 'text-blue-400' },
           ].map(({ label, value, color }) => (
             <div key={label} className="px-4 py-3 text-center border-r border-border last:border-r-0">
@@ -106,16 +120,12 @@ export const AssetDetailPanel: React.FC<AssetDetailPanelProps> = ({ assetId, onC
           ))}
         </div>
 
-        {/* AI Insight strip */}
-        {asset.anomalyScore > 30 && (
+        {/* AI Insight strip — texto vindo do modelo de anomalia */}
+        {severity !== 'ok' && asset.insight && (
           <div className="px-5 py-3 bg-primary/5 border-b border-primary/10 flex-shrink-0">
             <div className="flex items-start gap-2">
               <Sparkles size={14} className="text-primary mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-amber-200/80 leading-relaxed">
-                {asset.anomalyScore > 70
-                  ? `Score de anomalia crítico (${asset.anomalyScore}%). Recomenda-se inspeção imediata — risco de falha estimado em até 7 dias.`
-                  : `Score de anomalia elevado (${asset.anomalyScore}%). Monitorar tendência e planejar manutenção preventiva.`}
-              </p>
+              <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
             </div>
           </div>
         )}

@@ -70,6 +70,20 @@ export const AssetMonitorPage: React.FC = () => {
   const activeAlerts = alerts.filter(a => !a.resolved);
   const currentHistory = selectedSensor ? history.find(h => h.sensorName === selectedSensor) : null;
 
+  // Diagnóstico do modelo de anomalia (Índice de Saúde: maior = melhor).
+  const health = asset.healthIndex ?? Math.round(100 - asset.anomalyScore);
+  const severity =
+    asset.severity ??
+    (health < 45 ? 'critico' : health < 65 ? 'alerta' : health < 85 ? 'info' : 'ok');
+  const healthColor =
+    health >= 85 ? 'text-emerald-400' : health >= 65 ? 'text-amber-400' : 'text-red-400';
+  const insightColor =
+    severity === 'critico'
+      ? 'text-red-300'
+      : severity === 'alerta'
+        ? 'text-amber-200/80'
+        : 'text-emerald-200/80';
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Breadcrumb */}
@@ -124,7 +138,7 @@ export const AssetMonitorPage: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Disponibilidade', value: `${asset.uptime.toFixed(1)}%`, color: 'text-emerald-400' },
-          { label: 'Score de Anomalia', value: `${asset.anomalyScore}%`, color: asset.anomalyScore > 50 ? 'text-red-400' : 'text-emerald-400' },
+          { label: 'Índice de Saúde', value: `${health}%`, color: healthColor },
           { label: 'Sensores Ativos', value: `${asset.sensors.length}`, color: 'text-blue-400' },
           { label: 'Alertas Ativos', value: `${activeAlerts.length}`, color: activeAlerts.length > 0 ? 'text-amber-400' : 'text-emerald-400' },
         ].map(({ label, value, color }) => (
@@ -135,26 +149,28 @@ export const AssetMonitorPage: React.FC = () => {
         ))}
       </div>
 
-      {/* AI insight */}
-      {asset.anomalyScore > 25 && (
+      {/* AI insight — texto vindo do modelo de anomalia */}
+      {severity !== 'ok' && asset.insight && (
         <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
           <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-xs font-bold text-primary mb-1">Insight Preditivo IA</p>
-            <p className="text-xs text-amber-200/80 leading-relaxed">
-              {asset.anomalyScore > 70
-                ? `Score de anomalia crítico (${asset.anomalyScore}%). O modelo ML prediz risco de falha em até 7 dias com alta confiança. Recomenda-se inspeção imediata dos rolamentos e verificação do sistema de lubrificação.`
-                : `Score de anomalia elevado (${asset.anomalyScore}%). Tendência de degradação detectada. Planejar manutenção preventiva para as próximas 2 semanas. Monitorar sensores de vibração e temperatura.`}
-            </p>
+            <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
             <div className="flex items-center gap-4 mt-2 pt-2 border-t border-primary/10">
               <div>
                 <p className="text-[9px] text-primary/60 uppercase">Vida Útil Estimada</p>
-                <p className="text-xs font-bold text-foreground">~ {Math.round((100 - asset.anomalyScore) * 2.4)} dias</p>
+                <p className="text-xs font-bold text-foreground">~ {Math.round(health * 2.4)} dias</p>
               </div>
               <div>
-                <p className="text-[9px] text-primary/60 uppercase">Confiança Modelo</p>
-                <p className="text-xs font-bold text-foreground">{Math.round(70 + asset.anomalyScore * 0.25)}%</p>
+                <p className="text-[9px] text-primary/60 uppercase">Índice de Saúde</p>
+                <p className="text-xs font-bold text-foreground">{health}/100</p>
               </div>
+              {asset.thermalResidual != null && (
+                <div>
+                  <p className="text-[9px] text-primary/60 uppercase">Resíduo Térmico</p>
+                  <p className="text-xs font-bold text-foreground">{asset.thermalResidual > 0 ? '+' : ''}{asset.thermalResidual.toFixed(1)}°C</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

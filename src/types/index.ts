@@ -62,7 +62,12 @@ export interface Asset {
   y: number;
   plantX: number;        // posição % horizontal no mapa SVG (0-100)
   plantY: number;        // posição % vertical no mapa SVG (0-100)
-  anomalyScore: number;  // 0-100
+  anomalyScore: number;  // 0-100 (derivado: 100 - healthIndex quando pontuado pelo modelo)
+  // ─── Diagnóstico do modelo de anomalia (Sprint 2 — pasta anomaly/) ────────
+  healthIndex?: number;   // 0-100, maior = mais saudável (saída real do modelo)
+  severity?: 'ok' | 'info' | 'alerta' | 'critico';
+  insight?: string;       // texto de insight preditivo vindo do modelo
+  thermalResidual?: number | null; // resíduo térmico atual (°C), se houver
   nameplate?: MotorNameplate; // dados extraídos via OCR da placa
 }
 
