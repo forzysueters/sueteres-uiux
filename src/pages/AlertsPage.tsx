@@ -49,7 +49,7 @@ export const AlertsPage: React.FC = () => {
               className="pl-9 pr-4 py-2 bg-card border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50 transition-all w-64"
             />
           </div>
-          <button className="p-2 rounded-lg bg-card border border-border text-muted hover:text-white transition-colors">
+          <button className="p-2 rounded-lg bg-card border border-border text-muted hover:text-foreground transition-colors">
             <Filter size={18} />
           </button>
         </div>
@@ -75,7 +75,7 @@ export const AlertsPage: React.FC = () => {
 
       {/* Filter tabs + list */}
       <div className="saas-card overflow-hidden">
-        <div className="border-b border-border bg-slate-900/10 px-6 flex items-center gap-6">
+        <div className="border-b border-border bg-card-hover px-6 flex items-center gap-6">
           {[
             { id: 'all', label: 'Todos', count: stats.total },
             { id: 'critical', label: 'Críticos', count: stats.critical },
@@ -92,7 +92,7 @@ export const AlertsPage: React.FC = () => {
                 }`}
               >
                 {label}
-                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${isActive ? 'bg-primary text-white' : 'bg-slate-800 text-muted'}`}>
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${isActive ? 'bg-primary text-white' : 'bg-card-hover text-muted'}`}>
                   {count}
                 </span>
                 {isActive && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />}
@@ -108,7 +108,7 @@ export const AlertsPage: React.FC = () => {
             ))
           ) : (
             <div className="p-20 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 rounded-full bg-slate-900/50 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-card-hover flex items-center justify-center mb-4">
                 <Bell size={24} className="text-muted" />
               </div>
               <h3 className="text-foreground">Nenhum alerta encontrado</h3>

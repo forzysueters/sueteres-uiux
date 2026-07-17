@@ -32,7 +32,6 @@ import { EquipmentPage } from './pages/EquipmentPage'
 import { AssistantPage } from './pages/AssistantPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AccountPage } from './pages/AccountPage'
-import { AssetDetailPanel } from './components/AssetDetailPanel'
 import { LoginPage } from './pages/LoginPage'
 import { TokenRefresher } from './components/TokenRefresher'
 import logoWhite from './assets/logo-forzy-branca.svg'
@@ -40,8 +39,7 @@ import logoBlack from './assets/logo-forzy-preta.svg'
 import { cn } from './lib/utils'
 
 const AppContent = () => {
-  const { selectedAssetId, setSelectedAsset, darkMode, primaryColor, language } =
-    useAppStore()
+  const { darkMode, primaryColor, language } = useAppStore()
   const { logout } = useAuthStore()
   const t = translations[language]
 
@@ -86,8 +84,8 @@ const AppContent = () => {
   }, [location])
 
   const navItems = [
-    { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
+    { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
     { id: 'alerts', label: t.nav.alerts, path: '/alertas', icon: Bell, badge: 3 },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
     { id: 'assistant', label: t.nav.assistant, path: '/assistente', icon: Bot },
@@ -105,7 +103,7 @@ const AppContent = () => {
 
         <div className="flex items-center gap-6 md:gap-8 h-full">
           <Link
-            to="/dashboard"
+            to="/planta"
             className="flex items-center h-full transition-opacity hover:opacity-80"
           >
             <img
@@ -278,19 +276,12 @@ const AppContent = () => {
                 <Route path="/assistente" element={<AssistantPage />} />
                 <Route path="/configuracoes" element={<SettingsPage />} />
                 <Route path="/conta" element={<AccountPage />} />
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<Navigate to="/planta" replace />} />
               </Routes>
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
-
-      {selectedAssetId && (
-        <AssetDetailPanel
-          assetId={selectedAssetId}
-          onClose={() => setSelectedAsset(null)}
-        />
-      )}
     </div>
   )
 }

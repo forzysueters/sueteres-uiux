@@ -16,7 +16,7 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
 
   if (compact) {
     return (
-      <div className="p-3 rounded-lg bg-slate-900/50 border border-border space-y-2">
+      <div className="p-3 rounded-lg bg-card-hover border border-border space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Tag size={12} className="text-primary" />
@@ -58,7 +58,7 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
   return (
     <div className="saas-card overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-border bg-slate-900/30 flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-border bg-card-hover flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Tag size={16} className="text-primary" />
@@ -77,7 +77,7 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
       {/* Fields grid */}
       <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
         {fields.map(({ icon: Icon, label, value }) => (
-          <div key={label} className="flex items-start gap-3 p-3 rounded-lg bg-slate-900/20 border border-border">
+          <div key={label} className="flex items-start gap-3 p-3 rounded-lg bg-card-hover border border-border">
             <Icon size={14} className="text-muted mt-0.5 flex-shrink-0" />
             <div className="min-w-0">
               <p className="text-[9px] font-bold text-muted uppercase tracking-widest">{label}</p>
@@ -88,7 +88,7 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-border bg-slate-900/20 flex items-center justify-between">
+      <div className="px-5 py-3 border-t border-border bg-card-hover flex items-center justify-between">
         <p className="text-[10px] text-muted">
           Cadastrado em {new Date(nameplate.registeredAt).toLocaleDateString('pt-BR')}
         </p>

@@ -34,7 +34,7 @@ export const SettingsPage: React.FC = () => {
 
           <div className="space-y-4">
             {/* Dark Mode Toggle */}
-            <div className="flex items-center justify-between p-4 rounded-xl bg-slate-800/20 border border-border">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-card-hover border border-border">
               <div className="flex items-center gap-3">
                 {darkMode ? <Moon size={18} className="text-muted" /> : <Sun size={18} className="text-muted" />}
                 <div>
@@ -44,14 +44,14 @@ export const SettingsPage: React.FC = () => {
               </div>
               <button
                 onClick={toggleDarkMode}
-                className={`w-12 h-6 rounded-full transition-all relative ${darkMode ? 'bg-primary' : 'bg-slate-700'}`}
+                className={`w-12 h-6 rounded-full transition-all relative ${darkMode ? 'bg-primary' : 'bg-slate-300'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${darkMode ? 'left-7' : 'left-1'}`} />
               </button>
             </div>
 
             {/* Color Accent Selection */}
-            <div className="flex flex-col gap-4 p-4 rounded-xl bg-slate-800/20 border border-border">
+            <div className="flex flex-col gap-4 p-4 rounded-xl bg-card-hover border border-border">
               <div className="flex items-center gap-3">
                 <Palette size={18} className="text-muted" />
                 <div>
@@ -68,7 +68,7 @@ export const SettingsPage: React.FC = () => {
                   <div className="w-6 h-6 rounded-full bg-[#f59e0b] shadow-lg flex items-center justify-center">
                     {primaryColor === 'orange' && <Check size={14} className="text-white" />}
                   </div>
-                  <span className="text-xs font-bold text-white">Forzy (Orange)</span>
+                  <span className="text-xs font-bold text-foreground">Forzy (Orange)</span>
                 </button>
 
                 {/* Purple Option */}
@@ -79,7 +79,7 @@ export const SettingsPage: React.FC = () => {
                   <div className="w-6 h-6 rounded-full bg-[#7C3AED] shadow-lg flex items-center justify-center">
                     {primaryColor === 'purple' && <Check size={14} className="text-white" />}
                   </div>
-                  <span className="text-xs font-bold text-white">Classic (Purple)</span>
+                  <span className="text-xs font-bold text-foreground">Classic (Purple)</span>
                 </button>
               </div>
             </div>
@@ -96,7 +96,7 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-slate-800/20 border border-border">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-card-hover border border-border">
               <div className="flex items-center gap-3">
                 <Languages size={18} className="text-muted" />
                 <div>

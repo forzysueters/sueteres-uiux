@@ -10,8 +10,8 @@ export const AccountPage: React.FC = () => {
       </div>
 
       <div className="saas-card overflow-hidden">
-        <div className="p-8 border-b border-border bg-slate-900/10 flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-24 h-24 rounded-2xl bg-slate-800 border border-border flex items-center justify-center text-muted">
+        <div className="p-8 border-b border-border bg-card-hover flex flex-col sm:flex-row items-center gap-6">
+          <div className="w-24 h-24 rounded-2xl bg-card-hover border border-border flex items-center justify-center text-muted">
             <User size={48} />
           </div>
           <div className="text-center sm:text-left">
@@ -34,11 +34,11 @@ export const AccountPage: React.FC = () => {
               Segurança
             </h3>
             <div className="space-y-3">
-              <button className="w-full text-left p-4 rounded-xl border border-border hover:bg-slate-800/20 transition-all">
+              <button className="w-full text-left p-4 rounded-xl border border-border hover:bg-card-hover transition-all">
                 <p className="font-bold text-sm text-foreground dark:text-white">Alterar Senha</p>
                 <p className="text-xs text-muted">Última alteração há 3 meses</p>
               </button>
-              <button className="w-full text-left p-4 rounded-xl border border-border hover:bg-slate-800/20 transition-all">
+              <button className="w-full text-left p-4 rounded-xl border border-border hover:bg-card-hover transition-all">
                 <p className="font-bold text-sm text-foreground dark:text-white">Autenticação de Dois Fatores</p>
                 <p className="text-xs text-emerald-500 font-bold">Ativado</p>
               </button>
@@ -50,7 +50,7 @@ export const AccountPage: React.FC = () => {
               <Building2 size={18} className="text-primary" />
               Permissões
             </h3>
-            <div className="p-4 rounded-xl border border-border bg-slate-800/10 space-y-3">
+            <div className="p-4 rounded-xl border border-border bg-card-hover space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-muted">Acesso à Planta</span>
                 <span className="font-bold text-emerald-500 uppercase tracking-widest">Total</span>

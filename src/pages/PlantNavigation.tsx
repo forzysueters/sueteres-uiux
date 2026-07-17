@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { AssetTile } from '../components/Cards';
 import { PlantFloorMap } from '../components/PlantFloorMap';
-import { Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, ChevronRight } from 'lucide-react';
+import { Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 type ViewMode = 'map' | 'grid';
@@ -29,13 +29,15 @@ export const PlantNavigation: React.FC = () => {
   const maxX = Math.max(...filteredAssets.map(a => a.x), 3);
   const maxY = Math.max(...filteredAssets.map(a => a.y), 3);
 
+  // Clicar em um ativo define o contexto (usado pelo Assistente e Equipamentos)
+  // e abre a tela dedicada de monitoramento.
   const handleAssetSelect = (id: string | null) => {
-    setSelectedAsset(selectedAssetId === id ? null : id);
-  };
-
-  const handleAssetDrilldown = (id: string) => {
+    if (!id) return;
+    setSelectedAsset(id);
     navigate(`/planta/ativo/${id}`);
   };
+
+  const handleAssetDrilldown = handleAssetSelect;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -124,7 +126,7 @@ export const PlantNavigation: React.FC = () => {
 
       {/* Main view */}
       {viewMode === 'map' ? (
-        <div className="saas-card p-4 bg-slate-900/30">
+        <div className="saas-card p-4 bg-card-hover">
           <PlantFloorMap
             assets={areaFilter === 'all' ? assets : filteredAssets}
             selectedAssetId={selectedAssetId}
@@ -132,7 +134,7 @@ export const PlantNavigation: React.FC = () => {
           />
         </div>
       ) : (
-        <div className="saas-card p-8 overflow-auto bg-slate-900/30">
+        <div className="saas-card p-8 overflow-auto bg-card-hover">
           <div
             className="grid gap-6 relative mx-auto"
             style={{
@@ -147,8 +149,8 @@ export const PlantNavigation: React.FC = () => {
                 const asset = filteredAssets.find(a => a.x === x + 1 && a.y === y + 1);
                 if (!asset) {
                   return (
-                    <div key={`empty-${x}-${y}`} className="min-h-[150px] rounded-xl flex flex-col items-center justify-center border border-border bg-slate-800/10">
-                      <span className="text-[10px] font-mono text-slate-600">{x + 1},{y + 1}</span>
+                    <div key={`empty-${x}-${y}`} className="min-h-[150px] rounded-xl flex flex-col items-center justify-center border border-border bg-card-hover/50">
+                      <span className="text-[10px] font-mono text-muted-soft">{x + 1},{y + 1}</span>
                     </div>
                   );
                 }
@@ -188,11 +190,11 @@ export const PlantNavigation: React.FC = () => {
                 <span className="text-[10px] font-mono text-muted">{areaAssets.length} ativos</span>
               </div>
               <div className="flex gap-3 mb-2">
-                <span className="text-[10px] text-emerald-400 font-bold">{ok} normal</span>
-                {warn > 0 && <span className="text-[10px] text-amber-400 font-bold">{warn} alerta</span>}
-                {crit > 0 && <span className="text-[10px] text-red-400 font-bold">{crit} crítico</span>}
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{ok} normal</span>
+                {warn > 0 && <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">{warn} alerta</span>}
+                {crit > 0 && <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">{crit} crítico</span>}
               </div>
-              <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
+              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex">
                 <div className="h-full bg-emerald-500" style={{ width: `${(ok / areaAssets.length) * 100}%` }} />
                 <div className="h-full bg-amber-500" style={{ width: `${(warn / areaAssets.length) * 100}%` }} />
                 <div className="h-full bg-red-500" style={{ width: `${(crit / areaAssets.length) * 100}%` }} />
@@ -204,9 +206,9 @@ export const PlantNavigation: React.FC = () => {
                     onClick={(e) => { e.stopPropagation(); handleAssetDrilldown(a.id); }}
                     className={cn(
                       'text-[9px] font-mono px-1.5 py-0.5 rounded flex items-center gap-1 transition-all hover:bg-primary/10 hover:text-primary',
-                      a.status === 'critical' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                      a.status === 'warning'  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                      'bg-slate-800 text-slate-400',
+                      a.status === 'critical' ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20' :
+                      a.status === 'warning'  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
+                      'bg-card-hover text-muted',
                     )}
                   >
                     <Tag size={7} />
@@ -218,29 +220,6 @@ export const PlantNavigation: React.FC = () => {
           );
         })}
       </div>
-
-      {/* Selected asset quick-open */}
-      {selectedAssetId && (() => {
-        const sel = assets.find(a => a.id === selectedAssetId);
-        return sel ? (
-          <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between">
-            <div className="flex items-center gap-3 text-primary">
-              <Tag size={16} className="flex-shrink-0" />
-              <div>
-                <p className="text-sm font-bold">{sel.name}</p>
-                <p className="text-[10px] text-muted">{sel.tag} · {sel.location}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => handleAssetDrilldown(selectedAssetId)}
-              className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors"
-            >
-              Ver Monitoramento Completo
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        ) : null;
-      })()}
     </div>
   );
 };

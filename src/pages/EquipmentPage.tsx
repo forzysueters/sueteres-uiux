@@ -30,7 +30,7 @@ export const EquipmentPage: React.FC = () => {
         </p>
       </div>
 
-      <div className="saas-card p-6 bg-slate-900/20">
+      <div className="saas-card p-6 bg-card-hover">
         <span className="section-title">Como funciona</span>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {howItWorks.map(({ step, text }, i) => (
@@ -42,7 +42,7 @@ export const EquipmentPage: React.FC = () => {
                 <p className="text-xs font-medium text-muted leading-relaxed">{text}</p>
               </div>
               {i < 3 && (
-                <ArrowRight size={14} className="hidden lg:block flex-shrink-0 mt-2.5 text-slate-800" />
+                <ArrowRight size={14} className="hidden lg:block flex-shrink-0 mt-2.5 text-border-strong" />
               )}
             </div>
           ))}
@@ -57,10 +57,10 @@ export const EquipmentPage: React.FC = () => {
           {recentEquipment.map(({ name, spec, status, date }) => (
             <div
               key={name}
-              className="flex items-center justify-between p-4 rounded-lg bg-slate-800/20 border border-border hover:bg-slate-800/40 hover:border-primary/30 transition-all group"
+              className="flex items-center justify-between p-4 rounded-lg bg-card-hover border border-border hover:bg-border/40 hover:border-primary/30 transition-all group"
             >
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-slate-800 border border-border text-primary">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-card-hover border border-border text-primary">
                   <Package size={20} />
                 </div>
                 <div>
@@ -69,7 +69,7 @@ export const EquipmentPage: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-4 flex-shrink-0">
-                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-tight">{date}</span>
+                <span className="text-[10px] font-medium text-muted-soft uppercase tracking-tight">{date}</span>
                 <span className="badge badge-success px-3 py-1">
                   <CheckCircle2 size={12} />
                   {status}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Asset } from '../types';
+import { useAppStore } from '../store/appStore';
 import { cn } from '../lib/utils';
 
 // Sequência de inspeção: ordem recomendada por área (Hall A → Hall B → Hall C → Cobertura)
@@ -18,6 +19,25 @@ const STATUS_COLORS: Record<string, { fill: string; stroke: string; pulse: strin
   offline:  { fill: '#64748b', stroke: '#475569', pulse: '#64748b', label: 'Offline' },
 };
 
+// Paleta estrutural do blueprint — adapta ao tema (as cores de status acima são semânticas e não mudam).
+interface MapPalette {
+  bg: string; grid: string; hallFill: string; hallStroke: string;
+  hallLabel: string; coberturaLabel: string; pipe: string; flow: string;
+  badgeFill: string; tagBg: string; legendText: string; selectionRing: string;
+}
+
+const DARK_PALETTE: MapPalette = {
+  bg: '#0d1117', grid: '#1e293b', hallFill: '#1e293b', hallStroke: '#334155',
+  hallLabel: '#64748b', coberturaLabel: '#475569', pipe: '#334155', flow: '#818cf8',
+  badgeFill: '#1e1b4b', tagBg: '#0d1117', legendText: '#94a3b8', selectionRing: '#ffffff',
+};
+
+const LIGHT_PALETTE: MapPalette = {
+  bg: '#f8fafc', grid: '#e2e8f0', hallFill: '#e2e8f0', hallStroke: '#cbd5e1',
+  hallLabel: '#64748b', coberturaLabel: '#94a3b8', pipe: '#cbd5e1', flow: '#6366f1',
+  badgeFill: '#e0e7ff', tagBg: '#ffffff', legendText: '#475569', selectionRing: '#0f172a',
+};
+
 const ASSET_ICONS: Record<string, string> = {
   motor:      'M',
   pump:       'B',
@@ -26,6 +46,8 @@ const ASSET_ICONS: Record<string, string> = {
 };
 
 export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAssetId, onSelectAsset }) => {
+  const { darkMode } = useAppStore();
+  const p = darkMode ? DARK_PALETTE : LIGHT_PALETTE;
   const [tooltip, setTooltip] = useState<{ asset: Asset; x: number; y: number } | null>(null);
 
   // Mapeia TAG → coordenadas SVG para desenhar o fluxo de inspeção
@@ -49,36 +71,36 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Fundo da fábrica */}
-        <rect width="1000" height="562" fill="#0d1117" />
+        <rect width="1000" height="562" fill={p.bg} />
 
         {/* Grade de piso */}
         {Array.from({ length: 20 }, (_, i) => (
-          <line key={`gv-${i}`} x1={i * 50} y1={0} x2={i * 50} y2={562} stroke="#1e293b" strokeWidth="1" />
+          <line key={`gv-${i}`} x1={i * 50} y1={0} x2={i * 50} y2={562} stroke={p.grid} strokeWidth="1" />
         ))}
         {Array.from({ length: 12 }, (_, i) => (
-          <line key={`gh-${i}`} x1={0} y1={i * 50} x2={1000} y2={i * 50} stroke="#1e293b" strokeWidth="1" />
+          <line key={`gh-${i}`} x1={0} y1={i * 50} x2={1000} y2={i * 50} stroke={p.grid} strokeWidth="1" />
         ))}
 
         {/* HALL A */}
-        <rect x="30" y="30" width="420" height="260" rx="8" fill="#1e293b" fillOpacity="0.6" stroke="#334155" strokeWidth="1.5" />
-        <text x="50" y="55" fill="#64748b" fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL A</text>
+        <rect x="30" y="30" width="420" height="260" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
+        <text x="50" y="55" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL A</text>
 
         {/* HALL B */}
-        <rect x="30" y="320" width="420" height="210" rx="8" fill="#1e293b" fillOpacity="0.6" stroke="#334155" strokeWidth="1.5" />
-        <text x="50" y="345" fill="#64748b" fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL B</text>
+        <rect x="30" y="320" width="420" height="210" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
+        <text x="50" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL B</text>
 
         {/* HALL C */}
-        <rect x="480" y="320" width="490" height="210" rx="8" fill="#1e293b" fillOpacity="0.6" stroke="#334155" strokeWidth="1.5" />
-        <text x="500" y="345" fill="#64748b" fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL C</text>
+        <rect x="480" y="320" width="490" height="210" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
+        <text x="500" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL C</text>
 
         {/* Área técnica / cobertura */}
-        <rect x="480" y="30" width="490" height="260" rx="8" fill="#1e293b" fillOpacity="0.4" stroke="#334155" strokeWidth="1.5" strokeDasharray="6 3" />
-        <text x="500" y="55" fill="#475569" fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">COBERTURA / ÁREA TÉCNICA</text>
+        <rect x="480" y="30" width="490" height="260" rx="8" fill={p.hallFill} fillOpacity="0.4" stroke={p.hallStroke} strokeWidth="1.5" strokeDasharray="6 3" />
+        <text x="500" y="55" fill={p.coberturaLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">COBERTURA / ÁREA TÉCNICA</text>
 
         {/* Definição da ponta de seta do fluxo de inspeção */}
         <defs>
           <marker id="inspection-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#818cf8" opacity="0.9" />
+            <path d="M0,0 L0,6 L8,3 z" fill={p.flow} opacity="0.9" />
           </marker>
         </defs>
 
@@ -99,7 +121,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
               y1={f.cy + dy * ratio}
               x2={t.cx - dx * ratio}
               y2={t.cy - dy * ratio}
-              stroke="#818cf8"
+              stroke={p.flow}
               strokeWidth="1.5"
               strokeDasharray="6 4"
               opacity="0.7"
@@ -109,10 +131,10 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
         })}
 
         {/* Tubulações decorativas */}
-        <line x1="30" y1="295" x2="450" y2="295" stroke="#334155" strokeWidth="4" />
-        <line x1="450" y1="295" x2="450" y2="320" stroke="#334155" strokeWidth="4" />
-        <line x1="450" y1="295" x2="480" y2="295" stroke="#334155" strokeWidth="4" />
-        <line x1="480" y1="295" x2="480" y2="320" stroke="#334155" strokeWidth="4" />
+        <line x1="30" y1="295" x2="450" y2="295" stroke={p.pipe} strokeWidth="4" />
+        <line x1="450" y1="295" x2="450" y2="320" stroke={p.pipe} strokeWidth="4" />
+        <line x1="450" y1="295" x2="480" y2="295" stroke={p.pipe} strokeWidth="4" />
+        <line x1="480" y1="295" x2="480" y2="320" stroke={p.pipe} strokeWidth="4" />
 
         {/* Hotspots dos ativos */}
         {assets.map((asset) => {
@@ -148,7 +170,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
 
               {/* Anel de seleção */}
               {isSelected && (
-                <circle cx={cx} cy={cy} r={28} fill="none" stroke="white" strokeWidth="2.5" opacity="0.9" />
+                <circle cx={cx} cy={cy} r={28} fill="none" stroke={p.selectionRing} strokeWidth="2.5" opacity="0.9" />
               )}
 
               {/* Círculo principal */}
@@ -168,9 +190,9 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
                 if (order === -1) return null;
                 return (
                   <g>
-                    <circle cx={cx + 14} cy={cy - 14} r={9} fill="#1e1b4b" stroke="#818cf8" strokeWidth="1.5" />
+                    <circle cx={cx + 14} cy={cy - 14} r={9} fill={p.badgeFill} stroke={p.flow} strokeWidth="1.5" />
                     <text x={cx + 14} y={cy - 14} textAnchor="middle" dominantBaseline="middle"
-                      fill="#818cf8" fontSize="8" fontWeight="800" fontFamily="monospace">
+                      fill={p.flow} fontSize="8" fontWeight="800" fontFamily="monospace">
                       {order + 1}
                     </text>
                   </g>
@@ -178,7 +200,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
               })()}
 
               {/* TAG label */}
-              <rect x={cx - 22} y={cy + 24} width={44} height={16} rx={3} fill="#0d1117" fillOpacity="0.85" />
+              <rect x={cx - 22} y={cy + 24} width={44} height={16} rx={3} fill={p.tagBg} fillOpacity="0.85" />
               <text x={cx} y={cy + 32} textAnchor="middle" dominantBaseline="middle"
                 fill={cfg.fill} fontSize="8.5" fontWeight="700" fontFamily="monospace" letterSpacing="0.5">
                 {asset.tag ?? asset.id.toUpperCase().substring(0, 7)}
@@ -191,17 +213,17 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
         {Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
           <g key={key} transform={`translate(${30 + i * 110}, 535)`}>
             <circle cx={8} cy={8} r={6} fill={cfg.fill} fillOpacity="0.85" />
-            <text x={18} y={12} fill="#94a3b8" fontSize="10" fontFamily="sans-serif">{cfg.label}</text>
+            <text x={18} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{cfg.label}</text>
           </g>
         ))}
 
         {/* Legenda — fluxo de inspeção */}
         <g transform="translate(510, 530)">
-          <line x1={0} y1={8} x2={22} y2={8} stroke="#818cf8" strokeWidth="1.5" strokeDasharray="5 3" markerEnd="url(#inspection-arrow)" />
-          <text x={28} y={12} fill="#94a3b8" fontSize="10" fontFamily="sans-serif">Fluxo de Inspeção</text>
-          <circle cx={140} cy={8} r={7} fill="#1e1b4b" stroke="#818cf8" strokeWidth="1.5" />
-          <text x={140} y={12} textAnchor="middle" dominantBaseline="middle" fill="#818cf8" fontSize="7" fontWeight="800" fontFamily="monospace">N</text>
-          <text x={152} y={12} fill="#94a3b8" fontSize="10" fontFamily="sans-serif">Ordem</text>
+          <line x1={0} y1={8} x2={22} y2={8} stroke={p.flow} strokeWidth="1.5" strokeDasharray="5 3" markerEnd="url(#inspection-arrow)" />
+          <text x={28} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">Fluxo de Inspeção</text>
+          <circle cx={140} cy={8} r={7} fill={p.badgeFill} stroke={p.flow} strokeWidth="1.5" />
+          <text x={140} y={12} textAnchor="middle" dominantBaseline="middle" fill={p.flow} fontSize="7" fontWeight="800" fontFamily="monospace">N</text>
+          <text x={152} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">Ordem</text>
         </g>
       </svg>
 
@@ -217,17 +239,17 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
           <div className="flex items-center gap-2 mb-1">
             <span className={cn(
               'text-[9px] font-bold px-1.5 py-0.5 rounded font-mono',
-              tooltip.asset.status === 'critical' ? 'bg-red-500/20 text-red-400' :
-              tooltip.asset.status === 'warning' ? 'bg-amber-500/20 text-amber-400' :
-              'bg-emerald-500/20 text-emerald-400',
+              tooltip.asset.status === 'critical' ? 'bg-red-500/20 text-red-600 dark:text-red-400' :
+              tooltip.asset.status === 'warning' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' :
+              'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
             )}>
               {tooltip.asset.tag}
             </span>
             <span className={cn(
               'text-[9px] font-bold uppercase',
-              STATUS_COLORS[tooltip.asset.status]?.label === 'Crítico' ? 'text-red-400' :
-              STATUS_COLORS[tooltip.asset.status]?.label === 'Alerta' ? 'text-amber-400' :
-              'text-emerald-400',
+              STATUS_COLORS[tooltip.asset.status]?.label === 'Crítico' ? 'text-red-600 dark:text-red-400' :
+              STATUS_COLORS[tooltip.asset.status]?.label === 'Alerta' ? 'text-amber-600 dark:text-amber-400' :
+              'text-emerald-600 dark:text-emerald-400',
             )}>
               {STATUS_COLORS[tooltip.asset.status]?.label}
             </span>
@@ -248,7 +270,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
               <span className="text-[9px] text-muted uppercase">Anomalia</span>
               <p className={cn(
                 'text-[11px] font-bold',
-                tooltip.asset.anomalyScore > 50 ? 'text-red-400' : 'text-emerald-400',
+                tooltip.asset.anomalyScore > 50 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400',
               )}>{tooltip.asset.anomalyScore}%</p>
             </div>
             <div>

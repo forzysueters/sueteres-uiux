@@ -68,7 +68,7 @@ export const AIAssistant: React.FC = () => {
   return (
     <div className="flex flex-col h-full saas-card overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border bg-slate-900/50 flex items-center justify-between flex-shrink-0">
+      <div className="px-6 py-4 border-b border-border bg-card-hover flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
             <Bot size={18} className="text-white" />
@@ -88,18 +88,18 @@ export const AIAssistant: React.FC = () => {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin bg-slate-950/20">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin bg-background">
         {chatMessages.map((m) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
             <div className={`flex gap-3 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
               <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 mt-1 border ${
-                m.role === 'user' ? 'bg-slate-800 border-slate-700 text-muted' : 'bg-primary border-primary text-white'
+                m.role === 'user' ? 'bg-card-hover border-border text-muted' : 'bg-primary border-primary text-white'
               }`}>
                 {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className={`p-4 rounded-xl text-sm leading-relaxed ${
                 m.role === 'user'
-                  ? 'bg-slate-800 border border-slate-700 text-foreground rounded-tr-none'
+                  ? 'bg-card-hover border border-border text-foreground rounded-tr-none'
                   : 'bg-card border border-border text-foreground rounded-tl-none'
               }`}>
                 {m.content}
@@ -134,7 +134,7 @@ export const AIAssistant: React.FC = () => {
               key={i}
               onClick={() => handleSend(q)}
               disabled={isTyping}
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-slate-900/50 text-[10px] font-medium text-muted hover:text-foreground hover:border-primary/30 transition-all disabled:opacity-40"
+              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-card-hover text-[10px] font-medium text-muted hover:text-foreground hover:border-primary/30 transition-all disabled:opacity-40"
             >
               <ChevronRight size={10} className="text-primary" />
               {q.length > 35 ? q.substring(0, 35) + '…' : q}
@@ -152,7 +152,7 @@ export const AIAssistant: React.FC = () => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder={selectedAssetId ? 'Pergunta sobre o ativo selecionado…' : 'Pergunte sobre seus ativos…'}
-            className="w-full h-12 pl-4 pr-12 rounded-lg bg-slate-950 border border-border text-foreground placeholder:text-slate-600 focus:outline-none focus:border-primary/50 transition-all text-sm font-medium"
+            className="w-full h-12 pl-4 pr-12 rounded-lg bg-card-hover border border-border text-foreground placeholder:text-muted-soft focus:outline-none focus:border-primary/50 transition-all text-sm font-medium"
           />
           <button
             onClick={() => handleSend()}

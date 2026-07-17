@@ -39,7 +39,7 @@ export const AssistantPage: React.FC = () => {
               {quickQuestions.map((q, i) => (
                 <button
                   key={i}
-                  className="w-full text-left p-4 rounded-xl border border-border bg-slate-800/20 hover:bg-slate-800/50 hover:border-primary/30 transition-all group"
+                  className="w-full text-left p-4 rounded-xl border border-border bg-card-hover hover:bg-border/40 hover:border-primary/30 transition-all group"
                 >
                   <div className="flex items-start gap-3">
                     <q.icon size={16} className={`mt-0.5 ${q.color}`} />

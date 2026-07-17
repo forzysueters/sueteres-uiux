@@ -193,7 +193,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
       <div className="flex items-center gap-2 mb-1">
         <h4 className="font-semibold text-sm text-foreground truncate flex-1">{asset.name}</h4>
         {asset.tag && (
-          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-bold text-primary font-mono flex-shrink-0">
+          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-card-hover border border-border text-[9px] font-bold text-primary font-mono flex-shrink-0">
             <Tag size={8} />
             {asset.tag}
           </span>

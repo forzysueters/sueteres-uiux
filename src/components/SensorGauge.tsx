@@ -28,7 +28,7 @@ export const SensorGauge: React.FC<SensorGaugeProps> = ({ sensor, compact = fals
               {sensor.value.toFixed(1)} <span className="text-muted font-normal">{sensor.unit}</span>
             </span>
           </div>
-          <div className="relative h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="relative h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
             <div className={cn('h-full rounded-full transition-all', barColor)} style={{ width: `${pct}%` }} />
             <div
               className="absolute top-0 bottom-0 w-px bg-amber-400/70"
@@ -75,7 +75,7 @@ export const SensorGauge: React.FC<SensorGaugeProps> = ({ sensor, compact = fals
 
       {/* Barra de progresso */}
       <div className="space-y-1">
-        <div className="relative h-2.5 bg-slate-800 rounded-full overflow-hidden">
+        <div className="relative h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
           <div className={cn('h-full rounded-full transition-all duration-500', barColor)} style={{ width: `${pct}%` }} />
           <div
             className="absolute top-0 bottom-0 w-0.5 bg-amber-400"

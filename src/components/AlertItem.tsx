@@ -41,7 +41,7 @@ export const AlertItem: React.FC<AlertItemProps> = ({ alert, onResolve }) => {
   return (
     <div
       className={`saas-card p-5 border-l-4 ${cfg.border} ${
-        alert.resolved ? 'opacity-60 bg-slate-900/50' : ''
+        alert.resolved ? 'opacity-60 bg-card-hover' : ''
       }`}
     >
       <div className="flex items-start gap-4">
@@ -74,7 +74,7 @@ export const AlertItem: React.FC<AlertItemProps> = ({ alert, onResolve }) => {
           <p className="text-sm text-muted mb-3">{alert.description}</p>
 
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-[10px] font-bold text-muted uppercase tracking-widest px-2 py-0.5 rounded bg-slate-800 border border-border">
+            <span className="text-[10px] font-bold text-muted uppercase tracking-widest px-2 py-0.5 rounded bg-card-hover border border-border">
               {alert.assetName}
             </span>
           </div>
@@ -85,7 +85,7 @@ export const AlertItem: React.FC<AlertItemProps> = ({ alert, onResolve }) => {
                 <Sparkles size={14} className="text-primary" />
                 <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Insight IA</span>
               </div>
-              <p className="text-xs text-amber-200/80 leading-relaxed">{alert.mlInsight}</p>
+              <p className="text-xs text-amber-700 dark:text-amber-200/80 leading-relaxed">{alert.mlInsight}</p>
             </div>
           )}
 

@@ -86,9 +86,9 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   return (
     <div className="saas-card overflow-hidden animate-fade-in">
       {/* Header / Stepper */}
-      <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-slate-900/20">
+      <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-card-hover">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-slate-800 border border-slate-700 flex items-center justify-center text-primary">
+          <div className="w-8 h-8 rounded bg-card-hover border border-border flex items-center justify-center text-primary">
             <Bot size={18} />
           </div>
           <div>
@@ -106,12 +106,12 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border transition-all ${
                 step > n ? 'bg-emerald-500 border-emerald-500 text-white' :
                 step === n ? 'bg-primary border-primary text-white' :
-                'bg-slate-800 border-slate-700 text-muted'
+                'bg-card-hover border-border text-muted'
               }`}>
                 {step > n ? <CheckCircle2 size={12} /> : n}
               </div>
               <span className={`text-[10px] font-medium hidden sm:block ${step >= n ? 'text-foreground' : 'text-muted'}`}>{label}</span>
-              {n < 3 && <div className={`w-6 h-px ${step > n ? 'bg-emerald-500' : 'bg-slate-700'}`} />}
+              {n < 3 && <div className={`w-6 h-px ${step > n ? 'bg-emerald-500' : 'bg-border'}`} />}
             </div>
           ))}
         </div>
@@ -124,7 +124,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
             {/* Seletor de motor de OCR */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Motor de OCR</span>
-              <div className="inline-flex rounded-lg bg-slate-900/40 border border-border p-0.5">
+              <div className="inline-flex rounded-lg bg-card-hover border border-border p-0.5">
                 {([
                   { id: 'easyocr', label: 'EasyOCR' },
                   { id: 'gemini', label: 'Gemini Vision' },
@@ -146,11 +146,11 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
             <div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
-                isDragActive ? 'border-primary bg-primary/5' : 'border-border bg-slate-900/20 hover:border-primary/50 hover:bg-slate-900/40'
+                isDragActive ? 'border-primary bg-primary/5' : 'border-border bg-card-hover hover:border-primary/50 hover:bg-border/40'
               }`}
             >
               <input {...getInputProps()} />
-              <div className="w-12 h-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center mb-4 text-muted">
+              <div className="w-12 h-12 rounded-lg bg-card-hover border border-border flex items-center justify-center mb-4 text-muted">
                 <Upload size={24} />
               </div>
               <p className="font-bold text-sm text-foreground">Arraste a imagem da placa aqui ou clique para buscar</p>
@@ -174,7 +174,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
             </div>
 
             {/* Pipeline visual */}
-            <div className="p-4 rounded-xl bg-slate-900/30 border border-border">
+            <div className="p-4 rounded-xl bg-card-hover border border-border">
               <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-3">Pipeline de Visão Computacional</p>
               <div className="flex items-center gap-2 flex-wrap">
                 {(mode === 'gemini'
@@ -182,8 +182,8 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
                   : ['Imagem', 'Realce', 'EasyOCR', 'Extração de campos', 'Validação física', 'Fallback Gemini', 'Cadastro']
                 ).map((step, i, arr) => (
                   <React.Fragment key={step}>
-                    <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-[9px] font-bold text-muted uppercase">{step}</span>
-                    {i < arr.length - 1 && <span className="text-slate-700 text-xs">→</span>}
+                    <span className="px-2 py-1 rounded bg-card-hover border border-border text-[9px] font-bold text-muted uppercase">{step}</span>
+                    {i < arr.length - 1 && <span className="text-border-strong text-xs">→</span>}
                   </React.Fragment>
                 ))}
               </div>
@@ -198,7 +198,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
               <img src={previewUrl} alt="Placa" className="w-48 h-32 object-cover rounded-lg mb-6 border border-border opacity-60" />
             )}
             <div className="relative mb-6">
-              <div className="w-16 h-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-xl bg-card-hover border border-border flex items-center justify-center">
                 <Loader2 size={32} className="text-primary animate-spin" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded bg-card border border-primary/30 flex items-center justify-center">
@@ -243,16 +243,16 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
             {/* Metadados do pipeline */}
             {extraction && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900/50 border border-border text-[10px] font-bold text-foreground-soft">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card-hover border border-border text-[10px] font-bold text-foreground-soft">
                   <Cpu size={11} className="text-primary" />
                   {MODEL_LABELS[extraction.modelUsed] ?? extraction.modelUsed}
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900/50 border border-border text-[10px] font-bold text-foreground-soft capitalize">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card-hover border border-border text-[10px] font-bold text-foreground-soft capitalize">
                   <Bot size={11} className="text-primary" />
                   {extraction.motorType}
                 </span>
                 {extraction.processingTimeMs > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900/50 border border-border text-[10px] font-bold text-foreground-soft">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card-hover border border-border text-[10px] font-bold text-foreground-soft">
                     <Timer size={11} className="text-primary" />
                     {(extraction.processingTimeMs / 1000).toFixed(1)}s
                   </span>
@@ -298,14 +298,14 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
                   <input
                     type={type ?? 'text'}
                     defaultValue={String(extractedData[key] ?? '')}
-                    className="w-full h-10 bg-slate-900 border border-border rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:border-primary/50 transition-all"
+                    className="w-full h-10 bg-card-hover border border-border rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:border-primary/50 transition-all"
                   />
                 </div>
               ))}
             </div>
 
             <div className="pt-6 flex gap-3">
-              <button onClick={reset} className="flex-1 h-11 rounded-lg font-bold text-xs bg-slate-800 text-muted hover:bg-slate-700 transition-all">
+              <button onClick={reset} className="flex-1 h-11 rounded-lg font-bold text-xs bg-card-hover text-muted hover:bg-border transition-all">
                 Cancelar
               </button>
               <button onClick={handleRegister} className="flex-[2] h-11 rounded-lg font-bold text-xs bg-primary text-white hover:bg-primary/90 transition-all flex items-center justify-center gap-2">
@@ -326,7 +326,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
             <p className="text-sm text-muted mt-2 max-w-[320px]">
               A placa foi lida via OCR, validada e vinculada ao gêmeo digital com rastreabilidade completa.
             </p>
-            <div className="mt-6 p-4 rounded-xl bg-slate-900/40 border border-border text-left w-full max-w-xs">
+            <div className="mt-6 p-4 rounded-xl bg-card-hover border border-border text-left w-full max-w-xs">
               <p className="text-[10px] text-muted mb-2 font-bold uppercase tracking-wider">Rastreabilidade</p>
               <div className="space-y-1 text-xs text-muted">
                 <p>• Imagem armazenada no backend (storage/)</p>
@@ -335,7 +335,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
                 <p>• Cadastro: {new Date().toLocaleString('pt-BR')}</p>
               </div>
             </div>
-            <button onClick={reset} className="mt-8 px-6 py-2.5 rounded-lg bg-slate-800 border border-slate-700 font-bold text-xs text-foreground hover:bg-slate-700 transition-all">
+            <button onClick={reset} className="mt-8 px-6 py-2.5 rounded-lg bg-card-hover border border-border font-bold text-xs text-foreground hover:bg-border transition-all">
               Registrar Outro Equipamento
             </button>
           </div>
