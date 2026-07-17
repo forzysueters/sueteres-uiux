@@ -27,3 +27,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Fontes 3D pesadas (CAD/GLB brutos) — só o public/models/motor.glb comprimido é versionado
+modelos-3D-motor-weg/
+modelo-3D-motor-weg/

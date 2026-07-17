@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
@@ -14,9 +14,13 @@ import { SensorHistorySeries } from '../types';
 import {
   ArrowLeft, Activity, Tag, AlertTriangle, CheckCircle2, TrendingUp,
   Sparkles, Zap, Shield, RefreshCw, Gauge, Bell, Download,
-  Thermometer, Clock,
+  Thermometer, Clock, Box,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+
+// Visualizador 3D carregado sob demanda — mantém o bundle three fora do
+// caminho crítico da renderização inicial da rota.
+const MotorViewer = lazy(() => import('../components/three/MotorViewer'));
 
 const RANGES = ['1h', '6h', '24h', '7d'] as const;
 
@@ -173,10 +177,10 @@ export const AssetMonitorPage: React.FC = () => {
           )}
         />
 
-        <div className="relative flex flex-col lg:flex-row lg:items-center gap-8">
-          {/* Identidade */}
-          <div className="flex-1 min-w-0">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card-hover text-[10px] font-semibold uppercase tracking-wider text-muted mb-4">
+        <div className="relative flex flex-col lg:flex-row lg:items-stretch gap-8">
+          {/* Coluna esquerda: identidade + saúde */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="inline-flex self-start items-center gap-2 px-3 py-1 rounded-full border border-border bg-card-hover text-[10px] font-semibold uppercase tracking-wider text-muted mb-4">
               <Gauge size={11} className="text-primary" />
               Monitoramento de Ativo
             </div>
@@ -215,37 +219,57 @@ export const AssetMonitorPage: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Medidor de saúde */}
-          <div className="flex items-center justify-center gap-6 flex-wrap lg:flex-nowrap lg:justify-start lg:border-l lg:border-border lg:pl-8">
-            <HealthGauge value={health} severity={severity} />
-            <div className="space-y-4">
-              <div>
-                <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
-                  <Clock size={11} className="text-primary" />
-                  Vida Útil Estimada
-                </p>
-                <p className="text-lg font-bold text-foreground tabular-nums">~ {Math.round(health * 2.4)} dias</p>
-              </div>
-              <div>
-                <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
-                  <Gauge size={11} className="text-primary" />
-                  Índice de Saúde
-                </p>
-                <p className="text-lg font-bold text-foreground tabular-nums">{health}/100</p>
-              </div>
-              {asset.thermalResidual != null && (
+            {/* Medidor de saúde (compacto) */}
+            <div className="mt-6 flex items-center gap-5 flex-wrap">
+              <HealthGauge value={health} severity={severity} size={140} />
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div>
                   <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
-                    <Thermometer size={11} className="text-primary" />
-                    Resíduo Térmico
+                    <Clock size={11} className="text-primary" />
+                    Vida Útil Est.
                   </p>
-                  <p className="text-lg font-bold text-foreground tabular-nums">
-                    {asset.thermalResidual > 0 ? '+' : ''}{asset.thermalResidual.toFixed(1)}°C
-                  </p>
+                  <p className="text-base font-bold text-foreground tabular-nums">~ {Math.round(health * 2.4)} dias</p>
                 </div>
-              )}
+                <div>
+                  <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
+                    <Gauge size={11} className="text-primary" />
+                    Índice de Saúde
+                  </p>
+                  <p className="text-base font-bold text-foreground tabular-nums">{health}/100</p>
+                </div>
+                {asset.thermalResidual != null && (
+                  <div>
+                    <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
+                      <Thermometer size={11} className="text-primary" />
+                      Resíduo Térmico
+                    </p>
+                    <p className="text-base font-bold text-foreground tabular-nums">
+                      {asset.thermalResidual > 0 ? '+' : ''}{asset.thermalResidual.toFixed(1)}°C
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Coluna direita: Gêmeo Digital 3D (sempre visível, lazy-loaded) */}
+          <div className="lg:w-[400px] xl:w-[440px] flex-shrink-0">
+            <div className="relative h-[300px] lg:h-full min-h-[300px] rounded-xl border border-border bg-background/40 overflow-hidden">
+              <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/80 border border-border text-[9px] font-bold uppercase tracking-wider text-muted backdrop-blur-sm pointer-events-none">
+                <Box size={10} className="text-primary" />
+                Gêmeo Digital 3D
+              </span>
+              <Suspense
+                fallback={
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted">
+                    <RefreshCw size={20} className="animate-spin text-primary" />
+                    <span className="text-[10px] font-medium">Carregando modelo 3D…</span>
+                  </div>
+                }
+              >
+                <MotorViewer assetId={asset.id} />
+              </Suspense>
             </div>
           </div>
         </div>
