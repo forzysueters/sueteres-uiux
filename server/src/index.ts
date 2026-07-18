@@ -1,5 +1,6 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import { authenticateToken } from './middleware/auth.js';
@@ -12,6 +13,9 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Popula req.cookies. Sem isto, req.cookies é undefined e os handlers que leem
+// o refresh_token (refresh/verify/logout) lançam TypeError.
+app.use(cookieParser());
 
 // CORS Configuration
 app.use(cors({
