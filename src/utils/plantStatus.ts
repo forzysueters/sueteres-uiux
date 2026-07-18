@@ -46,3 +46,18 @@ export function worstSensor(asset: Asset): Sensor | null {
   if (offenders.length === 0) return null;
   return [...offenders].sort((a, b) => rank(a.status) - rank(b.status))[0];
 }
+
+/**
+ * Status do ativo a partir dos seus sensores: o pior sensor manda.
+ *
+ * Antes o status era literal no mock, o que permitia um ativo marcado como
+ * "Alerta" sem nenhum sensor fora de faixa — a régua de triagem mostrava o
+ * ativo sem conseguir dizer o porquê. `offline` é preservado porque é um estado
+ * de comunicação, não de leitura.
+ */
+export function assetStatusFromSensors(asset: Asset): Asset['status'] {
+  if (asset.status === 'offline') return 'offline';
+  const worst = worstSensor(asset);
+  if (!worst) return 'normal';
+  return worst.status === 'critical' ? 'critical' : 'warning';
+}

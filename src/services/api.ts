@@ -8,6 +8,10 @@ import {
 import {
   anomalyAPI, AnomalyNetworkError, Reading, ScoreRequest, ScoreResult, Severity,
 } from './anomalyAPI';
+import {
+  statusFor, reasonFor, gaugeRange, warnThreshold, sensorByRole, deviationOf,
+} from './sensorLimits';
+import { assetStatusFromSensors } from '../utils/plantStatus';
 
 // Força o uso do mock mesmo com backend disponível (útil para demo offline)
 const FORCE_OCR_MOCK = import.meta.env.VITE_OCR_USE_MOCK === 'true';
@@ -40,23 +44,32 @@ const SENSOR_COLORS: Record<string, string> = {
 
 const sensorColor = (name: string) => SENSOR_COLORS[name] ?? '#94a3b8';
 
-const makeSensor = (
-  name: string, unit: string, base: number, variance: number, assetSeed: number,
-): Sensor => {
-  const s = makeSeed(name) + assetSeed;
-  const r = seededRandom(s);
-  const statusR = seededRandom(s + 97);
-  return {
-    id: `sensor-${s}`,
-    name,
-    unit,
-    value: parseFloat((base + (r - 0.5) * variance).toFixed(2)),
-    min: parseFloat((base * 0.7).toFixed(2)),
-    max: parseFloat((base * 1.3).toFixed(2)),
-    threshold: parseFloat((base * 1.2).toFixed(2)),
-    status: statusR > 0.85 ? 'warning' : 'normal',
-  };
-};
+/** Uma grandeza de um ativo: nome, unidade, valor base e amplitude do ruído. */
+type SensorSpec = [name: string, unit: string, base: number, variance: number];
+
+/**
+ * Gera os sensores de um ativo. O `status` NÃO é sorteado: sai de `statusFor`,
+ * comparando o valor com os limites físicos da grandeza (ver sensorLimits.ts).
+ * É o que garante que o gauge, o status do ativo e o alerta contem a mesma
+ * história — antes o status vinha de um segundo `seededRandom`, sem relação
+ * nenhuma com o valor exibido.
+ */
+const makeSensors = (assetId: string, assetSeed: number, specs: SensorSpec[]): Sensor[] =>
+  specs.map(([name, unit, base, variance]) => {
+    const s = makeSeed(name) + assetSeed;
+    const value = parseFloat((base + (seededRandom(s) - 0.5) * variance).toFixed(2));
+    const { min, max } = gaugeRange(name, base, assetId);
+    return {
+      id: `sensor-${s}`,
+      name,
+      unit,
+      value,
+      min,
+      max,
+      threshold: warnThreshold(name, base, assetId),
+      status: statusFor(name, value, assetId),
+    };
+  });
 
 const makeHistory = (
   base: number, variance: number, points: number, intervalMin: number, seed: number,
@@ -139,13 +152,14 @@ const mockAssets: Asset[] = [
     name: 'Motor de Produção Principal',
     type: 'motor', area: 'Hall A', location: 'Hall A — Posto 1',
     status: 'normal', uptime: 99.8,
-    sensors: [
-      makeSensor('Tensão', 'V', 380, 10, 1001),
-      makeSensor('Corrente', 'A', 14.8, 2, 1001),
-      makeSensor('Temperatura', '°C', 62, 8, 1001),
-      makeSensor('Rotação', 'rpm', 1760, 20, 1001),
-      makeSensor('Vibração', 'mm/s', 2.3, 0.8, 1001),
-    ],
+    sensors: makeSensors('motor-001', 1001, [
+      ['Tensão', 'V', 380, 10],
+      // ~70% de In (41,8 A de placa) — carga típica de regime.
+      ['Corrente', 'A', 29.3, 4],
+      ['Temperatura', '°C', 62, 8],
+      ['Rotação', 'rpm', 1760, 20],
+      ['Vibração', 'mm/s', 2.3, 0.8],
+    ]),
     lastMaintenance: '2026-03-15', nextMaintenance: '2026-06-15',
     x: 1, y: 1, plantX: 20, plantY: 25,
     anomalyScore: 12,
@@ -156,13 +170,18 @@ const mockAssets: Asset[] = [
     name: 'Motor de Reserva',
     type: 'motor', area: 'Hall A', location: 'Hall A — Posto 2',
     status: 'warning', uptime: 95.2,
-    sensors: [
-      makeSensor('Tensão', 'V', 380, 15, 1002),
-      makeSensor('Corrente', 'A', 22.5, 3, 1002),
-      makeSensor('Temperatura', '°C', 79, 12, 1002),
-      makeSensor('Rotação', 'rpm', 1460, 30, 1002),
-      makeSensor('Vibração', 'mm/s', 4.1, 1.2, 1002),
-    ],
+    // Rolamento em degradação: o atrito eleva a vibração primeiro (5,2 mm/s,
+    // zona C da ISO 10816-3) e o calor gerado no mancal aparece depois na
+    // temperatura da carcaça (79 °C). Os sensores elétricos seguem nominais —
+    // é uma falha mecânica, não de carga.
+    sensors: makeSensors('motor-002', 1002, [
+      ['Tensão', 'V', 380, 15],
+      // ~70% de In (68,5 A de placa).
+      ['Corrente', 'A', 48.0, 6],
+      ['Temperatura', '°C', 79, 12],
+      ['Rotação', 'rpm', 1460, 30],
+      ['Vibração', 'mm/s', 5.2, 1.2],
+    ]),
     lastMaintenance: '2026-01-20', nextMaintenance: '2026-04-20',
     // plantX 42 punha o anel do ativo por cima da parede leste do Hall A
     // (o hall termina em x=450 do viewBox); 36 recentra o posto 2 dentro dele.
@@ -175,12 +194,12 @@ const mockAssets: Asset[] = [
     name: 'Bomba de Circulação de Refrigeração',
     type: 'pump', area: 'Hall B', location: 'Hall B — Sistema de Refrigeração',
     status: 'normal', uptime: 99.5,
-    sensors: [
-      makeSensor('Pressão', 'bar', 2.5, 0.4, 2001),
-      makeSensor('Vazão', 'L/min', 145, 15, 2001),
-      makeSensor('Temperatura', '°C', 44, 6, 2001),
-      makeSensor('Potência', 'kW', 5.2, 0.5, 2001),
-    ],
+    sensors: makeSensors('pump-001', 2001, [
+      ['Pressão', 'bar', 2.5, 0.4],
+      ['Vazão', 'L/min', 145, 15],
+      ['Temperatura', '°C', 44, 6],
+      ['Potência', 'kW', 5.2, 0.5],
+    ]),
     lastMaintenance: '2026-02-28', nextMaintenance: '2026-05-28',
     x: 1, y: 3, plantX: 20, plantY: 65,
     anomalyScore: 8,
@@ -191,13 +210,16 @@ const mockAssets: Asset[] = [
     name: 'Compressor de Ar',
     type: 'compressor', area: 'Hall C', location: 'Hall C — Pneumática',
     status: 'critical', uptime: 78.3,
-    sensors: [
-      makeSensor('Pressão de Saída', 'bar', 7.0, 1.2, 3001),
-      makeSensor('Temp. Entrada', '°C', 28, 4, 3001),
-      makeSensor('Temp. Saída', '°C', 84, 10, 3001),
-      makeSensor('Corrente Motor', 'A', 40.5, 4, 3001),
-      makeSensor('Vibração', 'mm/s', 7.2, 1.8, 3001),
-    ],
+    // Vibração na zona D da ISO 10816-3 (8,1 mm/s): severidade inaceitável em
+    // regime. Pressão, temperaturas e corrente seguem dentro da faixa — o
+    // problema é mecânico e está isolado no conjunto rotativo.
+    sensors: makeSensors('compressor-001', 3001, [
+      ['Pressão de Saída', 'bar', 7.0, 1.2],
+      ['Temp. Entrada', '°C', 28, 4],
+      ['Temp. Saída', '°C', 84, 10],
+      ['Corrente Motor', 'A', 40.5, 4],
+      ['Vibração', 'mm/s', 7.2, 1.8],
+    ]),
     lastMaintenance: '2025-12-10', nextMaintenance: '2026-03-10',
     x: 3, y: 3, plantX: 70, plantY: 65,
     anomalyScore: 85,
@@ -208,12 +230,12 @@ const mockAssets: Asset[] = [
     name: 'Exaustor de Ventilação',
     type: 'fan', area: 'Cobertura', location: 'Área Técnica — Cobertura Norte',
     status: 'normal', uptime: 99.2,
-    sensors: [
-      makeSensor('Velocidade', '%', 84, 6, 4001),
-      makeSensor('Corrente Motor', 'A', 3.1, 0.4, 4001),
-      makeSensor('Temp. Mancal', '°C', 54, 5, 4001),
-      makeSensor('Vibração', 'mm/s', 1.1, 0.4, 4001),
-    ],
+    sensors: makeSensors('fan-001', 4001, [
+      ['Velocidade', '%', 84, 6],
+      ['Corrente Motor', 'A', 3.1, 0.4],
+      ['Temp. Mancal', '°C', 54, 5],
+      ['Vibração', 'mm/s', 1.1, 0.4],
+    ]),
     lastMaintenance: '2026-03-01', nextMaintenance: '2026-06-01',
     x: 2, y: 2, plantX: 55, plantY: 20,
     anomalyScore: 15,
@@ -221,30 +243,46 @@ const mockAssets: Asset[] = [
   },
 ];
 
-// ─── Alerts mock ──────────────────────────────────────────────────────────────
-const mockAlerts: Alert[] = [
-  {
-    id: 'alert-001', assetId: 'compressor-001',
-    assetTag: 'CMP-001', assetName: 'Compressor de Ar',
-    severity: 'critical',
-    title: 'Vibração Alta Detectada',
-    description: 'Níveis de vibração acima do limite seguro (7.2 mm/s > limite 5 mm/s). Manutenção imediata necessária.',
-    timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
-    resolved: false,
-    mlInsight: 'Modelo ML prediz falha de rolamento em até 7 dias com 89% de confiança. Histórico similar resultou em parada não planejada de 14h.',
+// O `status` escrito nos literais acima é só um valor inicial de tipo — a
+// verdade vem dos sensores. Deriva já na carga do módulo para que qualquer
+// leitura (inclusive getAssetById) veja o status coerente desde o primeiro
+// render, sem depender de um getAssets() ter rodado antes.
+for (const asset of mockAssets) asset.status = assetStatusFromSensors(asset);
+
+// ─── Alertas ─────────────────────────────────────────────────────────────────
+// Alertas de sensor NÃO são escritos à mão: derivam de `deriveAlerts`, que só
+// emite alerta para sensor fora de faixa e monta o texto a partir do próprio
+// valor medido. Isso torna impossível o caso que existia antes — um alerta de
+// "temperatura alta" convivendo com cinco sensores marcados como normais.
+
+/** Contexto curado por (ativo, sensor): há quanto tempo o desvio começou e o
+ *  insight preditivo. Os NÚMEROS nunca vêm daqui — só a narrativa. */
+interface AlertNarrative {
+  detectedMinAgo: number;
+  mlInsight?: string;
+}
+
+const ALERT_NARRATIVES: Record<string, AlertNarrative> = {
+  // MTR-002 — a vibração é o indicador líder: sobe antes e há mais tempo.
+  'motor-002:Vibração': {
+    detectedMinAgo: 190,
+    mlInsight: 'Assinatura de vibração compatível com esfoliação na pista do rolamento do lado acionado. O desvio precede o aquecimento em ~3h, o que é típico de degradação mecânica: o atrito surge primeiro e o calor é consequência.',
   },
-  {
-    id: 'alert-002', assetId: 'motor-002',
-    assetTag: 'MTR-002', assetName: 'Motor de Reserva',
-    severity: 'warning',
-    title: 'Temperatura Elevada',
-    description: 'Temperatura do motor acima da faixa normal de operação (79°C > limite 75°C).',
-    timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
-    resolved: false,
-    mlInsight: 'Tendência de temperatura sugere degradação do sistema de resfriamento. Verificar nível de refrigerante.',
+  'motor-002:Temperatura': {
+    detectedMinAgo: 15,
+    mlInsight: 'Aquecimento consistente com a perda de vibração registrada no mesmo mancal — o calor é gerado localmente pelo atrito, não por sobrecarga elétrica (tensão e corrente seguem nominais). Inspecionar lubrificação e folga do rolamento.',
   },
+  // CMP-001 — vibração severa, já em zona inaceitável.
+  'compressor-001:Vibração': {
+    detectedMinAgo: 5,
+    mlInsight: 'Nível de vibração em zona D da ISO 10816-3: operação continuada tende a propagar o dano ao acoplamento. Histórico similar resultou em parada não planejada de 14h.',
+  },
+};
+
+/** Alertas que não vêm de sensor (agenda de manutenção, eventos operacionais). */
+const maintenanceAlerts: Alert[] = [
   {
-    id: 'alert-003', assetId: 'motor-001',
+    id: 'alert-manut-motor-001', assetId: 'motor-001',
     assetTag: 'MTR-001', assetName: 'Motor de Produção Principal',
     severity: 'info',
     title: 'Manutenção Preventiva Agendada',
@@ -252,16 +290,59 @@ const mockAlerts: Alert[] = [
     timestamp: new Date(Date.now() - 2 * 3600000).toISOString(),
     resolved: false,
   },
-  {
-    id: 'alert-004', assetId: 'pump-001',
-    assetTag: 'BBA-001', assetName: 'Bomba de Circulação de Refrigeração',
-    severity: 'info',
-    title: 'Desempenho Ótimo',
-    description: 'Bomba operando dentro dos parâmetros normais após última calibração.',
-    timestamp: new Date(Date.now() - 24 * 3600000).toISOString(),
-    resolved: true,
-  },
 ];
+
+const slug = (s: string) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+/** Alertas reconhecidos pelo operador. Some quando o sensor volta ao normal. */
+const acknowledgedAlerts = new Set<string>();
+
+const alertIdFor = (assetId: string, sensorName: string) =>
+  `alert-${assetId}-${slug(sensorName)}`;
+
+/**
+ * Traduz os sensores fora de faixa de um ativo em alertas. Um sensor fora de
+ * faixa sempre produz exatamente um alerta, e um sensor normal nunca produz
+ * nenhum — é a garantia de coerência entre a aba Sensores e a aba Alertas.
+ */
+const deriveAlerts = (asset: Asset): Alert[] =>
+  asset.sensors
+    .filter((s) => s.status !== 'normal')
+    .map((sensor) => {
+      const id = alertIdFor(asset.id, sensor.name);
+      const narrative = ALERT_NARRATIVES[`${asset.id}:${sensor.name}`];
+      const critical = sensor.status === 'critical';
+      const detalhe = reasonFor(sensor.name, sensor.value, sensor.unit, asset.id);
+      return {
+        id,
+        assetId: asset.id,
+        assetTag: asset.tag,
+        assetName: asset.name,
+        severity: critical ? 'critical' : 'warning',
+        title: `${sensor.name} ${critical ? 'em nível crítico' : 'fora de faixa'}`,
+        description: detalhe ? `${detalhe}.` : `${sensor.name} fora dos limites de operação.`,
+        timestamp: new Date(Date.now() - (narrative?.detectedMinAgo ?? 1) * 60000).toISOString(),
+        resolved: acknowledgedAlerts.has(id),
+        mlInsight: narrative?.mlInsight,
+      } satisfies Alert;
+    });
+
+/** Alertas de sensor de todos os ativos + os de manutenção, mais graves primeiro. */
+const allAlerts = (): Alert[] => {
+  const derived = mockAssets.flatMap(deriveAlerts);
+  // Reconhecimento vale para o episódio atual: se o sensor normalizou, o alerta
+  // deixa de existir e um desvio futuro volta a alertar do zero.
+  const vivos = new Set(derived.map((a) => a.id));
+  for (const id of acknowledgedAlerts) if (!vivos.has(id)) acknowledgedAlerts.delete(id);
+
+  const peso = { critical: 0, warning: 1, info: 2 } as const;
+  return [...derived, ...maintenanceAlerts].sort(
+    (a, b) => peso[a.severity] - peso[b.severity]
+      || Date.parse(a.timestamp) - Date.parse(b.timestamp),
+  );
+};
 
 // ─── Mock OCR (fallback quando o backend Python está offline) ────────────────
 const mockNameplateExtraction = (): NameplateResult => {
@@ -297,16 +378,21 @@ const mockNameplateExtraction = (): NameplateResult => {
 // ─── Anomalia: geração de leituras + fallback ────────────────────────────────
 
 /**
- * Condição "verdadeira" de cada ativo (0-100, maior = pior), usada para gerar
- * leituras coerentes. É estável: NÃO é o `anomalyScore` do asset (que passa a ser
- * sobrescrito por 100 - healthIndex após a pontuação do modelo).
+ * Condição "verdadeira" do ativo (0-1, maior = pior), lida DOS SENSORES.
+ *
+ * Antes existia uma tabela ANOMALY_CONDITION fixa aqui, o que criava um
+ * terceiro universo numérico: o modelo recebia ~48 °C para o MTR-002 enquanto
+ * a tela mostrava 79 °C. Agora a condição sai da posição real dos sensores de
+ * temperatura e vibração dentro dos seus limites, então o health_index e o
+ * insight passam a explicar o que está na tela.
  */
-const ANOMALY_CONDITION: Record<string, number> = {
-  'motor-001': 12,
-  'motor-002': 58,
-  'pump-001': 8,
-  'compressor-001': 85,
-  'fan-001': 15,
+const conditionOf = (asset: Asset): number => {
+  const relevantes = [
+    sensorByRole(asset.sensors, 'temperature'),
+    sensorByRole(asset.sensors, 'vibration'),
+  ].filter((s): s is Sensor => s != null);
+  if (relevantes.length === 0) return 0;
+  return Math.max(...relevantes.map((s) => deviationOf(s, asset.id)));
 };
 
 // Constantes calibradas empiricamente contra o serviço de anomalia (porta 8001).
@@ -319,9 +405,14 @@ const AN_TEMP_HEALTHY = 34;          // °C que ~zera o resíduo térmico p/ a c
 const AN_THERMAL_SPAN = 25;          // °C de offset térmico no desvio máximo (calibrado: motor-002→alerta, compressor→critico)
 const AN_VEL_ANOM_SPAN = 2.5;        // mm/s de anomalia de velocidade no desvio máximo
 
-/** Constrói uma janela de leituras determinística e calibrada para um ativo. */
+/**
+ * Constrói uma janela de leituras para o modelo a partir da condição atual dos
+ * sensores. As constantes AN_* posicionam essa condição dentro da faixa numérica
+ * em que o modelo foi treinado — os sensores da UI estão em mm/s e °C de escalas
+ * diferentes, então o que atravessa é a severidade, não a unidade crua.
+ */
 const buildReadings = (asset: Asset): ScoreRequest => {
-  const dev = (ANOMALY_CONDITION[asset.id] ?? asset.anomalyScore) / 100;
+  const dev = conditionOf(asset);
   const seed = makeSeed(asset.id);
   const now = Date.now();
   const readings: Reading[] = [];
@@ -359,7 +450,7 @@ const MOCK_INSIGHT: Record<Severity, string> = {
 
 /** Fallback determinístico quando o backend de anomalia está inacessível. */
 const mockScoreAnomaly = (asset: Asset): ScoreResult => {
-  const health = Math.round(100 - (ANOMALY_CONDITION[asset.id] ?? asset.anomalyScore));
+  const health = Math.round(100 - conditionOf(asset) * 100);
   const severity = severityFromHealth(health);
   return {
     asset_tag: asset.tag,
@@ -394,6 +485,7 @@ export const apiService = {
         asset.insight = result.insight;
         asset.thermalResidual = result.thermal_residual ?? null;
         asset.anomalyScore = Math.round(100 - result.health_index);
+        asset.status = assetStatusFromSensors(asset);
       }),
     );
     return mockAssets;
@@ -430,14 +522,16 @@ export const apiService = {
     const asset = mockAssets.find(a => a.id === assetId);
     if (asset) {
       const t = Date.now() / 1000;
-      asset.sensors = asset.sensors.map(sensor => ({
-        ...sensor,
-        value: parseFloat(
+      asset.sensors = asset.sensors.map(sensor => {
+        const value = parseFloat(
           (sensor.value + Math.sin(t + makeSeed(sensor.name)) * (sensor.max - sensor.min) * 0.01).toFixed(2),
-        ),
-      }));
-      // anomalyScore/healthIndex agora vêm do modelo (getAssets/scoreAnomaly);
-      // o tick apenas perturba os valores de sensor para o "live" visual.
+        );
+        // Reavalia o status a cada tick: um sensor que cruza o limite muda de
+        // cor ao vivo, em vez de ficar preso ao status do momento da criação.
+        return { ...sensor, value, status: statusFor(sensor.name, value, asset.id) };
+      });
+      asset.status = assetStatusFromSensors(asset);
+      // anomalyScore/healthIndex continuam vindo do modelo (getAssets/scoreAnomaly).
     }
     return asset;
   },
@@ -475,28 +569,32 @@ export const apiService = {
 
   async getAlerts(): Promise<Alert[]> {
     await new Promise(r => setTimeout(r, 200));
-    return mockAlerts;
+    return allAlerts();
   },
 
   async getAlertsByAsset(assetId: string): Promise<Alert[]> {
     await new Promise(r => setTimeout(r, 150));
-    return mockAlerts.filter(a => a.assetId === assetId);
+    return allAlerts().filter(a => a.assetId === assetId);
   },
 
   async resolveAlert(alertId: string): Promise<void> {
     await new Promise(r => setTimeout(r, 150));
-    const alert = mockAlerts.find(a => a.id === alertId);
-    if (alert) alert.resolved = true;
+    // Alerta de sensor é derivado: "resolver" registra o reconhecimento do
+    // operador, mas não apaga o alerta enquanto o sensor seguir fora de faixa.
+    const manual = maintenanceAlerts.find(a => a.id === alertId);
+    if (manual) manual.resolved = true;
+    else acknowledgedAlerts.add(alertId);
   },
 
   async getKPIMetrics(): Promise<KPIMetrics> {
     await new Promise(r => setTimeout(r, 200));
+    const alerts = allAlerts();
     const online = mockAssets.filter(a => a.status !== 'offline').length;
-    const critical = mockAlerts.filter(a => !a.resolved && a.severity === 'critical').length;
+    const critical = alerts.filter(a => !a.resolved && a.severity === 'critical').length;
     const anomalies = mockAssets.filter(a => a.anomalyScore > 50).length;
     return {
       totalUptime: parseFloat((mockAssets.reduce((s, a) => s + a.uptime, 0) / mockAssets.length).toFixed(2)),
-      activeAlerts: mockAlerts.filter(a => !a.resolved).length,
+      activeAlerts: alerts.filter(a => !a.resolved).length,
       anomaliesDetected: anomalies,
       assetsOnline: online,
       totalAssets: mockAssets.length,

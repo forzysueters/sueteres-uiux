@@ -1,27 +1,37 @@
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { useAppStore } from '../../store/appStore';
 import { MotorModel, MotorPrimitive, TelemetryData } from './MotorModel';
 import { ModelErrorBoundary } from './ModelErrorBoundary';
+import { sensorByRole, statusFor, limitFor } from '../../services/sensorLimits';
 
 interface MotorViewerProps {
   assetId: string;
 }
 
-/** Lê a telemetria atual do ativo direto do store (sem hook/re-render). */
+/**
+ * Lê a telemetria atual do ativo direto do store (sem hook/re-render).
+ *
+ * Resolve por PAPEL, não por nome literal: o compressor chama sua temperatura
+ * de "Temp. Saída" e o exaustor de "Temp. Mancal", então a busca por
+ * `name === 'Temperatura'` caía no default de 25 °C e o 3D nunca esquentava.
+ */
 function readTelemetry(assetId: string): TelemetryData {
   const asset = useAppStore.getState().assets.find((a) => a.id === assetId);
+  const sensors = asset?.sensors ?? [];
   return {
-    temperatura: asset?.sensors.find((s) => s.name === 'Temperatura')?.value ?? 25,
-    vibracao: asset?.sensors.find((s) => s.name === 'Vibração')?.value ?? 0,
+    temperatura: sensorByRole(sensors, 'temperature')?.value ?? 25,
+    vibracao: sensorByRole(sensors, 'vibration')?.value ?? 0,
   };
 }
 
 // ─── Âncoras das labels em world-space ───────────────────────────────────────
 // O GLB veio numa malha única, sem nós nomeados (ver MotorModel.tsx), então
-// ancoramos por offset fixo em torno do modelo (Center scale={6}). Calibráveis:
-// TEMP na frente/lado do eixo, VIBRAÇÃO na traseira/lado do ventilador.
+// ancoramos por offset fixo em torno do modelo (Center scale={6}). A âncora de
+// TEMP fica sobre o mancal do lado acionado — o mesmo ponto de onde o gradiente
+// térmico nasce no shader (HOTSPOT_END em MotorModel.tsx); se você inverter lá,
+// inverta o sinal de X aqui. VIBRAÇÃO fica na traseira, lado do ventilador.
 const TEMP_ANCHOR: [number, number, number] = [1.4, 0.5, 0.8];
 const VIB_ANCHOR: [number, number, number] = [-1.4, 0.5, -0.8];
 
@@ -67,22 +77,29 @@ function InstrumentLabel({
 
 /** Labels HTML ancoradas — re-renderizam a 0,5Hz (tick do store), não a cena. */
 function LiveLabels({ assetId }: MotorViewerProps) {
-  const temp = useAppStore(
-    (s) => s.assets.find((a) => a.id === assetId)?.sensors.find((x) => x.name === 'Temperatura')?.value,
+  const tempSensor = useAppStore(
+    (s) => sensorByRole(s.assets.find((a) => a.id === assetId)?.sensors ?? [], 'temperature'),
   );
-  const vib = useAppStore(
-    (s) => s.assets.find((a) => a.id === assetId)?.sensors.find((x) => x.name === 'Vibração')?.value,
+  const vibSensor = useAppStore(
+    (s) => sensorByRole(s.assets.find((a) => a.id === assetId)?.sensors ?? [], 'vibration'),
   );
-  const hot = (temp ?? 0) > 80;
+  const temp = tempSensor?.value;
+  const vib = vibSensor?.value;
+
+  // Mesmo critério do gauge e do alerta: a label acende quando o sensor sai da
+  // faixa, não num limiar próprio (antes era `> 80`, enquanto o glow começava
+  // em 70 e o alerta falava em 75 — três números para o mesmo fenômeno).
+  const tempAlert = tempSensor != null && statusFor(tempSensor.name, tempSensor.value, assetId) !== 'normal';
+  const vibAlert = vibSensor != null && statusFor(vibSensor.name, vibSensor.value, assetId) !== 'normal';
 
   return (
     <>
       <Html position={TEMP_ANCHOR} center occlude>
         <InstrumentLabel
-          caption="Temp · Frontal"
+          caption="Temp · Mancal DE"
           value={temp != null ? temp.toFixed(1) : '—'}
           unit="°C"
-          alert={hot}
+          alert={tempAlert}
         />
       </Html>
       <Html position={VIB_ANCHOR} center occlude>
@@ -90,6 +107,7 @@ function LiveLabels({ assetId }: MotorViewerProps) {
           caption="Vibração · Traseira"
           value={vib != null ? vib.toFixed(1) : '—'}
           unit="mm/s"
+          alert={vibAlert}
         />
       </Html>
     </>
@@ -102,6 +120,15 @@ export default function MotorViewer({ assetId }: MotorViewerProps) {
   const [inView, setInView] = useState(true);
   const [visible, setVisible] = useState(!document.hidden);
   const [dpr, setDpr] = useState(1.5);
+
+  // Limites da temperatura DESTE ativo: o glow acende no `warn` e satura no
+  // `crit`, os mesmos cortes que pintam o gauge e disparam o alerta.
+  const tempLimits = useMemo(() => {
+    const sensors = useAppStore.getState().assets.find((a) => a.id === assetId)?.sensors ?? [];
+    const sensor = sensorByRole(sensors, 'temperature');
+    const limit = sensor ? limitFor(sensor.name, assetId) : null;
+    return limit ? { warn: limit.warn, crit: limit.crit } : undefined;
+  }, [assetId]);
 
   // Assinatura transiente: mantém o ref atualizado a cada tick, SEM re-render.
   useEffect(() => {
@@ -149,8 +176,8 @@ export default function MotorViewer({ assetId }: MotorViewerProps) {
         <directionalLight position={[-4, 2, -3]} intensity={0.35} color="#7dd3fc" />
 
         <Suspense fallback={null}>
-          <ModelErrorBoundary fallback={<MotorPrimitive telemetryRef={telemetryRef} />}>
-            <MotorModel telemetryRef={telemetryRef} />
+          <ModelErrorBoundary fallback={<MotorPrimitive telemetryRef={telemetryRef} tempLimits={tempLimits} />}>
+            <MotorModel telemetryRef={telemetryRef} tempLimits={tempLimits} />
           </ModelErrorBoundary>
           <LiveLabels assetId={assetId} />
         </Suspense>

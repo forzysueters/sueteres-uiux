@@ -23,6 +23,11 @@ interface MotorMeshProps {
   scale?: number;
   /** Balanço sutil do conjunto. Desligar quando o pai já anima. */
   idle?: boolean;
+  /**
+   * Limites de temperatura do ativo (sensorLimits.ts). O glow começa no `warn`
+   * e satura no `crit`, para acender exatamente quando o gauge acusa atenção.
+   */
+  tempLimits?: { warn: number; crit: number };
 }
 
 const MODEL_URL = '/models/motor.glb';
@@ -36,15 +41,88 @@ const COLOR_DARKEN = 0.5;      // 1 = original; menor = mais escuro
 const ROUGHNESS_MIN = 0.6;     // maior = menos brilho/reflexo
 const METALNESS_MAX = 0.35;    // menor = menos "espelho"
 
-// heat: 0 (frio) → 1 (quente). Aquece a partir de ~70°C, satura ~85°C;
-// o limite de 80°C do requisito cai no meio da transição.
-const heatFactor = (tempC: number) =>
-  THREE.MathUtils.clamp((tempC - 70) / (85 - 70), 0, 1);
+// ─── Foco térmico (calibrável) ───────────────────────────────────────────────
+// Em que extremo do eixo-árvore fica o mancal do lado acionado. Se o calor
+// aparecer na ponta errada do motor, inverta para -1.
+const HOTSPOT_END: 1 | -1 = 1;
+// Raio do foco, como fração da diagonal do modelo. Maior = calor mais espalhado.
+const HEAT_RADIUS_FRACTION = 0.55;
+// Quanto do calor é condução geral pela carcaça (o resto é o foco no mancal).
+// Um motor com mancal quente aquece por inteiro, só que bem menos que o ponto.
+const HEAT_AMBIENT_SHARE = 0.18;
+// Concentração do foco: >1 aperta o núcleo quente, deixando a queda mais nítida.
+const HEAT_FALLOFF_POWER = 1.6;
 
 /**
- * Motor W22 real (Onshape → GLB + Draco). Como o modelo veio numa malha única
- * (sem peça "Mancal" nomeada), a temperatura reage como GLOW VERMELHO global:
- * a emissão de todos os materiais sobe conforme a temperatura passa de 80°C.
+ * heat: 0 (frio) → 1 (no limite crítico).
+ *
+ * Ancorado nos MESMOS limites que definem o status do sensor (sensorLimits.ts):
+ * o modelo só começa a esquentar quando a temperatura entra em atenção, e satura
+ * no crítico. Antes a rampa era 70→85 °C fixa, então o motor já brilhava com o
+ * gauge marcando "Normal".
+ */
+const heatFactor = (tempC: number, limits: { warn: number; crit: number }) =>
+  THREE.MathUtils.clamp((tempC - limits.warn) / (limits.crit - limits.warn), 0, 1);
+
+const DEFAULT_TEMP_LIMITS = { warn: 75, crit: 90 };
+
+/** Uniforms do gradiente térmico, um conjunto por material clonado. */
+interface HeatUniforms {
+  uHotspot: { value: THREE.Vector3 };
+  uHeat: { value: number };
+  uRadius: { value: number };
+  uHotColor: { value: THREE.Color };
+}
+
+/**
+ * Injeta o gradiente térmico num MeshStandardMaterial.
+ *
+ * O GLB veio numa malha única (1 nó, 1 mesh, 1 material — sem peça "Mancal"
+ * nomeada), então não dá para pintar uma peça separada. Em vez disso o emissive
+ * é calculado POR FRAGMENTO, pela distância até o ponto do mancal em espaço de
+ * objeto: o calor nasce ali e decai pela carcaça, como condução de verdade.
+ */
+function injectHeatGradient(mat: THREE.MeshStandardMaterial, u: HeatUniforms) {
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, u);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vHeatPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHeatPos = position;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vHeatPos;
+        uniform vec3 uHotspot;
+        uniform float uHeat;
+        uniform float uRadius;
+        uniform vec3 uHotColor;`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        float heatDist = distance(vHeatPos, uHotspot);
+        float heatFocus = pow(1.0 - smoothstep(0.0, uRadius, heatDist), ${HEAT_FALLOFF_POWER.toFixed(1)});
+        totalEmissiveRadiance += uHotColor * uHeat *
+          (${HEAT_AMBIENT_SHARE.toFixed(2)} + ${(1 - HEAT_AMBIENT_SHARE).toFixed(2)} * heatFocus);`,
+      );
+  };
+}
+
+/** Ponto do mancal: extremo do eixo mais longo (o eixo-árvore), no centro dos outros dois. */
+function bearingHotspot(bbox: THREE.Box3): THREE.Vector3 {
+  const size = bbox.getSize(new THREE.Vector3());
+  const center = bbox.getCenter(new THREE.Vector3());
+  const axis = size.x >= size.y && size.x >= size.z ? 'x' : size.y >= size.z ? 'y' : 'z';
+  const hotspot = center.clone();
+  hotspot[axis] = HOTSPOT_END > 0 ? bbox.max[axis] : bbox.min[axis];
+  return hotspot;
+}
+
+/**
+ * Motor W22 real (Onshape → GLB + Draco). A temperatura vira um GRADIENTE
+ * térmico com foco no mancal do lado acionado (ver injectHeatGradient), em vez
+ * do glow vermelho uniforme que o modelo tinha antes.
  */
 export function MotorModel({
   telemetryRef,
@@ -52,16 +130,30 @@ export function MotorModel({
   glowColor,
   scale = 6,
   idle = true,
+  tempLimits,
 }: MotorMeshProps) {
   const { scene } = useGLTF(MODEL_URL, DRACO_PATH);
   const groupRef = useRef<THREE.Group>(null);
   const heatSmooth = useRef(0);
 
-  // Clona a cena e os materiais (não mutar o cache do useGLTF) e coleta os
-  // materiais para o binding de glow.
-  const { model, materials } = useMemo(() => {
+  // Clona a cena e os materiais (não mutar o cache do useGLTF) e injeta o
+  // gradiente térmico, guardando os uniforms para dirigir a intensidade.
+  const { model, uniforms } = useMemo(() => {
     const clone = scene.clone(true);
-    const mats: THREE.MeshStandardMaterial[] = [];
+    const uni: HeatUniforms[] = [];
+
+    // Bounding box da GEOMETRIA — mesmo espaço do atributo `position` que o
+    // shader lê. Box3.setFromObject daria world-space, deslocado pelo nó.
+    const bbox = new THREE.Box3();
+    clone.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry.computeBoundingBox();
+      if (mesh.geometry.boundingBox) bbox.union(mesh.geometry.boundingBox);
+    });
+    const hotspot = bearingHotspot(bbox);
+    const radius = bbox.getSize(new THREE.Vector3()).length() * HEAT_RADIUS_FRACTION;
+
     clone.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -73,37 +165,41 @@ export function MotorModel({
         c.color.multiplyScalar(COLOR_DARKEN);
         c.roughness = Math.max(c.roughness ?? 1, ROUGHNESS_MIN);
         c.metalness = Math.min(c.metalness ?? 0, METALNESS_MAX);
+        // O emissive do material fica zerado: quem acende é o shader injetado,
+        // somando em totalEmissiveRadiance por fragmento.
         c.emissive = new THREE.Color('#000000');
-        c.emissiveIntensity = 0;
-        mats.push(c);
+        c.emissiveIntensity = 1;
+        const u: HeatUniforms = {
+          uHotspot: { value: hotspot },
+          uHeat: { value: 0 },
+          uRadius: { value: radius },
+          uHotColor: { value: HOT.clone() },
+        };
+        injectHeatGradient(c, u);
+        uni.push(u);
         return c;
       });
       if (!Array.isArray(src)) mesh.material = (mesh.material as THREE.Material[])[0];
     });
-    return { model: clone, materials: mats };
+    return { model: clone, uniforms: uni };
   }, [scene]);
 
-  // Sem telemetria: aplica o emissive UMA vez em vez de reescrever todo quadro.
+  // Sem telemetria (planta): intensidade fixa, aplicada uma vez.
   useEffect(() => {
     if (telemetryRef) return;
     const color = new THREE.Color(glowColor ?? '#ef4444');
-    for (const m of materials) {
-      m.emissive.copy(color);
-      m.emissiveIntensity = glow;
+    for (const u of uniforms) {
+      u.uHotColor.value.copy(color);
+      u.uHeat.value = glow;
     }
-  }, [telemetryRef, materials, glow, glowColor]);
+  }, [telemetryRef, uniforms, glow, glowColor]);
 
   useFrame((_, delta) => {
     if (telemetryRef) {
       const dt = Math.min(delta, 0.1); // estabilidade após pausas de loop
-      const target = heatFactor(telemetryRef.current.temperatura);
+      const target = heatFactor(telemetryRef.current.temperatura, tempLimits ?? DEFAULT_TEMP_LIMITS);
       heatSmooth.current = THREE.MathUtils.damp(heatSmooth.current, target, 3, dt);
-      const h = heatSmooth.current;
-
-      for (const m of materials) {
-        m.emissive.copy(HOT);
-        m.emissiveIntensity = h * 0.9;
-      }
+      for (const u of uniforms) u.uHeat.value = heatSmooth.current;
     }
 
     // Respiração sutil do conjunto para dar vida.
@@ -125,7 +221,7 @@ export function MotorModel({
 useGLTF.preload(MODEL_URL, DRACO_PATH);
 
 // ─── Fallback: motor de primitivos (usado se o .glb falhar ao carregar) ──────
-export function MotorPrimitive({ telemetryRef, glow = 0, idle = true }: MotorMeshProps) {
+export function MotorPrimitive({ telemetryRef, glow = 0, idle = true, tempLimits }: MotorMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const shaftRef = useRef<THREE.Mesh>(null);
   const bearingMat = useRef<THREE.MeshStandardMaterial>(null);
@@ -134,7 +230,9 @@ export function MotorPrimitive({ telemetryRef, glow = 0, idle = true }: MotorMes
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.1);
-    const target = telemetryRef ? heatFactor(telemetryRef.current.temperatura) : glow;
+    const target = telemetryRef
+      ? heatFactor(telemetryRef.current.temperatura, tempLimits ?? DEFAULT_TEMP_LIMITS)
+      : glow;
     heatSmooth.current = THREE.MathUtils.damp(heatSmooth.current, target, 3, dt);
     const h = heatSmooth.current;
     if (bearingMat.current) {
