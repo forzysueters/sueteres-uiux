@@ -1,8 +1,13 @@
 import jwt from 'jsonwebtoken';
 import { JWTPayload, RefreshTokenPayload } from '../types/index.js';
 
-// Store refresh tokens in-memory. In production, use Redis or database
-const refreshTokenStore = new Set<string>();
+// Revocation blocklist (in-memory). We deliberately do NOT keep an allowlist of
+// issued tokens: a refresh token's authenticity is already guaranteed by its JWT
+// signature + expiry, and an allowlist gets wiped on every server restart —
+// silently invalidating every active session and bouncing users back to login.
+// So we only track tokens that were explicitly revoked (via logout).
+// In production, back this with Redis/DB so revocations survive restarts too.
+const revokedRefreshTokens = new Set<string>();
 
 export const generateAccessToken = (payload: JWTPayload): string => {
   return jwt.sign(payload, process.env.JWT_SECRET || 'your-secret-key', {
@@ -11,21 +16,18 @@ export const generateAccessToken = (payload: JWTPayload): string => {
 };
 
 export const generateRefreshToken = (payload: RefreshTokenPayload): string => {
-  const token = jwt.sign(
+  return jwt.sign(
     payload,
     process.env.JWT_REFRESH_SECRET || 'your-refresh-secret',
     {
       expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
     }
   );
-
-  // Store token for validation
-  refreshTokenStore.add(token);
-  return token;
 };
 
 export const verifyRefreshToken = (token: string): RefreshTokenPayload | null => {
-  if (!refreshTokenStore.has(token)) {
+  // Explicitly revoked (logout) → reject even if still unexpired.
+  if (revokedRefreshTokens.has(token)) {
     return null;
   }
 
@@ -41,9 +43,5 @@ export const verifyRefreshToken = (token: string): RefreshTokenPayload | null =>
 };
 
 export const revokeRefreshToken = (token: string): void => {
-  refreshTokenStore.delete(token);
-};
-
-export const getAllRefreshTokens = (): string[] => {
-  return Array.from(refreshTokenStore);
+  revokedRefreshTokens.add(token);
 };

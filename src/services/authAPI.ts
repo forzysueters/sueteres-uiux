@@ -45,7 +45,7 @@ class AuthAPI {
       const response = await this.client.post<AuthResponse>('/auth/refresh')
       return response.data
     } catch (error: any) {
-      // Diferencia erro de rede vs servidor recusando explicitamente
+      // Diferencia erro de rede vs servidor recusando explicitamente.
       const err = error as AxiosError
       if (!err.response) {
         const e = new Error('Network error during refresh') as Error & {
@@ -54,7 +54,13 @@ class AuthAPI {
         e.isNetworkError = true
         throw e
       }
-      throw new Error((err.response.data as any)?.error || 'Token refresh failed')
+      // Propaga o status HTTP para o store decidir se encerra a sessão
+      // (só 401/403 são rejeição de credencial; 5xx é transitório).
+      const e = new Error(
+        (err.response.data as any)?.error || 'Token refresh failed',
+      ) as Error & { status?: number }
+      e.status = err.response.status
+      throw e
     }
   }
 

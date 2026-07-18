@@ -85,12 +85,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         error: null,
       })
     } catch (error: any) {
-      // Erro de rede: mantém a sessão local, apenas propaga.
-      // Servidor recusou explicitamente (refresh inválido): aí sim limpa.
-      if (error?.isNetworkError) {
-        throw error
+      // Só encerra a sessão quando o servidor rejeita explicitamente a
+      // credencial (401 sem cookie / 403 refresh inválido). Erro de rede ou
+      // 5xx transitório preservam a sessão local — o access token ainda pode
+      // estar válido e o próximo tick do TokenRefresher tenta de novo.
+      const status = error?.status
+      if (!error?.isNetworkError && (status === 401 || status === 403)) {
+        get().clearAuth()
       }
-      get().clearAuth()
       throw error
     }
   },
