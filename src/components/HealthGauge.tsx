@@ -37,7 +37,8 @@ export const HealthGauge: React.FC<HealthGaugeProps> = ({
   const cfg = colorForHealth(clamped);
   const label = severity ? labelForSeverity[severity] : cfg.label;
 
-  const stroke = 12;
+  // Traço proporcional ao diâmetro (≈12 em size=176), com piso p/ tamanhos baixos.
+  const stroke = Math.max(6, Math.round(size * 0.068));
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   // Deixa uma pequena folga no topo — arco de ~270° para leitura tipo "gauge".
@@ -45,6 +46,17 @@ export const HealthGauge: React.FC<HealthGaugeProps> = ({
   const arcLength = circumference * arcFraction;
   const progress = arcLength * (clamped / 100);
   const gapRotation = 135; // início do arco (canto inferior esquerdo)
+
+  // Tipografia/espaçamento do miolo proporcionais ao diâmetro (calibrados p/ 176).
+  const numberSize = size * 0.205;
+  const percentSize = size * 0.1;
+  const captionSize = Math.max(8, size * 0.057);
+  const pillPadX = size * 0.057;
+  const pillPadY = size * 0.011;
+  const pillGap = size * 0.034;
+  const dotSize = Math.max(4, size * 0.034);
+  const labelGap = size * 0.011;
+  const pillGapTop = size * 0.045;
 
   return (
     <div
@@ -89,22 +101,40 @@ export const HealthGauge: React.FC<HealthGaugeProps> = ({
       {/* Centro */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="flex items-baseline gap-0.5">
-          <span className={cn('text-4xl font-bold tabular-nums tracking-tight', cfg.text)}>
+          <span
+            className={cn('font-bold tabular-nums tracking-tight leading-none', cfg.text)}
+            style={{ fontSize: numberSize }}
+          >
             {Math.round(clamped)}
           </span>
-          <span className="text-lg font-semibold text-muted">%</span>
+          <span className="font-semibold text-muted leading-none" style={{ fontSize: percentSize }}>
+            %
+          </span>
         </div>
-        <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+        <span
+          className="font-bold uppercase tracking-[0.18em] text-muted leading-none"
+          style={{ fontSize: captionSize, marginTop: labelGap }}
+        >
           Saúde
         </span>
         <span
           className={cn(
-            'mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+            'inline-flex items-center rounded-full border font-bold uppercase tracking-wider leading-none',
             cfg.text,
           )}
-          style={{ borderColor: `${cfg.stroke}40`, background: `${cfg.stroke}12` }}
+          style={{
+            borderColor: `${cfg.stroke}40`,
+            background: `${cfg.stroke}12`,
+            fontSize: captionSize,
+            gap: pillGap,
+            padding: `${pillPadY}px ${pillPadX}px`,
+            marginTop: pillGapTop,
+          }}
         >
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: cfg.stroke }} />
+          <span
+            className="rounded-full"
+            style={{ background: cfg.stroke, width: dotSize, height: dotSize }}
+          />
           {label}
         </span>
       </div>

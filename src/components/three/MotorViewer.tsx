@@ -37,7 +37,54 @@ class ModelErrorBoundary extends React.Component<
   }
 }
 
-/** Labels HTML flutuantes — re-renderizam a 0,5Hz (tick do store), não a cena. */
+// ─── Âncoras das labels em world-space ───────────────────────────────────────
+// O GLB veio numa malha única, sem nós nomeados (ver MotorModel.tsx), então
+// ancoramos por offset fixo em torno do modelo (Center scale={6}). Calibráveis:
+// TEMP na frente/lado do eixo, VIBRAÇÃO na traseira/lado do ventilador.
+const TEMP_ANCHOR: [number, number, number] = [1.4, 0.5, 0.8];
+const VIB_ANCHOR: [number, number, number] = [-1.4, 0.5, -0.8];
+
+/** Card de label industrial (dark, borda limpa) ancorado numa peça do motor. */
+function InstrumentLabel({
+  caption,
+  value,
+  unit,
+  alert = false,
+}: {
+  caption: string;
+  value: string;
+  unit: string;
+  alert?: boolean;
+}) {
+  return (
+    <div
+      className={`pointer-events-none w-max select-none rounded-lg border px-2.5 py-1.5 backdrop-blur-md ${
+        alert ? 'border-red-500/50 bg-red-500/15' : 'border-border bg-white/80 dark:bg-slate-950/70'
+      }`}
+    >
+      <div className="flex items-center gap-1.5">
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            alert ? 'animate-pulse bg-red-500' : 'bg-primary'
+          }`}
+        />
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted">{caption}</span>
+      </div>
+      <div className="mt-0.5 flex items-baseline gap-1">
+        <span
+          className={`text-base font-bold tabular-nums leading-none ${
+            alert ? 'text-red-500' : 'text-foreground'
+          }`}
+        >
+          {value}
+        </span>
+        <span className="text-[9px] font-semibold text-muted">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Labels HTML ancoradas — re-renderizam a 0,5Hz (tick do store), não a cena. */
 function LiveLabels({ assetId }: MotorViewerProps) {
   const temp = useAppStore(
     (s) => s.assets.find((a) => a.id === assetId)?.sensors.find((x) => x.name === 'Temperatura')?.value,
@@ -48,21 +95,23 @@ function LiveLabels({ assetId }: MotorViewerProps) {
   const hot = (temp ?? 0) > 80;
 
   return (
-    <Html position={[0, 1.4, 0]} center occlude>
-      <div
-        className={`pointer-events-none flex select-none gap-2 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-bold backdrop-blur-sm ${
-          hot ? 'border-red-500/40 bg-red-500/15' : 'border-border bg-card/90'
-        }`}
-      >
-        <span className={hot ? 'text-red-500' : 'text-foreground'}>
-          {temp != null ? `${temp.toFixed(1)}°C` : '—'}
-        </span>
-        <span className="text-border-strong">·</span>
-        <span className="text-foreground">
-          {vib != null ? `${vib.toFixed(1)} mm/s` : '—'}
-        </span>
-      </div>
-    </Html>
+    <>
+      <Html position={TEMP_ANCHOR} center occlude>
+        <InstrumentLabel
+          caption="Temp · Frontal"
+          value={temp != null ? temp.toFixed(1) : '—'}
+          unit="°C"
+          alert={hot}
+        />
+      </Html>
+      <Html position={VIB_ANCHOR} center occlude>
+        <InstrumentLabel
+          caption="Vibração · Traseira"
+          value={vib != null ? vib.toFixed(1) : '—'}
+          unit="mm/s"
+        />
+      </Html>
+    </>
   );
 }
 

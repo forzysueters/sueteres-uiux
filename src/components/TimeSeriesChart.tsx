@@ -41,18 +41,13 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   const gradId = `ts-gradient-${dataKey}`;
 
   return (
-    <div
-      className="saas-card p-4"
-      style={{
-        background: 'rgba(15,22,35,0.8)',
-      }}
-    >
+    <div className="saas-card p-4">
       <div className="flex items-center gap-2 mb-4">
         <div
           className="w-2 h-2 rounded-full"
           style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }}
         />
-        <h3 className="text-sm font-semibold text-slate-100">{title}</h3>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <ChartComponent data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
@@ -62,19 +57,19 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
               <stop offset="95%" stopColor={color} stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="timestamp"
-            stroke="rgba(168,188,212,0.3)"
-            tick={{ fill: 'rgba(168,188,212,0.4)', fontSize: 11 }}
+            stroke="var(--border)"
+            tick={{ fill: 'var(--muted)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             interval="preserveStartEnd"
           />
           <YAxis
-            stroke="rgba(168,188,212,0.3)"
-            tick={{ fill: 'rgba(168,188,212,0.4)', fontSize: 11 }}
+            stroke="var(--border)"
+            tick={{ fill: 'var(--muted)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             unit={` ${unit}`}
@@ -94,7 +89,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
               strokeWidth={2}
               fill={`url(#${gradId})`}
               dot={false}
-              activeDot={{ r: 4, fill: color, stroke: '#080d18', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: color, stroke: 'var(--card)', strokeWidth: 2 }}
               name={dataKey}
               isAnimationActive={false}
             />
@@ -105,7 +100,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
               stroke={color}
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: color, stroke: '#080d18', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: color, stroke: 'var(--card)', strokeWidth: 2 }}
               name={dataKey}
               isAnimationActive={false}
             />

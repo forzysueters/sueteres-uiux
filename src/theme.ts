@@ -29,11 +29,11 @@ export const theme = {
 } as const;
 
 export const tooltipStyle = {
-  backgroundColor: 'rgba(17, 24, 39, 0.95)',
-  border: '1px solid var(--border)',
+  backgroundColor: 'var(--card)',
+  border: '1px solid var(--border-strong)',
   borderRadius: '0.75rem',
   color: 'var(--foreground)',
   fontSize: '12px',
   padding: '10px 14px',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+  boxShadow: '0 12px 32px -8px hsl(var(--shadow-color) / 0.6)',
 };

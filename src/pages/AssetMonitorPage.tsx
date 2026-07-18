@@ -158,15 +158,46 @@ export const AssetMonitorPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ───────── Hero ───────── */}
+      {/* ───────── Identidade do ativo ───────── */}
+      <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center border flex-shrink-0', cfg.bg, cfg.border)}>
+          <Activity size={24} className={cfg.text} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5 mb-1 flex-wrap">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary font-mono bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">
+              <Tag size={11} />
+              {asset.tag}
+            </span>
+            <span className={cn('inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider', cfg.text)}>
+              <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', cfg.dot)} />
+              {cfg.label}
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+              <span className="live-dot scale-75" />
+              Live · 2s
+            </span>
+          </div>
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight truncate">{asset.name}</h1>
+            <p className="text-sm text-muted">{asset.location}</p>
+          </div>
+        </div>
+        <span className="ml-auto hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card-hover text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <Gauge size={11} className="text-primary" />
+          Monitoramento de Ativo
+        </span>
+      </motion.div>
+
+      {/* ───────── Gêmeo Digital 3D (protagonista, full-width) ───────── */}
       <motion.div
         variants={itemVariants}
-        className="relative saas-card-premium overflow-hidden p-6 md:p-8"
+        className="relative -mx-6 md:-mx-8 h-[50vh] min-h-[420px] overflow-hidden border-y border-border bg-background/40"
       >
         {/* Atmosfera reativa ao status */}
         <div
           aria-hidden
-          className="absolute -top-32 -right-24 w-[28rem] h-[28rem] rounded-full blur-3xl opacity-60 pointer-events-none"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] rounded-full blur-3xl opacity-50 pointer-events-none"
           style={{ background: `radial-gradient(circle, ${cfg.glow}, transparent 70%)` }}
         />
         <div
@@ -177,103 +208,79 @@ export const AssetMonitorPage: React.FC = () => {
           )}
         />
 
-        <div className="relative flex flex-col lg:flex-row lg:items-stretch gap-8">
-          {/* Coluna esquerda: identidade + saúde */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="inline-flex self-start items-center gap-2 px-3 py-1 rounded-full border border-border bg-card-hover text-[10px] font-semibold uppercase tracking-wider text-muted mb-4">
-              <Gauge size={11} className="text-primary" />
-              Monitoramento de Ativo
+        {/* Canvas 3D — preenche todo o hero */}
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted">
+              <RefreshCw size={22} className="animate-spin text-primary" />
+              <span className="text-[11px] font-medium">Carregando modelo 3D…</span>
             </div>
-
-            <div className="flex items-start gap-4">
-              <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center border flex-shrink-0', cfg.bg, cfg.border)}>
-                <Activity size={28} className={cfg.text} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary font-mono bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">
-                    <Tag size={11} />
-                    {asset.tag}
-                  </span>
-                  <span className={cn('inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider', cfg.text)}>
-                    <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', cfg.dot)} />
-                    {cfg.label}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="live-dot scale-75" />
-                    Live · 2s
-                  </span>
-                </div>
-                <h1 className="text-3xl font-bold text-foreground tracking-tight truncate">{asset.name}</h1>
-                <p className="text-sm text-muted mt-0.5">{asset.location}</p>
-              </div>
-            </div>
-
-            {/* Insight preditivo IA */}
-            {severity !== 'ok' && asset.insight && (
-              <div className="mt-6 p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
-                <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-bold text-primary mb-1">Insight Preditivo IA</p>
-                  <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Medidor de saúde (compacto) */}
-            <div className="mt-6 flex items-center gap-5 flex-wrap">
-              <HealthGauge value={health} severity={severity} size={140} />
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                <div>
-                  <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
-                    <Clock size={11} className="text-primary" />
-                    Vida Útil Est.
-                  </p>
-                  <p className="text-base font-bold text-foreground tabular-nums">~ {Math.round(health * 2.4)} dias</p>
-                </div>
-                <div>
-                  <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
-                    <Gauge size={11} className="text-primary" />
-                    Índice de Saúde
-                  </p>
-                  <p className="text-base font-bold text-foreground tabular-nums">{health}/100</p>
-                </div>
-                {asset.thermalResidual != null && (
-                  <div>
-                    <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1.5">
-                      <Thermometer size={11} className="text-primary" />
-                      Resíduo Térmico
-                    </p>
-                    <p className="text-base font-bold text-foreground tabular-nums">
-                      {asset.thermalResidual > 0 ? '+' : ''}{asset.thermalResidual.toFixed(1)}°C
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+          }
+        >
+          <div className="absolute inset-0">
+            <MotorViewer assetId={asset.id} />
           </div>
+        </Suspense>
 
-          {/* Coluna direita: Gêmeo Digital 3D (sempre visível, lazy-loaded) */}
-          <div className="lg:w-[400px] xl:w-[440px] flex-shrink-0">
-            <div className="relative h-[300px] lg:h-full min-h-[300px] rounded-xl border border-border bg-background/40 overflow-hidden">
-              <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/80 border border-border text-[9px] font-bold uppercase tracking-wider text-muted backdrop-blur-sm pointer-events-none">
-                <Box size={10} className="text-primary" />
-                Gêmeo Digital 3D
-              </span>
-              <Suspense
-                fallback={
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted">
-                    <RefreshCw size={20} className="animate-spin text-primary" />
-                    <span className="text-[10px] font-medium">Carregando modelo 3D…</span>
-                  </div>
-                }
-              >
-                <MotorViewer assetId={asset.id} />
-              </Suspense>
+        {/* Overlay: placar de saúde (glassmorphism, flutuante) */}
+        <div className="absolute top-4 left-4 z-10 w-[220px] rounded-2xl border border-border bg-white/70 dark:bg-slate-950/55 backdrop-blur-xl shadow-lg p-4">
+          <div className="flex flex-col items-center gap-3">
+            <HealthGauge value={health} severity={severity} size={150} />
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 w-full pt-3 border-t border-border">
+              <div>
+                <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
+                  <Clock size={10} className="text-primary" />
+                  Vida Útil
+                </p>
+                <p className="text-sm font-bold text-foreground tabular-nums">~{Math.round(health * 2.4)}d</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
+                  <Gauge size={10} className="text-primary" />
+                  Saúde
+                </p>
+                <p className="text-sm font-bold text-foreground tabular-nums">{health}/100</p>
+              </div>
+              {asset.thermalResidual != null && (
+                <div className="col-span-2">
+                  <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
+                    <Thermometer size={10} className="text-primary" />
+                    Resíduo Térmico
+                  </p>
+                  <p className="text-sm font-bold text-foreground tabular-nums">
+                    {asset.thermalResidual > 0 ? '+' : ''}{asset.thermalResidual.toFixed(1)}°C
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Overlay: marcador do gêmeo digital */}
+        <span className="absolute top-4 right-4 z-10 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/70 dark:bg-slate-950/55 border border-border text-[9px] font-bold uppercase tracking-wider text-muted backdrop-blur-md pointer-events-none">
+          <Box size={11} className="text-primary" />
+          Gêmeo Digital 3D
+        </span>
+
+        {/* Overlay: dica de interação */}
+        <span className="absolute bottom-4 right-4 z-10 text-[10px] text-muted/80 pointer-events-none select-none">
+          Arraste para girar · Scroll para zoom
+        </span>
       </motion.div>
+
+      {/* ───────── Insight Preditivo IA (banner full-width) ───────── */}
+      {severity !== 'ok' && asset.insight && (
+        <motion.div
+          variants={itemVariants}
+          className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10"
+        >
+          <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-primary mb-1">Insight Preditivo IA</p>
+            <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
+          </div>
+        </motion.div>
+      )}
 
       {/* ───────── KPIs premium ───────── */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 xl:grid-cols-4 gap-5">
