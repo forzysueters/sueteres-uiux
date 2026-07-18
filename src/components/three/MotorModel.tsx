@@ -1,4 +1,4 @@
-import { useRef, useMemo, MutableRefObject } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Center } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,9 +8,21 @@ export interface TelemetryData {
   vibracao: number;
 }
 
-interface MotorModelProps {
-  /** Ref atualizado por assinatura transiente do store (sem re-render). */
-  telemetryRef: MutableRefObject<TelemetryData>;
+interface MotorMeshProps {
+  /**
+   * Telemetria ao vivo. Opcional: na planta não há tick por ativo (o
+   * startRealtimeUpdates só roda na página do ativo), então ali passamos
+   * `glow` estático em vez de animar o emissive quadro a quadro.
+   */
+  telemetryRef?: MutableRefObject<TelemetryData>;
+  /** Emissive fixo 0-1 quando não há telemetria. */
+  glow?: number;
+  /** Cor do emissive fixo. Default: vermelho de calor. */
+  glowColor?: string;
+  /** Enquadramento. 6 = hero da página do ativo; menor = miniatura/planta. */
+  scale?: number;
+  /** Balanço sutil do conjunto. Desligar quando o pai já anima. */
+  idle?: boolean;
 }
 
 const MODEL_URL = '/models/motor.glb';
@@ -34,7 +46,13 @@ const heatFactor = (tempC: number) =>
  * (sem peça "Mancal" nomeada), a temperatura reage como GLOW VERMELHO global:
  * a emissão de todos os materiais sobe conforme a temperatura passa de 80°C.
  */
-export function MotorModel({ telemetryRef }: MotorModelProps) {
+export function MotorModel({
+  telemetryRef,
+  glow = 0,
+  glowColor,
+  scale = 6,
+  idle = true,
+}: MotorMeshProps) {
   const { scene } = useGLTF(MODEL_URL, DRACO_PATH);
   const groupRef = useRef<THREE.Group>(null);
   const heatSmooth = useRef(0);
@@ -65,19 +83,31 @@ export function MotorModel({ telemetryRef }: MotorModelProps) {
     return { model: clone, materials: mats };
   }, [scene]);
 
-  useFrame((_, delta) => {
-    const dt = Math.min(delta, 0.1); // estabilidade após pausas de loop
-    const target = heatFactor(telemetryRef.current.temperatura);
-    heatSmooth.current = THREE.MathUtils.damp(heatSmooth.current, target, 3, dt);
-    const h = heatSmooth.current;
-
+  // Sem telemetria: aplica o emissive UMA vez em vez de reescrever todo quadro.
+  useEffect(() => {
+    if (telemetryRef) return;
+    const color = new THREE.Color(glowColor ?? '#ef4444');
     for (const m of materials) {
-      m.emissive.copy(HOT);
-      m.emissiveIntensity = h * 0.9;
+      m.emissive.copy(color);
+      m.emissiveIntensity = glow;
+    }
+  }, [telemetryRef, materials, glow, glowColor]);
+
+  useFrame((_, delta) => {
+    if (telemetryRef) {
+      const dt = Math.min(delta, 0.1); // estabilidade após pausas de loop
+      const target = heatFactor(telemetryRef.current.temperatura);
+      heatSmooth.current = THREE.MathUtils.damp(heatSmooth.current, target, 3, dt);
+      const h = heatSmooth.current;
+
+      for (const m of materials) {
+        m.emissive.copy(HOT);
+        m.emissiveIntensity = h * 0.9;
+      }
     }
 
     // Respiração sutil do conjunto para dar vida.
-    if (groupRef.current) {
+    if (idle && groupRef.current) {
       groupRef.current.rotation.y = Math.sin(performance.now() / 5000) * 0.12;
     }
   });
@@ -85,7 +115,7 @@ export function MotorModel({ telemetryRef }: MotorModelProps) {
   // Modelo vem em metros (~0,5m) e fora da origem: Center recentra, scale enquadra.
   return (
     <group ref={groupRef}>
-      <Center scale={6}>
+      <Center scale={scale}>
         <primitive object={model} />
       </Center>
     </group>
@@ -95,7 +125,7 @@ export function MotorModel({ telemetryRef }: MotorModelProps) {
 useGLTF.preload(MODEL_URL, DRACO_PATH);
 
 // ─── Fallback: motor de primitivos (usado se o .glb falhar ao carregar) ──────
-export function MotorPrimitive({ telemetryRef }: MotorModelProps) {
+export function MotorPrimitive({ telemetryRef, glow = 0, idle = true }: MotorMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const shaftRef = useRef<THREE.Mesh>(null);
   const bearingMat = useRef<THREE.MeshStandardMaterial>(null);
@@ -104,7 +134,7 @@ export function MotorPrimitive({ telemetryRef }: MotorModelProps) {
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.1);
-    const target = heatFactor(telemetryRef.current.temperatura);
+    const target = telemetryRef ? heatFactor(telemetryRef.current.temperatura) : glow;
     heatSmooth.current = THREE.MathUtils.damp(heatSmooth.current, target, 3, dt);
     const h = heatSmooth.current;
     if (bearingMat.current) {
@@ -113,7 +143,9 @@ export function MotorPrimitive({ telemetryRef }: MotorModelProps) {
       bearingMat.current.emissiveIntensity = h * 0.9;
     }
     if (shaftRef.current) shaftRef.current.rotation.x += dt * 1.2;
-    if (groupRef.current) groupRef.current.rotation.y = Math.sin(performance.now() / 4000) * 0.15;
+    if (idle && groupRef.current) {
+      groupRef.current.rotation.y = Math.sin(performance.now() / 4000) * 0.15;
+    }
   });
 
   return (

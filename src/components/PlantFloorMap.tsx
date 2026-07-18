@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Asset } from '../types';
 import { useAppStore } from '../store/appStore';
 import { cn } from '../lib/utils';
+// Fonte única das cores de status — compartilhada com a planta 3D para que as
+// duas vistas nunca discordem sobre o que é "crítico".
+import { STATUS_COLORS } from '../utils/plantStatus';
 
 // Sequência de inspeção: ordem recomendada por área (Hall A → Hall B → Hall C → Cobertura)
 const INSPECTION_ORDER: string[] = ['MTR-001', 'MTR-002', 'BBA-001', 'CMP-001', 'EXA-001'];
@@ -11,13 +14,6 @@ interface PlantFloorMapProps {
   selectedAssetId: string | null;
   onSelectAsset: (id: string | null) => void;
 }
-
-const STATUS_COLORS: Record<string, { fill: string; stroke: string; pulse: string; label: string }> = {
-  normal:   { fill: '#10b981', stroke: '#059669', pulse: '#10b981', label: 'Normal' },
-  warning:  { fill: '#f59e0b', stroke: '#d97706', pulse: '#f59e0b', label: 'Alerta' },
-  critical: { fill: '#ef4444', stroke: '#dc2626', pulse: '#ef4444', label: 'Crítico' },
-  offline:  { fill: '#64748b', stroke: '#475569', pulse: '#64748b', label: 'Offline' },
-};
 
 // Paleta estrutural do blueprint — adapta ao tema (as cores de status acima são semânticas e não mudam).
 interface MapPalette {

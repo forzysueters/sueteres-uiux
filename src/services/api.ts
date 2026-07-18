@@ -164,7 +164,9 @@ const mockAssets: Asset[] = [
       makeSensor('Vibração', 'mm/s', 4.1, 1.2, 1002),
     ],
     lastMaintenance: '2026-01-20', nextMaintenance: '2026-04-20',
-    x: 3, y: 1, plantX: 42, plantY: 25,
+    // plantX 42 punha o anel do ativo por cima da parede leste do Hall A
+    // (o hall termina em x=450 do viewBox); 36 recentra o posto 2 dentro dele.
+    x: 3, y: 1, plantX: 36, plantY: 25,
     anomalyScore: 58,
     nameplate: nameplates['motor-002'],
   },

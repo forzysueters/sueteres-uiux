@@ -1,8 +1,9 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { useAppStore } from '../../store/appStore';
 import { MotorModel, MotorPrimitive, TelemetryData } from './MotorModel';
+import { ModelErrorBoundary } from './ModelErrorBoundary';
 
 interface MotorViewerProps {
   assetId: string;
@@ -15,26 +16,6 @@ function readTelemetry(assetId: string): TelemetryData {
     temperatura: asset?.sensors.find((s) => s.name === 'Temperatura')?.value ?? 25,
     vibracao: asset?.sensors.find((s) => s.name === 'Vibração')?.value ?? 0,
   };
-}
-
-/**
- * ErrorBoundary de cena: se o carregamento do .glb falhar, renderiza o motor
- * de primitivos (fallback) — a tela nunca quebra.
- */
-class ModelErrorBoundary extends React.Component<
-  { fallback: React.ReactNode; children: React.ReactNode },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  componentDidCatch(err: unknown) {
-    console.warn('[3d] falha ao carregar o modelo, usando fallback de primitivos:', err);
-  }
-  render() {
-    return this.state.hasError ? this.props.fallback : this.props.children;
-  }
 }
 
 // ─── Âncoras das labels em world-space ───────────────────────────────────────
