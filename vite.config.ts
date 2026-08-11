@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+// SWC em vez de Babel: @vitejs/plugin-react@4 ainda não declara suporte a
+// vite@8, o que fazia `npm install` abortar com ERESOLVE em clone novo.
+import react from '@vitejs/plugin-react-swc'
 import path from 'node:path'
 
 export default defineConfig({

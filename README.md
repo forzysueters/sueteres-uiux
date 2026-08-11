@@ -239,7 +239,7 @@ docs/
 ### 1. Rodar a aplicação
 
 ```bash
-npm install --legacy-peer-deps
+npm install
 npm run dev          # http://localhost:5173
 ```
 
@@ -398,5 +398,3 @@ Pendências conhecidas, com o esquema já preparado:
   `match_document_chunks` existem; a recuperação em uso é lexical (tsvector).
 - **`npm run lint`** — o projeto tem `.eslintrc.cjs` e o ESLint 9 instalado exige
   `eslint.config.js`. Migração pendente, independente do banco.
-- **`npm install`** — use `--legacy-peer-deps`: `@vitejs/plugin-react@4` ainda não
-  declara suporte a `vite@8`, que é a versão fixada no projeto.
