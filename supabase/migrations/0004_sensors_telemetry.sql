@@ -156,6 +156,10 @@ create trigger sensor_readings_process
 -- -----------------------------------------------------------------------------
 -- Leitura corrente por sensor — alimenta cards e painel de detalhe
 -- -----------------------------------------------------------------------------
+-- Dropar antes de criar mantém a migração reexecutável: uma migração posterior
+-- amplia esta view, e CREATE OR REPLACE não aceita remover colunas.
+drop view if exists public.v_sensor_current cascade;
+
 create or replace view public.v_sensor_current
 with (security_invoker = on) as
 select
@@ -187,6 +191,8 @@ left join lateral (
 -- -----------------------------------------------------------------------------
 -- Agregação horária para gráficos de longo período
 -- -----------------------------------------------------------------------------
+drop view if exists public.v_sensor_readings_hourly cascade;
+
 create or replace view public.v_sensor_readings_hourly
 with (security_invoker = on) as
 select

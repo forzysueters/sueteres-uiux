@@ -102,6 +102,8 @@ create index if not exists ml_runs_model_idx on public.ml_training_runs (model_i
 -- -----------------------------------------------------------------------------
 -- Predição mais recente por ativo — alimenta o painel de insights
 -- -----------------------------------------------------------------------------
+drop view if exists public.v_asset_latest_prediction cascade;
+
 create or replace view public.v_asset_latest_prediction
 with (security_invoker = on) as
 select distinct on (p.asset_id, p.prediction_type)

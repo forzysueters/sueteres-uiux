@@ -5,6 +5,8 @@
 -- -----------------------------------------------------------------------------
 -- v_assets_full — ativo + sensores com leitura corrente, em um único round-trip
 -- -----------------------------------------------------------------------------
+drop view if exists public.v_assets_full cascade;
+
 create or replace view public.v_assets_full
 with (security_invoker = on) as
 select
@@ -65,6 +67,8 @@ where a.is_active;
 -- -----------------------------------------------------------------------------
 -- v_alerts_full — alerta já acompanhado do nome do ativo
 -- -----------------------------------------------------------------------------
+drop view if exists public.v_alerts_full cascade;
+
 create or replace view public.v_alerts_full
 with (security_invoker = on) as
 select
@@ -95,6 +99,8 @@ left join public.sensors s on s.id = al.sensor_id;
 -- -----------------------------------------------------------------------------
 -- v_kpi_metrics — indicadores do dashboard
 -- -----------------------------------------------------------------------------
+drop view if exists public.v_kpi_metrics cascade;
+
 create or replace view public.v_kpi_metrics
 with (security_invoker = on) as
 select

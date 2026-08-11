@@ -81,14 +81,17 @@ async function findByEmail(email) {
 }
 
 for (const u of users) {
-  const { email, ...meta } = u
+  const { email, role, ...meta } = u
   const existing = await findByEmail(email)
 
   const payload = {
     email,
     password: DEMO_PASSWORD,
     email_confirm: true,
-    user_metadata: meta,
+    // O papel vai em app_metadata: user_metadata é escrito pelo próprio cliente
+    // no signup, então não serve para conceder privilégio (ver migração 0013).
+    app_metadata: { role },
+    user_metadata: { ...meta, role },
   }
 
   const res = existing
@@ -110,5 +113,5 @@ for (const u of users) {
   }
 
   const created = await res.json()
-  console.log(`${existing ? '↻' : '✓'} ${email} (${meta.role}) → ${created.id}`)
+  console.log(`${existing ? '↻' : '✓'} ${email} (${role}) → ${created.id}`)
 }

@@ -233,52 +233,46 @@ docs/
 ## Execução
 
 > **Atalho:** `start-all.bat` (Windows) ou `./start-all.sh` (Linux/macOS) sobem o
-> frontend e os modelos de uma vez. Antes, configure o `.env` e provisione o
-> banco (passos abaixo). Os modelos só sobem se o venv correspondente existir.
+> frontend e os modelos de uma vez. Os modelos só sobem se o venv correspondente
+> existir; sem eles o front usa o fallback simulado.
 
-### 1. Configuração (uma vez)
-
-```bash
-cp .env.example .env
-```
-
-Preencha com os dados do seu projeto Supabase:
-
-| Variável | Onde encontrar | Exposta ao browser |
-|---|---|---|
-| `VITE_SUPABASE_URL` | Project Settings → API | sim |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Project Settings → API keys | sim |
-| `SUPABASE_URL` | idem | não |
-| `SUPABASE_SECRET_KEY` | Project Settings → API keys (secret) | não |
-| `SUPABASE_DB_URL` | Project Settings → Database → Connection string | não |
-
-Só variáveis com prefixo `VITE_` chegam ao cliente; a chave secreta e a string
-de conexão são usadas apenas pelos scripts locais.
-
-### 2. Banco de dados
+### 1. Rodar a aplicação
 
 ```bash
-npm install
-npm run db:setup     # migrações + contas de demo + seed + tipos
-```
-
-| Comando | O que faz |
-|---|---|
-| `npm run db:migrate` | Aplica `supabase/migrations/*.sql` (idempotente) |
-| `npm run db:users` | Cria as contas de demonstração |
-| `npm run db:seed` | Popula ativos, sensores, 48 h de telemetria, alertas, OMs, modelos e documentos |
-| `npm run db:types` | Regenera `src/types/database.ts` do schema real |
-| `npm run db:verify` | Confere a RLS ponta a ponta, papel por papel |
-
-Ao alterar o schema: `npm run db:migrate` e depois `npm run db:types`.
-
-### 3. Frontend
-
-```bash
+npm install --legacy-peer-deps
 npm run dev          # http://localhost:5173
 ```
 
-### 4. Modelo de OCR (FastAPI)
+Só isso. O `.env` do repositório já traz a URL e a chave publishable do
+Supabase — são valores públicos, os mesmos que vão no bundle do browser de
+qualquer deploy. Quem protege os dados é a Row Level Security do Postgres.
+
+### 2. Mexer no banco (opcional)
+
+Necessário apenas para aplicar migrações ou repopular o seed:
+
+```bash
+cp .env.example .env.local     # preencha SUPABASE_SECRET_KEY e SUPABASE_DB_URL
+npm run db:setup               # migrações + contas de demo + seed + tipos
+```
+
+> ⚠️ É um projeto Supabase **compartilhado**. `npm run db:seed` recria os dados
+> de demonstração para todo o time: alertas resolvidos voltam e equipamentos
+> cadastrados via OCR naquela planta são descartados.
+
+| Comando | O que faz |
+|---|---|
+| `npm run db:migrate` | Aplica `supabase/migrations/*.sql` (idempotente, reexecutável) |
+| `npm run db:users` | Cria as contas de demonstração |
+| `npm run db:seed` | Repopula ativos, sensores, 48 h de telemetria, alertas, OMs, modelos e documentos |
+| `npm run db:types` | Regenera `src/types/database.ts` do schema real |
+| `npm run db:verify` | Confere a RLS ponta a ponta, papel por papel |
+
+Para alterar o schema: crie um arquivo **novo** em `supabase/migrations/`
+(nunca edite uma migração já publicada), rode `npm run db:migrate` e
+`npm run db:types`, e commite a migração junto dos tipos regenerados.
+
+### 3. Modelo de OCR (FastAPI)
 
 ```bash
 cd ocr/OCR-Model-main
@@ -295,13 +289,24 @@ uvicorn src.api.main:app --port 8000     # http://localhost:8000  (docs em /docs
 > OCR no ar, a tela de Equipamentos passa a usar o modelo real; sem ele, usa o
 > fallback simulado. Detalhes em [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
 
-### Build de produção (frontend)
+### 4. Build de produção (frontend)
 
 ```bash
 npm run build
 ```
 
 ---
+
+## Acesso e cadastro
+
+O cadastro espontâneo (`/auth/v1/signup`) está aberto no projeto Supabase, mas
+uma conta criada assim nasce como **visualizador inativo**: `is_active = false`
+faz `can_read()` e `has_role()` recusarem tudo, então ela não enxerga nenhum
+dado até um administrador liberar. O papel vem de `app_metadata`, que só a chave
+secreta escreve — pedir `{"role":"admin"}` no signup não tem efeito.
+
+Para eliminar o cadastro espontâneo de vez: painel do Supabase →
+Authentication → Sign In / Providers → desmarcar *Allow new users to sign up*.
 
 ## Credenciais de Acesso
 

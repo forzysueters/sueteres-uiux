@@ -18,6 +18,8 @@ versionado em `migrations/` e aplicado por `npm run db:migrate`.
 | `0009_rls_policies.sql` | RLS e policies por papel, grants, guarda contra escalada de privilégio |
 | `0010_storage_realtime.sql` | Buckets, policies de arquivo, publicação Realtime |
 | `0011_document_search.sql` | Busca textual em português nos documentos, contexto consolidado do ativo |
+| `0012_main_integration.sql` | Coordenadas da planta, diagnóstico do modelo de anomalia, direção do limite por grandeza |
+| `0013_signup_hardening.sql` | Papel passa a vir de `app_metadata`; cadastro espontâneo nasce inativo |
 
 ## Modelo de dados
 
@@ -117,6 +119,17 @@ As policies chamam `public.has_role(...)`, `public.can_write()` e
 `profiles`. A RLS **não** usa `FORCE`, de propósito: os triggers `SECURITY
 DEFINER` (auditoria, alerta automático) rodam como dono da tabela e precisam
 passar por cima dela.
+
+### Cadastro de conta
+
+`handle_new_user` lê o papel de **`raw_app_meta_data`**, que só a Auth Admin API
+(chave secreta) consegue escrever. `raw_user_meta_data` é preenchido pelo próprio
+cliente no signup, então não serve para conceder privilégio — pedir
+`{"role":"admin"}` no cadastro não tem efeito.
+
+Conta criada por cadastro espontâneo nasce **viewer e inativa**: `can_read()` e
+`has_role()` exigem `is_active`, então ela não lê nada até um administrador
+liberar. Contas provisionadas por `npm run db:users` vêm ativas.
 
 ### Guarda de privilégio
 
