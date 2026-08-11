@@ -23,31 +23,40 @@ Desenvolver uma plataforma SaaS de **Digital Twin** para indústrias, integrando
 │  Frontend (React 18 + Vite + TypeScript + Tailwind CSS)     │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │
 │  │Dashboard │ │  Planta  │ │  Alertas │ │ Equipamentos │  │
-│  │   KPIs   │ │SVG Map   │ │Realtime  │ │  OCR Register│  │
+│  │   KPIs   │ │SVG + 3D  │ │Realtime  │ │  OCR Register│  │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────────┘  │
 │                                                             │
 │  State: Zustand | Routing: React Router v7 | Charts: Recharts│
-│  Animation: Framer Motion | UI: Radix Primitives            │
+│  Animation: Framer Motion | 3D: three.js / R3F              │
 │                                                             │
-│  Backend de Auth (Node.js + Express) — porta 3000          │
-│  └── JWT Auth (access + refresh tokens)                     │
+│  Supabase — banco, autenticação, storage e realtime         │
+│  └── Postgres com Row Level Security · sem backend próprio  │
 │                                                             │
 │  Modelo de OCR (Python + FastAPI) — porta 8000             │
 │  └── POST /ocr/extract: realce → EasyOCR → extração de      │
 │      campos → validação física → fallback Gemini Vision     │
+│                                                             │
+│  Modelo de Anomalia (Python + FastAPI) — porta 8001         │
+│  └── POST /anomaly/score: janela de leituras → health index │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Os três serviços rodam como processos independentes e o frontend conversa com
-os dois backends via HTTP:
+Não existe backend de aplicação próprio: o frontend fala direto com o Supabase
+(dados, login, arquivos) e com os dois serviços de modelo via HTTP.
 
 | Serviço | Stack | Porta | Variável no front |
 |---------|-------|-------|-------------------|
 | Frontend | React/Vite | 5173 | — |
-| Backend (auth) | Node/Express | 3000 | `VITE_API_URL` |
+| Banco, auth e storage | Supabase (Postgres) | — | `VITE_SUPABASE_URL` |
 | Modelo de OCR | Python/FastAPI | 8000 | `VITE_OCR_API_URL` |
+| Modelo de anomalia | Python/FastAPI | 8001 | `VITE_ANOMALY_API_URL` |
 
-> Setup e detalhes da integração OCR ↔ frontend: [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
+Os dois modelos são opcionais para rodar a aplicação: sem eles o front cai num
+fallback simulado, marcado como tal na interface. O Supabase, não — é a fonte
+dos dados.
+
+> Esquema do banco, RLS, views e RPCs: [`supabase/README.md`](supabase/README.md).
+> Integração OCR ↔ frontend: [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
 
 ---
 
@@ -173,14 +182,28 @@ src/
 │   ├── AlertsPage.tsx        # Gestão de alertas
 │   └── EquipmentPage.tsx     # Registro via OCR
 ├── services/
-│   ├── api.ts                # Fachada de serviços (mock de dados + OCR real)
+│   ├── api.ts                # Fachada de serviços (Supabase + OCR + anomalia)
 │   ├── ocrAPI.ts             # Cliente HTTP do modelo de OCR + mapeamento de campos
-│   └── authAPI.ts            # Cliente HTTP de autenticação
+│   ├── anomalyAPI.ts         # Cliente HTTP do modelo de anomalia
+│   ├── sensorLimits.ts       # Limites por grandeza (carregados do banco)
+│   └── assistantEngine.ts    # Respostas do assistente a partir de dados reais
+├── lib/supabase.ts           # Client tipado do Supabase
 ├── store/appStore.ts         # Estado global (Zustand)
+├── store/authStore.ts        # Sessão e perfil (Supabase Auth)
 ├── vite-env.d.ts             # Tipos do Vite (import.meta.env, imports de assets)
-└── types/index.ts            # Interfaces TypeScript
+├── types/index.ts            # Interfaces TypeScript
+└── types/database.ts         # Tipos GERADOS do schema (npm run db:types)
 
-server/                        # Backend de autenticação (Node/Express, porta 3000)
+supabase/
+├── migrations/                # Schema versionado (0001 → 0012)
+├── seed.sql                   # Conjunto de demonstração
+└── README.md                  # Referência do banco: RLS, views, RPCs
+
+scripts/
+├── db.mjs                     # Aplica migrações e seed
+├── create-demo-users.mjs      # Contas de demonstração (Auth Admin API)
+├── gen-types.mjs              # Gera os tipos a partir do schema real
+└── verify-access.mjs          # Verifica a RLS ponta a ponta, por papel
 
 ocr/
 └── OCR-Model-main/            # Modelo de OCR (Python/FastAPI, porta 8000)
@@ -188,6 +211,9 @@ ocr/
     ├── data/templates/        # Imagens de placa para teste
     └── requirements.txt
 ocr/INTEGRATION.md             # Guia de integração OCR ↔ frontend
+
+anomaly/
+└── Anomaly-Model-main/        # Modelo de anomalia (Python/FastAPI, porta 8001)
 
 notebooks/
 └── sprint2_ocr_pipeline.ipynb  # Pipeline OCR completo (Sprint 2)
@@ -206,31 +232,50 @@ docs/
 
 ## Execução
 
-> **Atalho:** `start-all.bat` (Windows) ou `./start-all.sh` (Linux/macOS) sobem os
-> três serviços de uma vez. Antes, configure os `.env` e instale as dependências
-> (passos abaixo). O script só inicia o OCR se o venv em `ocr/OCR-Model-main/.venv`
-> já existir.
+> **Atalho:** `start-all.bat` (Windows) ou `./start-all.sh` (Linux/macOS) sobem o
+> frontend e os modelos de uma vez. Antes, configure o `.env` e provisione o
+> banco (passos abaixo). Os modelos só sobem se o venv correspondente existir.
 
 ### 1. Configuração (uma vez)
 
 ```bash
-cp .env.example .env            # frontend (define VITE_API_URL e VITE_OCR_API_URL)
-cp server/.env.example server/.env
+cp .env.example .env
 ```
 
-### 2. Frontend
+Preencha com os dados do seu projeto Supabase:
+
+| Variável | Onde encontrar | Exposta ao browser |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Project Settings → API | sim |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Project Settings → API keys | sim |
+| `SUPABASE_URL` | idem | não |
+| `SUPABASE_SECRET_KEY` | Project Settings → API keys (secret) | não |
+| `SUPABASE_DB_URL` | Project Settings → Database → Connection string | não |
+
+Só variáveis com prefixo `VITE_` chegam ao cliente; a chave secreta e a string
+de conexão são usadas apenas pelos scripts locais.
+
+### 2. Banco de dados
 
 ```bash
 npm install
+npm run db:setup     # migrações + contas de demo + seed + tipos
+```
+
+| Comando | O que faz |
+|---|---|
+| `npm run db:migrate` | Aplica `supabase/migrations/*.sql` (idempotente) |
+| `npm run db:users` | Cria as contas de demonstração |
+| `npm run db:seed` | Popula ativos, sensores, 48 h de telemetria, alertas, OMs, modelos e documentos |
+| `npm run db:types` | Regenera `src/types/database.ts` do schema real |
+| `npm run db:verify` | Confere a RLS ponta a ponta, papel por papel |
+
+Ao alterar o schema: `npm run db:migrate` e depois `npm run db:types`.
+
+### 3. Frontend
+
+```bash
 npm run dev          # http://localhost:5173
-```
-
-### 3. Backend de autenticação
-
-```bash
-cd server
-npm install
-npm run dev          # http://localhost:3000
 ```
 
 ### 4. Modelo de OCR (FastAPI)
@@ -260,10 +305,16 @@ npm run build
 
 ## Credenciais de Acesso
 
-```
-Email:    tecnico@forzy.com.br
-Senha:    forzy2024
-```
+Contas de demonstração criadas por `npm run db:users`. Senha `password123` para
+todas. O papel define o que cada uma pode fazer — e quem garante isso é a Row
+Level Security do Postgres, não a interface.
+
+| E-mail | Papel | Pode |
+|---|---|---|
+| `admin@industrial.com` | admin | tudo, inclusive papéis e auditoria |
+| `engineer@industrial.com` | engineer | ativos, sensores, modelos de ML |
+| `technician@industrial.com` | technician | alertas, manutenção, cadastro de equipamento |
+| `viewer@industrial.com` | viewer | somente leitura |
 
 ---
 
@@ -279,9 +330,17 @@ Senha:    forzy2024
 - **Radix UI** para primitivos acessíveis
 - **Lucide React** para ícones
 
-### Backend de autenticação
-- **Node.js** + **Express**
-- **JWT** (access + refresh tokens)
+### Banco, autenticação e storage
+- **Supabase** (Postgres gerenciado)
+- **Row Level Security** com quatro papéis, trilha de auditoria e consentimento LGPD
+- **Supabase Auth** (sessão persistida e token renovado pelo SDK)
+- **Realtime** em ativos, alertas e leituras
+- **Storage** para fotos de placa, manuais, plantas baixas e avatares
+- **pgvector** preparado para o RAG do assistente
+
+### Modelo de anomalia (Sprint 2)
+- **FastAPI** + **Uvicorn** (API `/anomaly/score`)
+- Janela de leituras → health index, severidade e resíduo térmico
 
 ### Modelo de OCR (Visão Computacional — Sprint 2)
 - **FastAPI** + **Uvicorn** (API `/ocr/extract`, `/health`)
@@ -309,3 +368,30 @@ Todos os 11 requisitos foram implementados:
 | 9 | Fluxograma visual do pipeline | ✅ |
 | 10 | Jupyter Notebook completo | ✅ |
 | 11 | Limitações e evolução futura | ✅ |
+
+---
+
+## O que é real e o que é fallback
+
+Distinção importante para a apresentação: nem tudo que aparece na tela vem de
+um modelo rodando.
+
+| Camada | Estado | Sem o serviço no ar |
+|---|---|---|
+| Dados, autenticação, storage | **real** (Supabase) | a aplicação não sobe — não há fallback |
+| Telemetria histórica | **real** (48 h no Postgres, geradas pelo seed) | — |
+| Alertas e transições | **reais** (trigger na ingestão + RLS) | — |
+| OCR da placa | **real** (FastAPI, porta 8000) | mock determinístico, marcado na UI |
+| Índice de anomalia | **real** (FastAPI, porta 8001) | mock determinístico, marcado na UI |
+| Assistente | **sem LLM** — compõe a resposta de dados reais do banco | — |
+
+Pendências conhecidas, com o esquema já preparado:
+
+- **Coletor OPC-UA/MQTT** — a RPC `ingest_readings` recebe leituras em lote e faz
+  a conversão 4-20 mA, mas nenhum coletor está rodando: o histórico atual vem do seed.
+- **Embeddings do RAG** — `document_chunks.embedding` (pgvector) e
+  `match_document_chunks` existem; a recuperação em uso é lexical (tsvector).
+- **`npm run lint`** — o projeto tem `.eslintrc.cjs` e o ESLint 9 instalado exige
+  `eslint.config.js`. Migração pendente, independente do banco.
+- **`npm install`** — use `--legacy-peer-deps`: `@vitejs/plugin-react@4` ainda não
+  declara suporte a `vite@8`, que é a versão fixada no projeto.

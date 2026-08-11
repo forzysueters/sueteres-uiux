@@ -1,53 +1,54 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode } from 'react';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { ROLE_LABELS, type UserRole } from '../types/auth';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRoles?: string[];
+  /** Papéis autorizados. Omitir libera para qualquer usuário autenticado. */
+  requiredRoles?: UserRole[];
 }
 
-export const ProtectedRoute = ({ 
-  children, 
-  requiredRoles 
-}: ProtectedRouteProps) => {
-  const { isAuthenticated, user, verifyAuth, isLoading } = useAuthStore();
+/**
+ * Guarda de rota por papel.
+ *
+ * É uma barreira de interface: o controle efetivo está nas policies de RLS do
+ * banco, que recusam a operação mesmo se esta verificação for contornada.
+ */
+export const ProtectedRoute = ({ children, requiredRoles }: ProtectedRouteProps) => {
+  const { isAuthenticated, isInitializing, user } = useAuthStore();
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      verifyAuth();
-    }
-  }, [isAuthenticated, verifyAuth]);
-
-  if (isLoading) {
+  if (isInitializing) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
-          <p className="mt-2 text-gray-600">You must be logged in to access this page.</p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <ShieldAlert className="w-10 h-10 text-red-500 mb-4" />
+        <h2 className="text-foreground dark:text-white">Acesso negado</h2>
+        <p className="text-sm text-muted mt-1">
+          Você precisa estar autenticado para ver esta página.
+        </p>
       </div>
     );
   }
 
-  if (requiredRoles && user && !requiredRoles.includes(user.role)) {
+  if (requiredRoles && !requiredRoles.includes(user.role)) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600">Unauthorized</h1>
-          <p className="mt-2 text-gray-600">You don't have permission to access this resource.</p>
-          <p className="mt-1 text-sm text-gray-500">Required role: {requiredRoles.join(' or ')}</p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <ShieldAlert className="w-10 h-10 text-amber-500 mb-4" />
+        <h2 className="text-foreground dark:text-white">Permissão insuficiente</h2>
+        <p className="text-sm text-muted mt-1">
+          Esta área exige o perfil: {requiredRoles.map((r) => ROLE_LABELS[r]).join(' ou ')}.
+        </p>
+        <p className="text-xs text-muted-soft mt-2">
+          Seu perfil atual: {ROLE_LABELS[user.role]}
+        </p>
       </div>
     );
   }

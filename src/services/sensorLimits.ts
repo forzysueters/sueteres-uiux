@@ -39,21 +39,25 @@ const SENSOR_LIMITS: Record<string, SensorLimit> = {
 };
 
 /**
- * Limites que só fazem sentido para um ativo específico. A chave é o assetId; o
- * valor sobrescreve (ou complementa) SENSOR_LIMITS para aquele ativo.
+ * Limites que só fazem sentido para um ativo específico. A chave é a TAG
+ * industrial do ativo; o valor sobrescreve (ou complementa) SENSOR_LIMITS.
+ *
+ * Estes números são a linha de base de engenharia e servem de fallback: em
+ * runtime, `registerSensorLimits` sobrescreve com os limites vindos do banco,
+ * que é onde eles passaram a ser mantidos (ver supabase/seed.sql).
  */
 const ASSET_LIMIT_OVERRIDES: Record<string, Record<string, SensorLimit>> = {
-  'motor-001': {
+  'MTR-001': {
     // In = 41,8 A de placa; fator de serviço 1,15.
     'Corrente': { warn: 41.8, crit: 48.07, direction: 'above', source: 'In = 41,8 A de placa, fator de serviço 1,15' },
     // 1760 rpm de placa. Queda de rotação sob carga = escorregamento excessivo.
     'Rotação': { warn: 1690, crit: 1618, direction: 'below', source: 'Escorregamento acima de 4% e 8% dos 1760 rpm de placa' },
   },
-  'motor-002': {
+  'MTR-002': {
     'Corrente': { warn: 68.5, crit: 78.78, direction: 'above', source: 'In = 68,5 A de placa, fator de serviço 1,15' },
     'Rotação': { warn: 1416, crit: 1357, direction: 'below', source: 'Escorregamento acima de 4% e 8% dos 1475 rpm de placa' },
   },
-  'pump-001': {
+  'BBA-001': {
     'Pressão': { warn: 3.5, crit: 4.2, direction: 'above', source: 'Pressão de recalque do circuito de refrigeração' },
     // Vazão que cai indica cavitação, obstrução ou desgaste de rotor.
     'Vazão': { warn: 120, crit: 100, direction: 'below', source: 'Vazão mínima de projeto do circuito (145 L/min nominal)' },
@@ -61,13 +65,13 @@ const ASSET_LIMIT_OVERRIDES: Record<string, Record<string, SensorLimit>> = {
     'Temperatura': { warn: 60, crit: 75, direction: 'above', source: 'Fluido de refrigeração — perda de eficiência térmica' },
     'Potência': { warn: 5.5, crit: 6.3, direction: 'above', source: 'P = 5,5 kW de placa, fator de serviço 1,15' },
   },
-  'compressor-001': {
+  'CMP-001': {
     'Pressão de Saída': { warn: 8.5, crit: 9.5, direction: 'above', source: 'Pressão de trabalho 7 bar, alívio da válvula em 9,5' },
     'Temp. Entrada': { warn: 40, crit: 50, direction: 'above', source: 'Ar de admissão — acima disso a eficiência volumétrica cai' },
     'Temp. Saída': { warn: 95, crit: 110, direction: 'above', source: 'Descarga — degradação do óleo do estágio' },
     'Corrente Motor': { warn: 42.0, crit: 48.3, direction: 'above', source: 'In = 42,0 A de placa, fator de serviço 1,15' },
   },
-  'fan-001': {
+  'EXA-001': {
     // 0,75 kW → ISO 10816-3 classe I (máquinas pequenas): limites mais apertados.
     'Vibração': { warn: 2.8, crit: 4.5, direction: 'above', source: 'ISO 10816-3 — classe I, zona B/C e C/D' },
     'Velocidade': { warn: 60, crit: 40, direction: 'below', source: 'Rotação mínima para a renovação de ar do galpão' },
@@ -75,10 +79,57 @@ const ASSET_LIMIT_OVERRIDES: Record<string, Record<string, SensorLimit>> = {
   },
 };
 
-/** Limite aplicável a uma grandeza, considerando o ativo. Null se não houver. */
-export function limitFor(sensorName: string, assetId?: string): SensorLimit | null {
-  const override = assetId ? ASSET_LIMIT_OVERRIDES[assetId]?.[sensorName] : undefined;
-  return override ?? SENSOR_LIMITS[sensorName] ?? null;
+/**
+ * Limites carregados do banco em runtime (tabela `sensors`), por TAG do ativo.
+ *
+ * O banco é a fonte da verdade: é lá que a ingestão classifica a leitura e
+ * dispara o alerta. Registrar aqui mantém a decisão do front — status, cor do
+ * gauge e glow do 3D — em cima dos mesmos números, sem duplicar constante.
+ */
+const RUNTIME_LIMITS: Record<string, Record<string, SensorLimit>> = {};
+
+export interface SensorLimitInput {
+  warn: number | null | undefined;
+  crit: number | null | undefined;
+  direction?: string | null;
+  nominal?: number | null;
+  source?: string | null;
+}
+
+/** Registra (ou atualiza) o limite de uma grandeza a partir do banco. */
+export function registerSensorLimits(
+  assetTag: string,
+  sensorName: string,
+  input: SensorLimitInput,
+): void {
+  if (input.warn == null || input.crit == null) return;
+
+  const direction = (input.direction ?? 'above') as LimitDirection;
+  if (direction === 'band' && input.nominal == null) return;
+
+  RUNTIME_LIMITS[assetTag] ??= {};
+  RUNTIME_LIMITS[assetTag][sensorName] = {
+    warn: input.warn,
+    crit: input.crit,
+    direction,
+    nominal: input.nominal ?? undefined,
+    source: input.source ?? 'Limite configurado no cadastro do sensor',
+  };
+}
+
+/** Esquece os limites carregados. Existe para isolar os testes. */
+export function clearRegisteredLimits(): void {
+  for (const key of Object.keys(RUNTIME_LIMITS)) delete RUNTIME_LIMITS[key];
+}
+
+/**
+ * Limite aplicável a uma grandeza, considerando o ativo. Null se não houver.
+ * Precedência: banco → override estático por TAG → limite genérico da grandeza.
+ */
+export function limitFor(sensorName: string, assetTag?: string): SensorLimit | null {
+  const fromDb = assetTag ? RUNTIME_LIMITS[assetTag]?.[sensorName] : undefined;
+  const override = assetTag ? ASSET_LIMIT_OVERRIDES[assetTag]?.[sensorName] : undefined;
+  return fromDb ?? override ?? SENSOR_LIMITS[sensorName] ?? null;
 }
 
 /** Distância até o limite, na métrica da direção (sempre "quanto maior, pior"). */
@@ -100,8 +151,8 @@ const thresholds = (limit: SensorLimit): { warn: number; crit: number } =>
  * decide se um número está bom — status de ativo, alertas e o glow do 3D
  * derivam todos daqui.
  */
-export function statusFor(sensorName: string, value: number, assetId?: string): SensorStatus {
-  const limit = limitFor(sensorName, assetId);
+export function statusFor(sensorName: string, value: number, assetTag?: string): SensorStatus {
+  const limit = limitFor(sensorName, assetTag);
   if (!limit) return 'normal';
   const m = severityMetric(limit, value);
   const t = thresholds(limit);
@@ -119,11 +170,11 @@ const fmt = (n: number) => String(n).replace('.', ',');
  * nunca contradiga o número exibido no gauge. Null quando o sensor está normal.
  */
 export function reasonFor(
-  sensorName: string, value: number, unit: string, assetId?: string,
+  sensorName: string, value: number, unit: string, assetTag?: string,
 ): string | null {
-  const limit = limitFor(sensorName, assetId);
+  const limit = limitFor(sensorName, assetTag);
   if (!limit) return null;
-  const status = statusFor(sensorName, value, assetId);
+  const status = statusFor(sensorName, value, assetTag);
   if (status === 'normal') return null;
 
   const breached = status === 'critical' ? limit.crit : limit.warn;
@@ -145,9 +196,9 @@ export function reasonFor(
  * marcador de threshold satura na ponta da barra e a leitura fica sem contexto.
  */
 export function gaugeRange(
-  sensorName: string, base: number, assetId?: string,
+  sensorName: string, base: number, assetTag?: string,
 ): { min: number; max: number } {
-  const limit = limitFor(sensorName, assetId);
+  const limit = limitFor(sensorName, assetTag);
   let min = base * 0.7;
   let max = base * 1.3;
   if (limit) {
@@ -193,8 +244,8 @@ export function sensorByRole(sensors: Sensor[], role: SensorRole): Sensor | unde
  * 0,5-1 percorre o trecho entre atenção e crítico. Assim um sensor saudável
  * fica em torno de 0,2-0,4 e não infla o score.
  */
-export function deviationOf(sensor: Sensor, assetId?: string): number {
-  const limit = limitFor(sensor.name, assetId);
+export function deviationOf(sensor: Sensor, assetTag?: string): number {
+  const limit = limitFor(sensor.name, assetTag);
   if (!limit) return 0;
   const m = severityMetric(limit, sensor.value);
   const t = thresholds(limit);
@@ -209,8 +260,8 @@ export function deviationOf(sensor: Sensor, assetId?: string): number {
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
 /** Valor de atenção, usado como `threshold` do gauge (marcador âmbar na barra). */
-export function warnThreshold(sensorName: string, base: number, assetId?: string): number {
-  const limit = limitFor(sensorName, assetId);
+export function warnThreshold(sensorName: string, base: number, assetTag?: string): number {
+  const limit = limitFor(sensorName, assetTag);
   if (!limit) return parseFloat((base * 1.2).toFixed(2));
   if (limit.direction === 'band') return parseFloat(((limit.nominal ?? base) + limit.warn).toFixed(2));
   return limit.warn;

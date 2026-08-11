@@ -20,15 +20,15 @@ describe('statusFor — direção "below" (baixo é ruim)', () => {
   // Vazão da bomba: warn 120 / crit 100 L/min. Só existe como override de
   // pump-001 — vazão não é uma grandeza com limite universal.
   it('acima do warn é normal', () => {
-    expect(statusFor('Vazão', 149.59, 'pump-001')).toBe('normal');
+    expect(statusFor('Vazão', 149.59, 'BBA-001')).toBe('normal');
   });
   it('a partir do warn é warning', () => {
-    expect(statusFor('Vazão', 120, 'pump-001')).toBe('warning');
-    expect(statusFor('Vazão', 110, 'pump-001')).toBe('warning');
+    expect(statusFor('Vazão', 120, 'BBA-001')).toBe('warning');
+    expect(statusFor('Vazão', 110, 'BBA-001')).toBe('warning');
   });
   it('a partir do crit é critical', () => {
-    expect(statusFor('Vazão', 100, 'pump-001')).toBe('critical');
-    expect(statusFor('Vazão', 80, 'pump-001')).toBe('critical');
+    expect(statusFor('Vazão', 100, 'BBA-001')).toBe('critical');
+    expect(statusFor('Vazão', 80, 'BBA-001')).toBe('critical');
   });
 });
 
@@ -49,8 +49,8 @@ describe('statusFor — direção "band" (desvio nos dois sentidos)', () => {
 describe('limitFor — resolução por ativo', () => {
   it('usa o override do ativo quando existe', () => {
     // fan-001 é 0,75 kW → ISO 10816-3 classe I, limites mais apertados
-    expect(limitFor('Vibração', 'fan-001')?.warn).toBe(2.8);
-    expect(limitFor('Vibração', 'compressor-001')?.warn).toBe(4.5);
+    expect(limitFor('Vibração', 'EXA-001')?.warn).toBe(2.8);
+    expect(limitFor('Vibração', 'CMP-001')?.warn).toBe(4.5);
   });
   it('cai no limite genérico quando o ativo não tem override', () => {
     expect(limitFor('Vibração')?.warn).toBe(4.5);
@@ -92,37 +92,37 @@ describe('reasonFor — texto derivado do próprio valor', () => {
 describe('cenário dos ativos', () => {
   const casos: [string, string, number, string][] = [
     // MTR-001 — operação nominal, nada fora de faixa
-    ['motor-001', 'Tensão', 384.89, 'normal'],
-    ['motor-001', 'Corrente', 29.57, 'normal'],
-    ['motor-001', 'Temperatura', 60.34, 'normal'],
-    ['motor-001', 'Rotação', 1768.49, 'normal'],
-    ['motor-001', 'Vibração', 2.08, 'normal'],
+    ['MTR-001', 'Tensão', 384.89, 'normal'],
+    ['MTR-001', 'Corrente', 29.57, 'normal'],
+    ['MTR-001', 'Temperatura', 60.34, 'normal'],
+    ['MTR-001', 'Rotação', 1768.49, 'normal'],
+    ['MTR-001', 'Vibração', 2.08, 'normal'],
 
     // MTR-002 — rolamento em degradação: vibração lidera, temperatura acompanha
-    ['motor-002', 'Tensão', 381.16, 'normal'],
-    ['motor-002', 'Corrente', 49.75, 'normal'],
-    ['motor-002', 'Temperatura', 79.47, 'warning'],
-    ['motor-002', 'Rotação', 1458.33, 'normal'],
-    ['motor-002', 'Vibração', 5.19, 'warning'],
+    ['MTR-002', 'Tensão', 381.16, 'normal'],
+    ['MTR-002', 'Corrente', 49.75, 'normal'],
+    ['MTR-002', 'Temperatura', 79.47, 'warning'],
+    ['MTR-002', 'Rotação', 1458.33, 'normal'],
+    ['MTR-002', 'Vibração', 5.19, 'warning'],
 
     // BBA-001 — nominal
-    ['pump-001', 'Pressão', 2.65, 'normal'],
-    ['pump-001', 'Vazão', 149.59, 'normal'],
-    ['pump-001', 'Temperatura', 41.85, 'normal'],
-    ['pump-001', 'Potência', 5.1, 'normal'],
+    ['BBA-001', 'Pressão', 2.65, 'normal'],
+    ['BBA-001', 'Vazão', 149.59, 'normal'],
+    ['BBA-001', 'Temperatura', 41.85, 'normal'],
+    ['BBA-001', 'Potência', 5.1, 'normal'],
 
     // CMP-001 — vibração severa; o resto opera dentro da faixa
-    ['compressor-001', 'Pressão de Saída', 7.09, 'normal'],
-    ['compressor-001', 'Temp. Entrada', 27.35, 'normal'],
-    ['compressor-001', 'Temp. Saída', 81.18, 'normal'],
-    ['compressor-001', 'Corrente Motor', 38.76, 'normal'],
-    ['compressor-001', 'Vibração', 8.08, 'critical'],
+    ['CMP-001', 'Pressão de Saída', 7.09, 'normal'],
+    ['CMP-001', 'Temp. Entrada', 27.35, 'normal'],
+    ['CMP-001', 'Temp. Saída', 81.18, 'normal'],
+    ['CMP-001', 'Corrente Motor', 38.76, 'normal'],
+    ['CMP-001', 'Vibração', 8.08, 'critical'],
 
     // EXA-001 — nominal
-    ['fan-001', 'Velocidade', 82.9, 'normal'],
-    ['fan-001', 'Corrente Motor', 2.96, 'normal'],
-    ['fan-001', 'Temp. Mancal', 55.4, 'normal'],
-    ['fan-001', 'Vibração', 0.91, 'normal'],
+    ['EXA-001', 'Velocidade', 82.9, 'normal'],
+    ['EXA-001', 'Corrente Motor', 2.96, 'normal'],
+    ['EXA-001', 'Temp. Mancal', 55.4, 'normal'],
+    ['EXA-001', 'Vibração', 0.91, 'normal'],
   ];
 
   it.each(casos)('%s / %s = %s', (assetId, sensor, valor, esperado) => {

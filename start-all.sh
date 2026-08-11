@@ -1,39 +1,44 @@
 #!/bin/bash
 
-# Start Backend Server
-echo "🚀 Starting Backend Server..."
-cd server
-npm run dev &
-BACKEND_PID=$!
+# Sobe o frontend e os serviços de modelo (OCR e anomalia).
+# Não há backend de aplicação: dados e autenticação vêm do Supabase.
 
-cd ..
+PIDS=()
 
-# Start OCR Model (FastAPI) if it has been set up
-OCR_PID=""
+# ─── Modelo de OCR (FastAPI, porta 8000) ────────────────────────────────────
 if [ -x "ocr/OCR-Model-main/.venv/bin/python" ]; then
-  echo "🚀 Starting OCR Model..."
+  echo "🚀 Iniciando modelo de OCR..."
   ( cd ocr/OCR-Model-main && PYTHONUTF8=1 .venv/bin/python -m uvicorn src.api.main:app --port 8000 ) &
-  OCR_PID=$!
+  PIDS+=($!)
 else
-  echo "⚠️  OCR Model não configurado. Veja ocr/INTEGRATION.md (usando mock no front)."
+  echo "⚠️  Modelo de OCR não configurado. Veja ocr/INTEGRATION.md (o front usa mock)."
+fi
+
+# ─── Modelo de anomalia (FastAPI, porta 8001) ───────────────────────────────
+if [ -x "anomaly/Anomaly-Model-main/.venv/bin/python" ]; then
+  echo "🚀 Iniciando modelo de anomalia..."
+  ( cd anomaly/Anomaly-Model-main && PYTHONUTF8=1 .venv/bin/python -m uvicorn src.api.main:app --port 8001 ) &
+  PIDS+=($!)
+else
+  echo "⚠️  Modelo de anomalia não configurado (o front usa mock)."
 fi
 
 sleep 2
 
-# Start Frontend Server
-echo "🚀 Starting Frontend Server..."
+# ─── Frontend ───────────────────────────────────────────────────────────────
+echo "🚀 Iniciando frontend..."
 npm run dev &
-FRONTEND_PID=$!
+PIDS+=($!)
 
 echo ""
-echo "✅ Servers are running!"
+echo "✅ Tudo no ar!"
 echo ""
-echo "📍 Backend:   http://localhost:3000"
-echo "📍 OCR Model: http://localhost:8000"
-echo "📍 Frontend:  http://localhost:5173"
+echo "📍 Frontend:          http://localhost:5173"
+echo "📍 Modelo de OCR:     http://localhost:8000"
+echo "📍 Modelo de anomalia: http://localhost:8001"
+echo "📍 Banco e auth:      Supabase (VITE_SUPABASE_URL no .env)"
 echo ""
-echo "Press Ctrl+C to stop the servers"
+echo "Ctrl+C para parar."
 echo ""
 
-# Wait for all to complete
-wait $BACKEND_PID $FRONTEND_PID $OCR_PID
+wait "${PIDS[@]}"

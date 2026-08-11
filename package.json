@@ -13,7 +13,13 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:migrate": "node scripts/db.mjs migrate",
+    "db:seed": "node scripts/db.mjs seed",
+    "db:users": "node scripts/create-demo-users.mjs",
+    "db:types": "node scripts/gen-types.mjs",
+    "db:setup": "npm run db:migrate && npm run db:users && npm run db:seed && npm run db:types",
+    "db:verify": "node scripts/verify-access.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -26,6 +32,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@supabase/supabase-js": "^2.112.3",
     "@tanstack/react-query": "^5.100.6",
     "axios": "^1.6.2",
     "class-variance-authority": "^0.7.1",
@@ -47,10 +54,12 @@
     "zustand": "^4.4.1"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.21.0",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
@@ -66,6 +75,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "jsdom": "^29.1.0",
+    "pg": "^8.23.0",
     "postcss": "^8.4.31",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",

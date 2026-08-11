@@ -1,4 +1,4 @@
-import { Bot, Sparkles, MessageSquare, Zap, ShieldCheck, BarChart2 } from 'lucide-react';
+import { Bot, Sparkles, MessageSquare, ShieldCheck, BarChart2 } from 'lucide-react';
 import { AIAssistant } from '../components/AIAssistant';
 
 const quickQuestions = [

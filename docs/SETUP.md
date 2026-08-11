@@ -1,5 +1,8 @@
 # 🚀 Setup & Deployment Guide
 
+> ⚠️ **Desatualizado.** O backend Express de autenticação foi removido; dados e login vêm do Supabase.
+> Consulte o [README](../README.md) e [supabase/README.md](../supabase/README.md).
+
 ## Prerequisites
 
 - Node.js 18+ (download from https://nodejs.org/)

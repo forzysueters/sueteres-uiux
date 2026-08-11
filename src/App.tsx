@@ -33,7 +33,6 @@ import { AssistantPage } from './pages/AssistantPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AccountPage } from './pages/AccountPage'
 import { LoginPage } from './pages/LoginPage'
-import { TokenRefresher } from './components/TokenRefresher'
 import logoWhite from './assets/logo-forzy-branca.svg'
 import logoBlack from './assets/logo-forzy-preta.svg'
 import { cn } from './lib/utils'
@@ -287,15 +286,14 @@ const AppContent = () => {
 }
 
 export function App() {
-  const { isAuthenticated, verifyAuth, isLoading, accessToken } = useAuthStore()
+  const { isAuthenticated, verifyAuth, isInitializing } = useAuthStore()
 
   useEffect(() => {
-    // Verifica em background. Se já temos token, a UI não bloqueia.
-    verifyAuth()
+    // Resolve a sessão persistida; a renovação do token fica a cargo do supabase-js.
+    void verifyAuth()
   }, [verifyAuth])
 
-  // Só mostra a tela de loading quando NÃO temos sessão hidratada.
-  if (isLoading && !accessToken) {
+  if (isInitializing) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#07080D] relative overflow-hidden">
         <div className="mesh-bg" aria-hidden />
@@ -319,9 +317,7 @@ export function App() {
 
   return (
     <Router>
-      <TokenRefresher>
-        <AppContent />
-      </TokenRefresher>
+      <AppContent />
     </Router>
   )
 }

@@ -1,5 +1,8 @@
 # Quick Start Guide
 
+> ⚠️ **Desatualizado.** O backend Express de autenticação foi removido; dados e login vêm do Supabase.
+> Consulte o [README](../README.md) e [supabase/README.md](../supabase/README.md).
+
 ## Serviços da aplicação
 
 | Serviço | Porta | Comando |

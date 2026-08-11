@@ -553,34 +553,49 @@ Ver `d:/Desktop/forzy/estutura.md` para árvore completa com todos os arquivos.
 
 ---
 
-## 18. Estado Atual deste Repositório (snapshot 2026-04-29)
+## 18. Estado Atual deste Repositório (snapshot 2026-08-11)
+
+### Arquitetura
+Frontend React consumindo **Supabase diretamente** (Postgres com RLS, Auth,
+Storage, Realtime) e dois serviços de modelo em FastAPI. O backend Express com
+autenticação JWT em memória foi removido — não há servidor de aplicação próprio
+nem dados simulados na camada de persistência.
 
 ### Stack instalada
 - React 18 + Vite + TypeScript + Tailwind
-- Roteamento: `react-router-dom` v7
-- State: `zustand`
-- Charts: `recharts`
-- Icons: `lucide-react`
-- HTTP: `axios`
-- UI premium: `@radix-ui/*`, `framer-motion`, `class-variance-authority`,
-  `tailwind-merge`, `tailwindcss-animate`
-- Forms: `react-hook-form`, `zod`, `@hookform/resolvers`
-- Data fetching: `@tanstack/react-query`
-- SEO: `react-helmet-async`
-- Toasts: `sonner`
+- Backend: `@supabase/supabase-js` (Auth, PostgREST, Storage, Realtime)
+- 3D: `three`, `@react-three/fiber`, `@react-three/drei`
+- Roteamento: `react-router-dom` v7 · State: `zustand` · Charts: `recharts`
+- HTTP (serviços de modelo): `axios`
+- UI: `@radix-ui/*`, `framer-motion`, `lucide-react`, `sonner`
 - Tooling: ESLint, Prettier, Vitest + Testing Library
 
 ### Páginas existentes
-- `Dashboard`, `PlantNavigation`, `AlertsPage`, `EquipmentPage`,
-  `AssistantPage`, `SettingsPage`, `AccountPage`, `LoginPage`
+- `Dashboard`, `PlantNavigation`, `AssetMonitorPage`, `AlertsPage`,
+  `EquipmentPage`, `AssistantPage`, `SettingsPage`, `AccountPage`, `LoginPage`
 
-### Componentes existentes
-- `AIAssistant`, `AlertItem`, `AssetDetailPanel`, `Cards` (KPICard, AssetTile),
-  `EquipmentRegistrationForm`, `ErrorBoundary`, `ProtectedRoute`,
-  `SkeletonLoaders`, `TimeSeriesChart`, `TokenRefresher`, `UserProfile`
+### Banco de dados
+- Schema versionado em `supabase/migrations/` (0001 → 0012), aplicado por
+  `npm run db:migrate`. Referência em `supabase/README.md`.
+- Cobre os 6 módulos: ingestão IoT com conversão 4-20 mA e série temporal
+  particionada, placa de dados para OCR, planta navegável, modelos de ML
+  encadeados com Model Card, base documental para RAG, e governança
+  (RBAC por RLS, trilha de auditoria, consentimento LGPD).
+- Os limites de engenharia por grandeza (ISO 10816-3, classe de isolamento,
+  corrente de placa) vivem na tabela `sensors` e são carregados pelo front.
+- `npm run db:verify` confere a RLS ponta a ponta, papel por papel.
 
-### Backend
-- Pasta `server/` no repo, ainda não auditada em detalhe.
+### Serviços de modelo
+- **OCR** (`ocr/`, porta 8000) — extração da placa. Integrado e persistindo em
+  `asset_nameplates`.
+- **Anomalia** (`anomaly/`, porta 8001) — health index por ativo, persistido em
+  `assets` via `apply_anomaly_score`.
+- Ambos com fallback simulado marcado na UI quando o serviço está fora.
+
+### Ainda não conectado
+- Coletor OPC-UA/MQTT (a RPC `ingest_readings` já o espera).
+- LLM do agente conversacional; a recuperação atual é lexical, com pgvector
+  instalado e pronto para embeddings.
 
 ### Credenciais demo do front
 | Role | Email | Senha |
@@ -588,6 +603,7 @@ Ver `d:/Desktop/forzy/estutura.md` para árvore completa com todos os arquivos.
 | Admin | `admin@industrial.com` | `password123` |
 | Engineer | `engineer@industrial.com` | `password123` |
 | Technician | `technician@industrial.com` | `password123` |
+| Viewer | `viewer@industrial.com` | `password123` |
 
 ---
 

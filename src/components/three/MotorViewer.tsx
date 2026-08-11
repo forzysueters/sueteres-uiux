@@ -77,6 +77,8 @@ function InstrumentLabel({
 
 /** Labels HTML ancoradas — re-renderizam a 0,5Hz (tick do store), não a cena. */
 function LiveLabels({ assetId }: MotorViewerProps) {
+  // Os limites são indexados pela TAG industrial do ativo, não pelo id.
+  const assetTag = useAppStore((s) => s.assets.find((a) => a.id === assetId)?.tag);
   const tempSensor = useAppStore(
     (s) => sensorByRole(s.assets.find((a) => a.id === assetId)?.sensors ?? [], 'temperature'),
   );
@@ -89,8 +91,8 @@ function LiveLabels({ assetId }: MotorViewerProps) {
   // Mesmo critério do gauge e do alerta: a label acende quando o sensor sai da
   // faixa, não num limiar próprio (antes era `> 80`, enquanto o glow começava
   // em 70 e o alerta falava em 75 — três números para o mesmo fenômeno).
-  const tempAlert = tempSensor != null && statusFor(tempSensor.name, tempSensor.value, assetId) !== 'normal';
-  const vibAlert = vibSensor != null && statusFor(vibSensor.name, vibSensor.value, assetId) !== 'normal';
+  const tempAlert = tempSensor != null && statusFor(tempSensor.name, tempSensor.value, assetTag) !== 'normal';
+  const vibAlert = vibSensor != null && statusFor(vibSensor.name, vibSensor.value, assetTag) !== 'normal';
 
   return (
     <>
@@ -124,9 +126,9 @@ export default function MotorViewer({ assetId }: MotorViewerProps) {
   // Limites da temperatura DESTE ativo: o glow acende no `warn` e satura no
   // `crit`, os mesmos cortes que pintam o gauge e disparam o alerta.
   const tempLimits = useMemo(() => {
-    const sensors = useAppStore.getState().assets.find((a) => a.id === assetId)?.sensors ?? [];
-    const sensor = sensorByRole(sensors, 'temperature');
-    const limit = sensor ? limitFor(sensor.name, assetId) : null;
+    const asset = useAppStore.getState().assets.find((a) => a.id === assetId);
+    const sensor = sensorByRole(asset?.sensors ?? [], 'temperature');
+    const limit = sensor ? limitFor(sensor.name, asset?.tag) : null;
     return limit ? { warn: limit.warn, crit: limit.crit } : undefined;
   }, [assetId]);
 
