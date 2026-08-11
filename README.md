@@ -192,9 +192,14 @@ ocr/INTEGRATION.md             # Guia de integração OCR ↔ frontend
 notebooks/
 └── sprint2_ocr_pipeline.ipynb  # Pipeline OCR completo (Sprint 2)
 
-markdowns/
+docs/
+├── CHALLENGE_CONTEXT.md            # Contexto do challenge (requisitos, briefing)
+├── SETUP.md                        # Guia de instalação e configuração
+├── QUICKSTART.md                   # Guia rápido para rodar os 3 serviços
 ├── SPRINT2_VISAO_COMPUTACIONAL.md  # Documentação Sprint 2
-└── ocr_evaluation_results.json     # Resultados exportados pelo notebook
+├── ocr_evaluation_results.json     # Resultados exportados pelo notebook
+├── fluxograma-modelos.html         # Fluxograma interativo do pipeline de ML
+└── auth/AUTHENTICATION.md          # Documentação técnica do módulo de autenticação
 ```
 
 ---
