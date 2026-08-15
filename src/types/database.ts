@@ -588,6 +588,142 @@ export interface Database {
           },
         ]
       }
+      collector_config: {
+        Row: {
+          id: boolean
+          is_enabled: boolean
+          force_always: boolean
+          active_isodow: number[]
+          window_start: unknown
+          window_end: unknown
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          is_enabled?: boolean
+          force_always?: boolean
+          active_isodow?: number[]
+          window_start?: unknown
+          window_end?: unknown
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          is_enabled?: boolean
+          force_always?: boolean
+          active_isodow?: number[]
+          window_start?: unknown
+          window_end?: unknown
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      collector_field_map: {
+        Row: {
+          id: string
+          source_id: string
+          json_field: string
+          sensor_tag: string
+          scale: number
+          offset_value: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          source_id: string
+          json_field: string
+          sensor_tag: string
+          scale?: number
+          offset_value?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          source_id?: string
+          json_field?: string
+          sensor_tag?: string
+          scale?: number
+          offset_value?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collector_field_map_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "collector_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collector_requests: {
+        Row: {
+          request_id: number
+          source_id: string
+          requested_at: string
+        }
+        Insert: {
+          request_id: number
+          source_id: string
+          requested_at?: string
+        }
+        Update: {
+          request_id?: number
+          source_id?: string
+          requested_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collector_requests_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "collector_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collector_sources: {
+        Row: {
+          id: string
+          code: string
+          name: string
+          url: string
+          payload_key: string
+          is_enabled: boolean
+          timeout_ms: number
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          name: string
+          url: string
+          payload_key: string
+          is_enabled?: boolean
+          timeout_ms?: number
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          name?: string
+          url?: string
+          payload_key?: string
+          is_enabled?: boolean
+          timeout_ms?: number
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_chunks: {
         Row: {
           id: string
@@ -1205,6 +1341,56 @@ export interface Database {
           },
         ]
       }
+      sensor_raw_captures: {
+        Row: {
+          id: number
+          source_id: string
+          request_id: number | null
+          requested_at: string
+          responded_at: string
+          http_status: number | null
+          payload: Json | null
+          raw_body: string | null
+          error: string | null
+          ingested_at: string | null
+          ingested_rows: number | null
+        }
+        Insert: {
+          id?: number
+          source_id: string
+          request_id?: number | null
+          requested_at: string
+          responded_at?: string
+          http_status?: number | null
+          payload?: Json | null
+          raw_body?: string | null
+          error?: string | null
+          ingested_at?: string | null
+          ingested_rows?: number | null
+        }
+        Update: {
+          id?: number
+          source_id?: string
+          request_id?: number | null
+          requested_at?: string
+          responded_at?: string
+          http_status?: number | null
+          payload?: Json | null
+          raw_body?: string | null
+          error?: string | null
+          ingested_at?: string | null
+          ingested_rows?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_raw_captures_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "collector_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sensor_readings: {
         Row: {
           id: number
@@ -1397,6 +1583,22 @@ export interface Database {
       }
     }
     Views: {
+      collector_health: {
+        Row: {
+          code: string | null
+          name: string | null
+          url: string | null
+          is_enabled: boolean | null
+          capturas: number | null
+          ok: number | null
+          falhas: number | null
+          pendentes: number | null
+          leituras_gravadas: number | null
+          ultima_captura: string | null
+          ultimo_sucesso: string | null
+        }
+        Relationships: []
+      }
       v_alerts_full: {
         Row: {
           id: string | null
@@ -1618,6 +1820,30 @@ export interface Database {
         }
         Returns: number
       }
+      iot_collector_dispatch: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      iot_collector_drain: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      iot_collector_ingest: {
+        Args: {
+          p_limit?: number
+        }
+        Returns: number
+      }
+      iot_collector_tick: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      iot_collector_window_open: {
+        Args: {
+          p_at?: string
+        }
+        Returns: boolean
+      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
@@ -1660,6 +1886,18 @@ export interface Database {
           p_notes?: string
         }
         Returns: unknown
+      }
+      safe_double: {
+        Args: {
+          p_text: string
+        }
+        Returns: number
+      }
+      safe_jsonb: {
+        Args: {
+          p_text: string
+        }
+        Returns: Json
       }
       scale_raw_signal: {
         Args: {
