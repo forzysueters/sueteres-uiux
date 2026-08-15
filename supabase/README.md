@@ -165,3 +165,64 @@ degradação progressiva nos ativos com problema — por isso o compressor `CMP-
 cruza o limite de vibração da ISO 10816 e sustenta o alerta crítico e a predição
 de RUL de 7 dias. Disponibilidade, índice de anomalia e status **não** são
 escritos à mão: saem de `recompute_asset_health()` sobre as leituras geradas.
+
+## Coletor IoT — endpoints reais da Forzy
+
+A Forzy expõe dois endpoints HTTP com leitura de acelerômetro do motor do lab.
+Eles **só respondem às segundas, terças e quartas, das 12h às 14h** — fora disso
+o túnel fica fora do ar. Perder uma janela custa uma semana.
+
+Por isso a coleta roda **dentro do próprio Postgres** (`pg_cron` + `pg_net`,
+migração `0014`): não depende de nenhuma máquina ligada.
+
+```
+cron 30s → iot_collector_tick()
+             ├─ iot_collector_drain()     respostas do pg_net → sensor_raw_captures
+             ├─ iot_collector_ingest()    captura → ingest_readings() → série temporal
+             └─ iot_collector_dispatch()  dispara o próximo GET (se a janela estiver aberta)
+```
+
+O job roda o ano inteiro de 30 em 30 segundos e a **função** decide se a janela
+está aberta, lendo `collector_config`. Guardar a janela no banco e não no cron
+evita o erro clássico de agendar 12h–14h num servidor que roda em UTC — que é o
+caso do Supabase.
+
+### Tabelas
+
+| Tabela | Papel |
+|---|---|
+| `collector_config` | Linha única: dias, horário, fuso. `force_always` coleta fora da janela (testes) |
+| `collector_sources` | Os endpoints. **A URL vive aqui**, nunca no código |
+| `collector_field_map` | `"Velocidade"` do `get_s1` é o sensor `LAB-S1.VIB`. Mapeamento é dado, não código |
+| `collector_requests` | Correlaciona o id assíncrono do `pg_net` com a origem |
+| `sensor_raw_captures` | Zona de pouso: o corpo como veio, **inclusive as falhas** |
+
+`sensor_raw_captures` é o que torna a coleta irreversível: se o mapeamento
+estiver errado, zerar `ingested_at` reprocessa tudo. E registrar as falhas
+("12:34 → HTTP 530") é a trilha de rastreabilidade do Módulo 6.
+
+### Ativos
+
+`LAB-S1` e `LAB-S2` representam os dois pontos de medição reais, com três
+sensores cada (`.VIB` mm/s, `.ACC` m/s², `.TEMP` °C). Ficam no Hall A porque o
+mapa 2D desenha quatro halls fixos — a separação entre real e sintético é
+carregada por `metadata.is_real_telemetry`, não pela geografia.
+
+Os limites de vibração seguem a ISO 10816-3 (iguais aos do seed). **Os de
+aceleração são provisórios** (`metadata.provisional = true`): só dá para
+calibrá-los com dado real na mão.
+
+### Operação
+
+```bash
+npm run collector:status          # janela, saúde por endpoint, últimas capturas
+npm run collector:test            # força uma coleta agora, fora da janela
+npm run collector -- url both https://novo-tunel.trycloudflare.com
+npm run collector -- reprocess    # reingere tudo que já foi capturado
+```
+
+> ⚠️ **A URL é um quick tunnel do `trycloudflare`: o subdomínio é sorteado a cada
+> reinício do `cloudflared`.** Se a Forzy reiniciar o túnel, o coletor grava
+> HTTP 530 a janela inteira. Confira `npm run collector:status` no início de cada
+> janela e troque a URL com `collector -- url both <base>`. O ideal é pedir à
+> Forzy um túnel nomeado, com URL fixa.
