@@ -3,8 +3,11 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { useAppStore } from '../../store/appStore';
 import { MotorModel, MotorPrimitive, TelemetryData } from './MotorModel';
+import { MachineGeometry } from './MachineGeometry';
 import { ModelErrorBoundary } from './ModelErrorBoundary';
 import { sensorByRole, statusFor, limitFor } from '../../services/sensorLimits';
+import { statusConfig, statusUrgency } from '../../utils/plantStatus';
+import type { Asset } from '../../types';
 
 interface MotorViewerProps {
   assetId: string;
@@ -26,14 +29,75 @@ function readTelemetry(assetId: string): TelemetryData {
   };
 }
 
-// ─── Âncoras das labels em world-space ───────────────────────────────────────
-// O GLB veio numa malha única, sem nós nomeados (ver MotorModel.tsx), então
-// ancoramos por offset fixo em torno do modelo (Center scale={6}). A âncora de
-// TEMP fica sobre o mancal do lado acionado — o mesmo ponto de onde o gradiente
-// térmico nasce no shader (HOTSPOT_END em MotorModel.tsx); se você inverter lá,
-// inverta o sinal de X aqui. VIBRAÇÃO fica na traseira, lado do ventilador.
-const TEMP_ANCHOR: [number, number, number] = [1.4, 0.5, 0.8];
-const VIB_ANCHOR: [number, number, number] = [-1.4, 0.5, -0.8];
+// ─── Enquadramento e âncoras por tipo de máquina ─────────────────────────────
+//
+// Cada tipo de ativo tem seu próprio volume: o motor usa o GLB da WEG, e bomba,
+// compressor e exaustor usam os proceduriais de MachineGeometry — os mesmos que
+// a planta 3D desenha. Antes esta tela mostrava o motor para todo mundo, então
+// uma bomba aparecia como um motor azul.
+//
+// `scale`/`yOffset` enquadram o volume: as máquinas proceduriais são construídas
+// em escala de planta (apoiadas em y=0, para leitura de silhueta a ~15 unidades)
+// e aqui a câmera está a ~7. O offset sobe cada uma até a meia-altura cair na
+// origem, que é para onde a câmera olha. O motor já se enquadra sozinho —
+// MotorModel aplica Center scale={6} internamente —, por isso 1 e 0.
+//
+// As âncoras ficam em coordenadas LOCAIS da máquina (o mesmo espaço em que
+// MachineGeometry posiciona as peças), porque as labels são renderizadas dentro
+// do mesmo grupo: assim elas acompanham escala e offset sem recálculo.
+// Para o motor isso é a identidade, então continuam sendo as world-space de
+// antes — a de TEMP sobre o mancal do lado acionado, o mesmo ponto de onde o
+// gradiente térmico nasce no shader (HOTSPOT_END em MotorModel.tsx); se você
+// inverter lá, inverta o sinal de X aqui.
+interface ViewerSetup {
+  scale: number;
+  yOffset: number;
+  tempAnchor: [number, number, number];
+  vibAnchor: [number, number, number];
+  /** Legendas no vocabulário da máquina: um exaustor não tem "mancal DE". */
+  tempCaption: string;
+  vibCaption: string;
+}
+
+const VIEWER_SETUP: Record<Asset['type'], ViewerSetup> = {
+  motor: {
+    scale: 1,
+    yOffset: 0,
+    tempAnchor: [1.4, 0.5, 0.8],
+    vibAnchor: [-1.4, 0.5, -0.8],
+    tempCaption: 'Temp · Mancal DE',
+    vibCaption: 'Vibração · Traseira',
+  },
+  // Bomba: ~2,4 un de largura, topo do recalque em ~1,45 (meia-altura 0,73).
+  pump: {
+    scale: 1.35,
+    yOffset: -0.99,
+    tempAnchor: [0.62, 1.15, 0],
+    vibAnchor: [-0.6, 1.6, 0],
+    // BBA-001 mede o fluido de refrigeração, não enrolamento (ver seed.sql).
+    tempCaption: 'Temp · Fluido',
+    vibCaption: 'Vibração · Voluta',
+  },
+  // Compressor: ~3,0 un de largura, topo dos cilindros em ~2,03 (meia 1,02).
+  compressor: {
+    scale: 1.1,
+    yOffset: -1.12,
+    tempAnchor: [0.5, 2.35, 0],
+    vibAnchor: [-1.15, 1.45, 0],
+    // CMP-001 chama sua temperatura de "Temp. Saída" — é a descarga do estágio.
+    tempCaption: 'Temp · Descarga',
+    vibCaption: 'Vibração · Conjunto Rotativo',
+  },
+  // Exaustor: mais alto que largo — topo da carcaça em ~2,13 (meia 1,07).
+  fan: {
+    scale: 1.5,
+    yOffset: -1.61,
+    tempAnchor: [0.85, 0.75, 0],
+    vibAnchor: [0, 2.45, 0],
+    tempCaption: 'Temp · Mancal',
+    vibCaption: 'Vibração · Carcaça',
+  },
+};
 
 /** Card de label industrial (dark, borda limpa) ancorado numa peça do motor. */
 function InstrumentLabel({
@@ -76,7 +140,7 @@ function InstrumentLabel({
 }
 
 /** Labels HTML ancoradas — re-renderizam a 0,5Hz (tick do store), não a cena. */
-function LiveLabels({ assetId }: MotorViewerProps) {
+function LiveLabels({ assetId, setup }: MotorViewerProps & { setup: ViewerSetup }) {
   // Os limites são indexados pela TAG industrial do ativo, não pelo id.
   const assetTag = useAppStore((s) => s.assets.find((a) => a.id === assetId)?.tag);
   const tempSensor = useAppStore(
@@ -94,25 +158,54 @@ function LiveLabels({ assetId }: MotorViewerProps) {
   const tempAlert = tempSensor != null && statusFor(tempSensor.name, tempSensor.value, assetTag) !== 'normal';
   const vibAlert = vibSensor != null && statusFor(vibSensor.name, vibSensor.value, assetTag) !== 'normal';
 
+  // Nem todo ativo mede as duas grandezas: BBA-001, por exemplo, não tem sensor
+  // de vibração (mede pressão, vazão, temperatura e potência). Uma label
+  // ancorada num sensor inexistente só exibia um travessão flutuando sobre o
+  // modelo — melhor não desenhá-la.
   return (
     <>
-      <Html position={TEMP_ANCHOR} center occlude>
-        <InstrumentLabel
-          caption="Temp · Mancal DE"
-          value={temp != null ? temp.toFixed(1) : '—'}
-          unit="°C"
-          alert={tempAlert}
-        />
-      </Html>
-      <Html position={VIB_ANCHOR} center occlude>
-        <InstrumentLabel
-          caption="Vibração · Traseira"
-          value={vib != null ? vib.toFixed(1) : '—'}
-          unit="mm/s"
-          alert={vibAlert}
-        />
-      </Html>
+      {temp != null && (
+        <Html position={setup.tempAnchor} center occlude>
+          <InstrumentLabel
+            caption={setup.tempCaption}
+            value={temp.toFixed(1)}
+            unit="°C"
+            alert={tempAlert}
+          />
+        </Html>
+      )}
+      {vib != null && (
+        <Html position={setup.vibAnchor} center occlude>
+          <InstrumentLabel
+            caption={setup.vibCaption}
+            value={vib.toFixed(1)}
+            unit="mm/s"
+            alert={vibAlert}
+          />
+        </Html>
+      )}
     </>
+  );
+}
+
+/**
+ * Volume das máquinas proceduriais (bomba, compressor, exaustor).
+ *
+ * Elas não recebem telemetria: comunicam estado por cor, e quem traduz status em
+ * cor é `plantStatus` — a mesma fonte que a planta 3D e o mapa SVG consomem.
+ * Dois lugares decidindo "que cor é warning" é exatamente como eles saem de
+ * sincronia. Assina o store por conta própria, como LiveLabels, para não forçar
+ * re-render do componente que hospeda o Canvas.
+ */
+function MachineVolume({ assetId, type }: MotorViewerProps & { type: Asset['type'] }) {
+  const status = useAppStore((s) => s.assets.find((a) => a.id === assetId)?.status) ?? 'normal';
+  return (
+    <MachineGeometry
+      type={type}
+      accent={statusConfig(status).fill}
+      urgency={statusUrgency(status)}
+      running={status !== 'offline'}
+    />
   );
 }
 
@@ -122,6 +215,11 @@ export default function MotorViewer({ assetId }: MotorViewerProps) {
   const [inView, setInView] = useState(true);
   const [visible, setVisible] = useState(!document.hidden);
   const [dpr, setDpr] = useState(1.5);
+
+  // O tipo do ativo escolhe o volume e o enquadramento. Não muda em runtime,
+  // mas vem do store porque o ativo pode ainda não ter carregado no 1º render.
+  const assetType = useAppStore((s) => s.assets.find((a) => a.id === assetId)?.type) ?? 'motor';
+  const setup = VIEWER_SETUP[assetType] ?? VIEWER_SETUP.motor;
 
   // Limites da temperatura DESTE ativo: o glow acende no `warn` e satura no
   // `crit`, os mesmos cortes que pintam o gauge e disparam o alerta.
@@ -178,10 +276,18 @@ export default function MotorViewer({ assetId }: MotorViewerProps) {
         <directionalLight position={[-4, 2, -3]} intensity={0.35} color="#7dd3fc" />
 
         <Suspense fallback={null}>
-          <ModelErrorBoundary fallback={<MotorPrimitive telemetryRef={telemetryRef} tempLimits={tempLimits} />}>
-            <MotorModel telemetryRef={telemetryRef} tempLimits={tempLimits} />
-          </ModelErrorBoundary>
-          <LiveLabels assetId={assetId} />
+          {/* As labels moram DENTRO do grupo de propósito: assim herdam escala e
+              offset do volume e não precisam de âncora recalculada por tipo. */}
+          <group scale={setup.scale} position={[0, setup.yOffset, 0]}>
+            {assetType === 'motor' ? (
+              <ModelErrorBoundary fallback={<MotorPrimitive telemetryRef={telemetryRef} tempLimits={tempLimits} />}>
+                <MotorModel telemetryRef={telemetryRef} tempLimits={tempLimits} />
+              </ModelErrorBoundary>
+            ) : (
+              <MachineVolume assetId={assetId} type={assetType} />
+            )}
+            <LiveLabels assetId={assetId} setup={setup} />
+          </group>
         </Suspense>
 
         <OrbitControls

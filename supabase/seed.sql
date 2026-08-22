@@ -15,31 +15,56 @@ set search_path = public, extensions;
 -- 1. Limpeza do conjunto de demonstração
 -- -----------------------------------------------------------------------------
 do $$
-declare v_plant uuid;
+declare
+  v_plant uuid;
+  -- Conjunto sintético de demonstração: é o que este seed recria a cada execução.
+  v_demo  text[] := array['MTR-001', 'MTR-002', 'BBA-001', 'CMP-001', 'EXA-001'];
+  -- Pontos de medição REAIS, criados pela migração 0014 na MESMA planta.
+  -- O seed não os cria e não pode apagá-los: levaria junto a telemetria já
+  -- coletada dos endpoints da Forzy, que só se recupera esperando a próxima
+  -- janela (seg/ter/qua, 12h-14h). Por isso toda a limpeza abaixo é escopada
+  -- aos ativos sintéticos, e não à planta inteira.
+  v_real  text[] := array['LAB-S1', 'LAB-S2'];
+  v_demo_assets uuid[];
 begin
   select id into v_plant from public.plants where code = 'FORZY-LAB';
   if v_plant is null then return; end if;
 
-  delete from public.sensor_readings        where asset_id in (select id from public.assets where plant_id = v_plant);
-  delete from public.asset_health_snapshots where asset_id in (select id from public.assets where plant_id = v_plant);
-  delete from public.ml_predictions         where asset_id in (select id from public.assets where plant_id = v_plant);
-  delete from public.maintenance_orders     where asset_id in (select id from public.assets where plant_id = v_plant);
-  delete from public.alerts                 where asset_id in (select id from public.assets where plant_id = v_plant);
-  delete from public.document_chunks        where asset_id in (select id from public.assets where plant_id = v_plant);
-  delete from public.documents              where plant_id = v_plant
-                                               or asset_id in (select id from public.assets where plant_id = v_plant);
-  delete from public.asset_nameplates       where asset_id in (select id from public.assets where plant_id = v_plant);
+  select coalesce(array_agg(id), '{}') into v_demo_assets
+    from public.assets
+   where plant_id = v_plant and tag = any(v_demo);
+
+  delete from public.sensor_readings        where asset_id = any(v_demo_assets);
+  delete from public.asset_health_snapshots where asset_id = any(v_demo_assets);
+  delete from public.ml_predictions         where asset_id = any(v_demo_assets);
+  delete from public.maintenance_orders     where asset_id = any(v_demo_assets);
+  delete from public.alerts                 where asset_id = any(v_demo_assets);
+  delete from public.document_chunks        where asset_id = any(v_demo_assets);
+  delete from public.documents              where asset_id = any(v_demo_assets)
+                                               or (plant_id = v_plant and asset_id is null);
+  delete from public.asset_nameplates       where asset_id = any(v_demo_assets);
   delete from public.ml_training_runs where model_id in (
     '11111111-1111-4111-8111-111111111111',
     '22222222-2222-4222-8222-222222222222',
     '33333333-3333-4333-8333-333333333333'
   );
 
+  -- Sensores que saíram do conjunto de um ativo que permanece. O insert da
+  -- seção 4 usa `on conflict do update`, que nunca remove: sem este delete os
+  -- sensores antigos dos motores (VOLT/CURR/RPM) sobreviveriam ao re-seed.
+  delete from public.sensors s
+   using public.assets a
+   where s.asset_id = a.id
+     and a.plant_id = v_plant
+     and a.tag in ('MTR-001', 'MTR-002')
+     and s.tag !~ '\.(VIB|ACC|TEMP)$';
+
   -- Ativos de execuções anteriores cujo TAG saiu do conjunto (sensores e
-  -- demais dependências caem por cascade).
+  -- demais dependências caem por cascade). Os pontos reais são preservados.
   delete from public.assets
    where plant_id = v_plant
-     and tag not in ('MTR-001', 'MTR-002', 'BBA-001', 'CMP-001', 'EXA-001');
+     and tag <> all(v_demo)
+     and tag <> all(v_real);
 end $$;
 
 -- -----------------------------------------------------------------------------
@@ -141,20 +166,27 @@ select
   5,
   jsonb_build_object('nominal', v.base, 'noise', v.noise, 'drift', v.drift)
 from (values
-  -- ── MTR-001 · WEG W22 IE3, In = 41,8 A, 1760 rpm de placa ────────────────
-  ('MTR-001', 'VOLT', 'Tensão',            'voltage',     'V',      300,  460,  19.0,   38.0, 'band',  380.0, 'NBR 5410 — ±5% e ±10% de 380 V',                          1,  380.0,  8.0,  0.0),
-  ('MTR-001', 'CURR', 'Corrente',          'current',     'A',        0,   60,  41.8,   48.07,'above', null,  'In = 41,8 A de placa, fator de serviço 1,15',             2,   29.3,  3.0,  0.0),
-  ('MTR-001', 'TEMP', 'Temperatura',       'temperature', '°C',       0,  120,  75.0,   90.0, 'above', null,  'Isolamento classe F',                                     3,   62.0,  4.0,  1.5),
-  ('MTR-001', 'RPM',  'Rotação',           'rpm',         'rpm',      0, 1900, 1690.0, 1618.0,'below', null,  'Escorregamento acima de 4% e 8% dos 1760 rpm de placa',    4, 1760.0, 12.0,  0.0),
-  ('MTR-001', 'VIB',  'Vibração',          'vibration',   'mm/s',     0,   20,   4.5,    7.1, 'above', null,  'ISO 10816-3 — zona B/C e C/D',                             5,    2.3,  0.4,  0.3),
+  -- ── MTR-001 · WEG W22 IE3, 1760 rpm de placa ─────────────────────────────
+  --    Mesmas três grandezas dos pontos de medição reais (LAB-S1/LAB-S2): é o
+  --    mesmo tipo de máquina e o mesmo acelerômetro da Forzy.
+  --    Aceleração derivada da vibração pela relação harmônica a = 2πf·v, com
+  --    f = 1760/60 = 29,33 Hz ⇒ 2πf = 184,3 s⁻¹. Nominal: 184,3 × 2,3 mm/s.
+  -- O `null::float` não é decorativo: `nominal_limit` só é preenchido em limites
+  -- de direção 'band', e a Tensão dos motores era a única linha que o usava. Sem
+  -- um valor tipado em algum lugar da lista, o Postgres infere text para a coluna
+  -- inteira e o insert falha ("nominal_value is of type double precision").
+  ('MTR-001', 'VIB',  'Velocidade de Vibração', 'vibration',   'mm/s',   0,   20,   4.5,    7.1,  'above', null::float, 'ISO 10816-3 — zona B/C e C/D',                   1,    2.3,  0.4,  0.3),
+  ('MTR-001', 'ACC',  'Aceleração',             'vibration',   'm/s²',   0,    5,   0.83,   1.31, 'above', null, 'ISO 10816-3 convertida a 1760 rpm (a = 2πf·v)',         2,    0.42, 0.07, 0.06),
+  ('MTR-001', 'TEMP', 'Temperatura',            'temperature', '°C',     0,  120,  75.0,   90.0,  'above', null, 'Isolamento classe F',                                  3,   62.0,  4.0,  1.5),
 
-  -- ── MTR-002 · Siemens SIMOTICS SD, In = 68,5 A, 1475 rpm ─────────────────
-  --    Rolamento em degradação: vibração na zona C e calor no mancal.
-  ('MTR-002', 'VOLT', 'Tensão',            'voltage',     'V',      300,  460,  19.0,   38.0, 'band',  380.0, 'NBR 5410 — ±5% e ±10% de 380 V',                          1,  380.0, 10.0,  0.0),
-  ('MTR-002', 'CURR', 'Corrente',          'current',     'A',        0,   90,  68.5,   78.78,'above', null,  'In = 68,5 A de placa, fator de serviço 1,15',             2,   48.0,  4.5,  2.0),
-  ('MTR-002', 'TEMP', 'Temperatura',       'temperature', '°C',       0,  120,  75.0,   90.0, 'above', null,  'Isolamento classe F',                                     3,   74.0,  4.0,  7.0),
-  ('MTR-002', 'RPM',  'Rotação',           'rpm',         'rpm',      0, 1900, 1416.0, 1357.0,'below', null,  'Escorregamento acima de 4% e 8% dos 1475 rpm de placa',    4, 1465.0, 14.0,  0.0),
-  ('MTR-002', 'VIB',  'Vibração',          'vibration',   'mm/s',     0,   20,   4.5,    7.1, 'above', null,  'ISO 10816-3 — zona B/C e C/D',                             5,    4.9,  0.5,  0.6),
+  -- ── MTR-002 · Siemens SIMOTICS SD, 1465 rpm ──────────────────────────────
+  --    Rolamento em degradação: vibração na zona C e calor no mancal. O drift
+  --    da aceleração acompanha o da vibração na mesma proporção (~12%), senão
+  --    os dois sensores do mesmo motor contariam histórias diferentes.
+  --    f = 1465/60 = 24,42 Hz ⇒ 2πf = 153,4 s⁻¹. Nominal: 153,4 × 4,9 mm/s.
+  ('MTR-002', 'VIB',  'Velocidade de Vibração', 'vibration',   'mm/s',   0,   20,   4.5,    7.1,  'above', null, 'ISO 10816-3 — zona B/C e C/D',                          1,    4.9,  0.5,  0.6),
+  ('MTR-002', 'ACC',  'Aceleração',             'vibration',   'm/s²',   0,    5,   0.69,   1.09, 'above', null, 'ISO 10816-3 convertida a 1465 rpm (a = 2πf·v)',         2,    0.75, 0.08, 0.09),
+  ('MTR-002', 'TEMP', 'Temperatura',            'temperature', '°C',     0,  120,  75.0,   90.0,  'above', null, 'Isolamento classe F',                                  3,   74.0,  4.0,  7.0),
 
   -- ── BBA-001 · KSB Etanorm 32-200, 5,5 kW ─────────────────────────────────
   ('BBA-001', 'PRES', 'Pressão',           'pressure',    'bar',      0,    6,   3.5,    4.2, 'above', null,  'Pressão de recalque do circuito de refrigeração',          1,    2.5,  0.18, 0.0),
@@ -275,7 +307,14 @@ cross join lateral (
   ) as val
 ) v
 where a.plant_id = (select id from public.plants where code = 'FORZY-LAB')
-  and s.is_active;
+  and s.is_active
+  -- NUNCA gerar histórico sintético para os pontos de medição reais: a série
+  -- deles vem dos endpoints da Forzy (migração 0014) e misturar dado fabricado
+  -- aqui destruiria justamente a distinção entre real e demonstração. O filtro
+  -- por metadata é o mesmo critério: só tem perfil sintético quem declara
+  -- 'nominal'/'noise'/'drift' na seção 4.
+  and a.tag <> all(array['LAB-S1', 'LAB-S2'])
+  and s.metadata ? 'nominal';
 
 alter table public.sensor_readings enable trigger sensor_readings_raise_alert;
 
@@ -619,5 +658,10 @@ from (
   join public.assets a on a.id = r.asset_id
   where a.plant_id = (select id from public.plants where code = 'FORZY-LAB')
     and r.ts >= now() - interval '48 hours'
+    -- Idem: os pontos reais ganham snapshot pelo trigger de 0003, alimentado
+    -- pela ingestão do coletor. Incluí-los aqui acumularia uma cópia a cada
+    -- re-seed (não há unique em asset_id+captured_at, só índice) e a curva de
+    -- tendência deles iria mentindo um pouco mais a cada execução.
+    and a.tag <> all(array['LAB-S1', 'LAB-S2'])
   group by r.asset_id, date_trunc('hour', r.ts)
 ) h;

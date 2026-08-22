@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { statusFor, reasonFor, limitFor } from './sensorLimits';
+import { statusFor, reasonFor, limitFor, sensorByRole } from './sensorLimits';
+import type { Sensor } from '../types';
 
 describe('statusFor — direção "above" (alto é ruim)', () => {
   // Vibração, ISO 10816-3 classe II: warn 4.5 / crit 7.1
@@ -91,19 +92,18 @@ describe('reasonFor — texto derivado do próprio valor', () => {
 // Valores conferidos contra o gerador determinístico de `api.ts`.
 describe('cenário dos ativos', () => {
   const casos: [string, string, number, string][] = [
-    // MTR-001 — operação nominal, nada fora de faixa
-    ['MTR-001', 'Tensão', 384.89, 'normal'],
-    ['MTR-001', 'Corrente', 29.57, 'normal'],
+    // MTR-001 — operação nominal, nada fora de faixa. Mede as mesmas três
+    // grandezas dos pontos reais do Forzy Lab.
+    ['MTR-001', 'Velocidade de Vibração', 2.08, 'normal'],
+    ['MTR-001', 'Aceleração', 0.38, 'normal'],
     ['MTR-001', 'Temperatura', 60.34, 'normal'],
-    ['MTR-001', 'Rotação', 1768.49, 'normal'],
-    ['MTR-001', 'Vibração', 2.08, 'normal'],
 
-    // MTR-002 — rolamento em degradação: vibração lidera, temperatura acompanha
-    ['MTR-002', 'Tensão', 381.16, 'normal'],
-    ['MTR-002', 'Corrente', 49.75, 'normal'],
+    // MTR-002 — rolamento em degradação. Vibração e aceleração medem o MESMO
+    // fenômeno (a = 2πf·v), então têm de acusar juntas: se uma entrar em
+    // warning e a outra não, os limites saíram de sincronia.
+    ['MTR-002', 'Velocidade de Vibração', 5.19, 'warning'],
+    ['MTR-002', 'Aceleração', 0.78, 'warning'],
     ['MTR-002', 'Temperatura', 79.47, 'warning'],
-    ['MTR-002', 'Rotação', 1458.33, 'normal'],
-    ['MTR-002', 'Vibração', 5.19, 'warning'],
 
     // BBA-001 — nominal
     ['BBA-001', 'Pressão', 2.65, 'normal'],
@@ -133,5 +133,37 @@ describe('cenário dos ativos', () => {
     for (const [assetId, sensor] of casos) {
       expect(limitFor(sensor, assetId), `${assetId}/${sensor} sem limite`).not.toBeNull();
     }
+  });
+});
+
+describe('sensorByRole — resolve a grandeza por papel, não por nome literal', () => {
+  const s = (name: string, value: number): Sensor => ({
+    id: name, name, unit: '', value, min: 0, max: 100, threshold: 0, status: 'normal',
+  });
+
+  // Regressão: os pontos de medição reais (LAB-S1/LAB-S2) e os motores chamam
+  // a grandeza de "Velocidade de Vibração". Enquanto o alias só listava
+  // "Vibração", sensorByRole devolvia undefined e o viewer 3D dessas páginas
+  // caía no default de vibração 0 — com o gauge ao lado mostrando o valor certo.
+  it('acha a vibração pelo nome dos ativos reais e dos motores', () => {
+    const sensores = [s('Temperatura', 48), s('Velocidade de Vibração', 3.1)];
+    expect(sensorByRole(sensores, 'vibration')?.value).toBe(3.1);
+  });
+
+  it('continua achando pelo nome dos ativos de processo', () => {
+    const sensores = [s('Temperatura', 48), s('Vibração', 2.2)];
+    expect(sensorByRole(sensores, 'vibration')?.value).toBe(2.2);
+  });
+
+  // EXA-001 tem um sensor "Velocidade" que é rotação em %, não vibração.
+  // Ele não pode ser confundido com "Velocidade de Vibração".
+  it('não confunde a velocidade do exaustor (% de rotação) com vibração', () => {
+    const sensores = [s('Velocidade', 84), s('Corrente Motor', 3.1)];
+    expect(sensorByRole(sensores, 'vibration')).toBeUndefined();
+  });
+
+  it('resolve a temperatura sob os vários nomes que os ativos usam', () => {
+    expect(sensorByRole([s('Temp. Saída', 81)], 'temperature')?.value).toBe(81);
+    expect(sensorByRole([s('Temp. Mancal', 55)], 'temperature')?.value).toBe(55);
   });
 });

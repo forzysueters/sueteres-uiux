@@ -29,6 +29,15 @@ const SENSOR_LIMITS: Record<string, SensorLimit> = {
   // ISO 10816-3, máquinas classe II (15–75 kW) em base rígida:
   // zona B/C = 4,5 mm/s (aceitável → insatisfatório), C/D = 7,1 (inaceitável).
   'Vibração': { warn: 4.5, crit: 7.1, direction: 'above', source: 'ISO 10816-3 — zona B/C e C/D' },
+  // Mesma grandeza com o nome que os pontos de medição reais usam (LAB-S1/S2) e
+  // que os motores passaram a usar. Os dois nomes coexistem de propósito: bomba,
+  // compressor e exaustor continuam com 'Vibração'.
+  'Velocidade de Vibração': { warn: 4.5, crit: 7.1, direction: 'above', source: 'ISO 10816-3 — zona B/C e C/D' },
+
+  // Fallback provisório, herdado do cadastro dos pontos reais. O limite honesto
+  // depende da rotação da máquina (a = 2πf·v), então cada motor declara o seu
+  // override abaixo — este valor só vale enquanto não houver dado real medido.
+  'Aceleração': { warn: 10, crit: 20, direction: 'above', source: 'Provisório — recalibrar com dado real' },
 
   // Isolamento classe F (155 °C) com margem de projeto: atenção bem antes do
   // limite do verniz, porque o dano é cumulativo.
@@ -47,15 +56,18 @@ const SENSOR_LIMITS: Record<string, SensorLimit> = {
  * que é onde eles passaram a ser mantidos (ver supabase/seed.sql).
  */
 const ASSET_LIMIT_OVERRIDES: Record<string, Record<string, SensorLimit>> = {
+  // Os dois motores medem as mesmas três grandezas dos pontos reais do Forzy Lab
+  // (velocidade de vibração, aceleração, temperatura). A aceleração não tem
+  // limite universal: para um harmônico, a = 2πf·v, então o mesmo corte da ISO
+  // 10816-3 vale um número diferente em cada rotação. Derivar daí mantém os dois
+  // sensores do mesmo motor contando a mesma história.
   'MTR-001': {
-    // In = 41,8 A de placa; fator de serviço 1,15.
-    'Corrente': { warn: 41.8, crit: 48.07, direction: 'above', source: 'In = 41,8 A de placa, fator de serviço 1,15' },
-    // 1760 rpm de placa. Queda de rotação sob carga = escorregamento excessivo.
-    'Rotação': { warn: 1690, crit: 1618, direction: 'below', source: 'Escorregamento acima de 4% e 8% dos 1760 rpm de placa' },
+    // 1760 rpm → 29,33 Hz → 2πf = 184,3 s⁻¹. 4,5 mm/s ⇒ 0,83 m/s²; 7,1 ⇒ 1,31.
+    'Aceleração': { warn: 0.83, crit: 1.31, direction: 'above', source: 'ISO 10816-3 convertida a 1760 rpm (a = 2πf·v)' },
   },
   'MTR-002': {
-    'Corrente': { warn: 68.5, crit: 78.78, direction: 'above', source: 'In = 68,5 A de placa, fator de serviço 1,15' },
-    'Rotação': { warn: 1416, crit: 1357, direction: 'below', source: 'Escorregamento acima de 4% e 8% dos 1475 rpm de placa' },
+    // 1465 rpm → 24,42 Hz → 2πf = 153,4 s⁻¹. 4,5 mm/s ⇒ 0,69 m/s²; 7,1 ⇒ 1,09.
+    'Aceleração': { warn: 0.69, crit: 1.09, direction: 'above', source: 'ISO 10816-3 convertida a 1465 rpm (a = 2πf·v)' },
   },
   'BBA-001': {
     'Pressão': { warn: 3.5, crit: 4.2, direction: 'above', source: 'Pressão de recalque do circuito de refrigeração' },
@@ -220,9 +232,12 @@ export function gaugeRange(
 export type SensorRole = 'temperature' | 'vibration';
 
 /** Nomes aceitos por papel, em ordem de preferência (o mais diagnóstico primeiro). */
+// Cuidado ao mexer aqui: EXA-001 tem um sensor chamado 'Velocidade' que é
+// rotação em %, grandeza diferente. O alias precisa ser o nome completo
+// 'Velocidade de Vibração', nunca 'Velocidade' sozinho.
 const ROLE_ALIASES: Record<SensorRole, string[]> = {
   temperature: ['Temperatura', 'Temp. Saída', 'Temp. Mancal', 'Temp. Entrada'],
-  vibration: ['Vibração'],
+  vibration: ['Vibração', 'Velocidade de Vibração'],
 };
 
 export function sensorByRole(sensors: Sensor[], role: SensorRole): Sensor | undefined {
