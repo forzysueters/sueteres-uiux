@@ -73,7 +73,7 @@ try {
         (
           await client.query(
             `select code, capturas, ok, falhas, pendentes, leituras_gravadas,
-                    ultimo_sucesso, url
+                    ultimo_sucesso, left(coalesce(ultimo_erro, ''), 30) as ultimo_erro, url
                from public.collector_health order by code`,
           )
         ).rows,
@@ -145,6 +145,7 @@ try {
         console.error('Uso: npm run collector -- url <s1|s2|both> <URL ou base>')
         process.exit(1)
       }
+      const códigos = alvo === 'both' ? ['s1', 's2'] : [alvo]
       if (alvo === 'both') {
         const base = valor.replace(/\/+$/, '')
         await client.query(
@@ -156,7 +157,22 @@ try {
       } else {
         await client.query(`update public.collector_sources set url = $1 where code = $2`, [valor, alvo])
       }
-      console.table((await client.query(`select code, url from public.collector_sources order by code`)).rows)
+
+      // Cabeçalho conforme o provedor do túnel: o ngrok responde uma página HTML
+      // de aviso quando não recebe ngrok-skip-browser-warning. Deixar isso na mão
+      // de quem troca a URL às pressas entre duas janelas é pedir para perder uma.
+      await client.query(
+        `update public.collector_sources
+            set headers = case when url ilike '%ngrok%'
+                   then '{"accept": "application/json", "ngrok-skip-browser-warning": "true"}'::jsonb
+                   else '{"accept": "application/json"}'::jsonb end
+          where code = any($1)`,
+        [códigos],
+      )
+
+      console.table(
+        (await client.query(`select code, url, headers from public.collector_sources order by code`)).rows,
+      )
       console.log('\nURL atualizada. O próximo tick do cron já usa a nova.')
       break
     }

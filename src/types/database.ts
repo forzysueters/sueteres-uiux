@@ -697,6 +697,7 @@ export interface Database {
           notes: string | null
           created_at: string
           updated_at: string
+          headers: Json
         }
         Insert: {
           id?: string
@@ -709,6 +710,7 @@ export interface Database {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          headers?: Json
         }
         Update: {
           id?: string
@@ -721,6 +723,7 @@ export interface Database {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          headers?: Json
         }
         Relationships: []
       }
@@ -1596,6 +1599,7 @@ export interface Database {
           leituras_gravadas: number | null
           ultima_captura: string | null
           ultimo_sucesso: string | null
+          ultimo_erro: string | null
         }
         Relationships: []
       }

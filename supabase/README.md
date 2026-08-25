@@ -217,12 +217,17 @@ calibrá-los com dado real na mão.
 ```bash
 npm run collector:status          # janela, saúde por endpoint, últimas capturas
 npm run collector:test            # força uma coleta agora, fora da janela
-npm run collector -- url both https://novo-tunel.trycloudflare.com
+npm run collector -- url both https://novo-subdominio.ngrok-free.dev
 npm run collector -- reprocess    # reingere tudo que já foi capturado
 ```
 
-> ⚠️ **A URL é um quick tunnel do `trycloudflare`: o subdomínio é sorteado a cada
-> reinício do `cloudflared`.** Se a Forzy reiniciar o túnel, o coletor grava
-> HTTP 530 a janela inteira. Confira `npm run collector:status` no início de cada
-> janela e troque a URL com `collector -- url both <base>`. O ideal é pedir à
-> Forzy um túnel nomeado, com URL fixa.
+> ⚠️ **O host é um túnel temporário: o subdomínio muda quando a Forzy reinicia o
+> agente.** Já aconteceu uma vez — o quick tunnel do `trycloudflare` saiu do ar e
+> o coletor gravou "Couldn't resolve host name" por 2013 ciclos até a URL ser
+> trocada pela do `ngrok` (migração `0015`). Confira `npm run collector:status`
+> no início de cada janela e troque com `collector -- url both <base>`. O ideal é
+> pedir à Forzy um túnel nomeado, com URL fixa.
+>
+> Os cabeçalhos do GET ficam em `collector_sources.headers`. No ngrok isso
+> importa: com User-Agent de navegador ele responde uma página HTML de aviso em
+> vez do JSON, e `ngrok-skip-browser-warning: true` desliga esse comportamento.
