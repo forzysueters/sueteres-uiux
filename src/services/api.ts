@@ -598,21 +598,55 @@ export const apiService = {
   },
 
   /**
-   * Resposta do assistente, composta a partir de dados reais do banco:
-   * telemetria corrente, alertas abertos, saídas dos modelos e trechos
-   * recuperados da documentação técnica.
+   * Resposta do assistente conversacional.
+   *
+   * Envia a pergunta, o histórico recente e o ativo em foco para a Edge
+   * Function `ai-chat`, que monta o contexto real do site (telemetria,
+   * alertas, predições, manutenção, documentação técnica) e delega a redação
+   * da resposta ao Gemini — preservando o contexto entre turnos da conversa.
+   *
+   * Se a function não estiver disponível (não implantada, sem
+   * `GEMINI_API_KEY`, ou offline), cai para o motor determinístico local
+   * (`assistantEngine`), no mesmo padrão de fallback já usado para OCR e
+   * anomalia: a demo nunca quebra, só perde a redação em linguagem natural.
    */
-  async getChatResponse(message: string, assetContext?: string): Promise<ChatMessage> {
-    const { answerQuestion } = await import('./assistantEngine');
-    const answer = await answerQuestion(message, assetContext ?? null);
+  async getChatResponse(
+    message: string,
+    assetContext: string | undefined,
+    history: Pick<ChatMessage, 'role' | 'content'>[],
+    conversationId: string | null,
+  ): Promise<ChatMessage & { conversationId: string | null }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-chat', {
+        body: { question: message, assetContext: assetContext ?? null, conversationId, history },
+      });
+      if (error) throw error;
+      if (!data?.content) throw new Error('empty_response');
 
-    return {
-      id: `msg-${Date.now()}`,
-      role: 'assistant',
-      content: answer.content,
-      timestamp: new Date().toISOString(),
-      assetContext,
-    };
+      return {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: data.content,
+        timestamp: new Date().toISOString(),
+        assetContext,
+        citations: data.citations,
+        conversationId: data.conversationId ?? conversationId,
+      };
+    } catch (err) {
+      console.warn('[ai-chat] indisponível — usando motor local determinístico:', (err as Error).message);
+      const { answerQuestion } = await import('./assistantEngine');
+      const answer = await answerQuestion(message, assetContext ?? null);
+
+      return {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: answer.content,
+        timestamp: new Date().toISOString(),
+        assetContext,
+        offline: true,
+        conversationId,
+      };
+    }
   },
 
   /** Envia a foto da placa para o bucket de equipamentos. */

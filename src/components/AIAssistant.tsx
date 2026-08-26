@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, ChevronRight } from 'lucide-react';
+import { Send, Bot, User, Sparkles, ChevronRight, MessageSquarePlus, FileText } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { ChatMessage } from '../types';
@@ -11,21 +11,46 @@ const QUICK_QUESTIONS = [
   'O que a placa do motor informa sobre a vibração esperada?',
 ];
 
+/** Interpreta **negrito** sem markdown completo — evita dangerouslySetInnerHTML. */
+function renderContent(content: string): React.ReactNode {
+  const parts = content.split(/\*\*(.+?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i} className="font-bold text-foreground">{part}</strong> : part,
+  );
+}
+
+/** Agrega citações repetidas do mesmo documento em uma única etiqueta. */
+function dedupeCitations(citations: ChatMessage['citations']) {
+  if (!citations?.length) return [];
+  const seen = new Map<string, { document_title: string; page_number: number | null }>();
+  for (const c of citations) {
+    const key = `${c.document_title}-${c.page_number ?? ''}`;
+    if (!seen.has(key)) seen.set(key, { document_title: c.document_title, page_number: c.page_number });
+  }
+  return [...seen.values()];
+}
+
+const GREETING: ChatMessage = {
+  id: 'init',
+  role: 'assistant',
+  content: 'Olá! Eu sou a Inteligência Forzy. Posso responder sobre telemetria em tempo real, alertas, histórico de manutenções e dados das placas dos equipamentos — e lembro do que conversamos, então você pode fazer perguntas de acompanhamento. Selecione um ativo na Planta para focar a conversa ou faça uma pergunta geral.',
+  timestamp: new Date().toISOString(),
+};
+
 export const AIAssistant: React.FC = () => {
-  const { selectedAssetId, chatMessages, addChatMessage } = useAppStore();
+  const {
+    selectedAssetId, chatMessages, addChatMessage, conversationId, setConversationId, clearChatMessages,
+  } = useAppStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Initial greeting
+  // Saudação inicial. Lê o estado direto da store (não o valor fechado no
+  // render) para não duplicar a mensagem quando o StrictMode roda o efeito
+  // duas vezes em desenvolvimento.
   useEffect(() => {
-    if (chatMessages.length === 0) {
-      addChatMessage({
-        id: 'init',
-        role: 'assistant',
-        content: 'Olá! Eu sou o Assistente Forzy IA. Posso responder sobre telemetria em tempo real, alertas, histórico de manutenções e dados das placas dos equipamentos. Selecione um ativo na Planta para contexto ou faça uma pergunta geral.',
-        timestamp: new Date().toISOString(),
-      });
+    if (useAppStore.getState().chatMessages.length === 0) {
+      addChatMessage(GREETING);
     }
   }, []);
 
@@ -34,6 +59,12 @@ export const AIAssistant: React.FC = () => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [chatMessages, isTyping]);
+
+  const handleNewConversation = () => {
+    if (isTyping) return;
+    clearChatMessages();
+    addChatMessage({ ...GREETING, id: `init-${Date.now()}`, timestamp: new Date().toISOString() });
+  };
 
   const handleSend = async (text?: string) => {
     const message = (text ?? input).trim();
@@ -46,18 +77,31 @@ export const AIAssistant: React.FC = () => {
       timestamp: new Date().toISOString(),
       assetContext: selectedAssetId ?? undefined,
     };
+
+    // Histórico enviado ao agente: exclui a saudação, mantém as últimas trocas.
+    const history = [...chatMessages, userMsg]
+      .filter((m) => !m.id.startsWith('init'))
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.content }));
+
     addChatMessage(userMsg);
     setInput('');
     setIsTyping(true);
 
     try {
-      const response = await apiService.getChatResponse(message, selectedAssetId ?? undefined);
+      const response = await apiService.getChatResponse(
+        message,
+        selectedAssetId ?? undefined,
+        history,
+        conversationId,
+      );
+      setConversationId(response.conversationId);
       addChatMessage(response);
     } catch {
       addChatMessage({
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: 'Desculpe, não foi possível processar sua mensagem. Tente novamente.',
+        content: 'Desculpe, não foi possível processar sua mensagem agora. Verifique sua conexão e tente novamente.',
         timestamp: new Date().toISOString(),
       });
     } finally {
@@ -84,7 +128,17 @@ export const AIAssistant: React.FC = () => {
             </div>
           </div>
         </div>
-        <Sparkles size={16} className="text-primary opacity-50" />
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleNewConversation}
+            disabled={isTyping || chatMessages.length <= 1}
+            title="Iniciar nova conversa"
+            className="w-8 h-8 rounded-md flex items-center justify-center text-muted hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <MessageSquarePlus size={16} />
+          </button>
+          <Sparkles size={16} className="text-primary opacity-50" />
+        </div>
       </div>
 
       {/* Messages */}
@@ -97,14 +151,34 @@ export const AIAssistant: React.FC = () => {
               }`}>
                 {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
-              <div className={`p-4 rounded-xl text-sm leading-relaxed ${
+              <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-line ${
                 m.role === 'user'
                   ? 'bg-card-hover border border-border text-foreground rounded-tr-none'
                   : 'bg-card border border-border text-foreground rounded-tl-none'
               }`}>
-                {m.content}
-                <div className="mt-2 text-[10px] font-mono text-muted opacity-50">
+                {renderContent(m.content)}
+
+                {m.role === 'assistant' && dedupeCitations(m.citations).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/60 flex flex-wrap gap-1.5">
+                    {dedupeCitations(m.citations).map((c, i) => (
+                      <span
+                        key={i}
+                        className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-primary/10 text-primary font-medium"
+                      >
+                        <FileText size={10} />
+                        {c.document_title}{c.page_number ? ` · p.${c.page_number}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-muted opacity-50">
                   {new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {m.offline && (
+                    <span className="text-amber-500 opacity-100 font-sans font-semibold uppercase tracking-wide">
+                      · modo offline
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
