@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import { Asset } from '../types'
 import { cn } from '../lib/utils'
+import { statusBadge, statusLabel } from '../utils/plantStatus'
+import { useAppStore } from '../store/appStore'
 
 interface KPICardProps {
   title: string
@@ -118,42 +120,9 @@ interface AssetTileProps {
 }
 
 export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick }) => {
-  const statusConfig = {
-    critical: {
-      label: 'Crítico',
-      ring: 'ring-red-500/40',
-      borderL: 'before:bg-red-500',
-      text: 'text-red-500',
-      dot: 'bg-red-500',
-      glow: 'shadow-[0_0_24px_-6px_rgba(239,68,68,0.4)]',
-    },
-    warning: {
-      label: 'Alerta',
-      ring: 'ring-amber-500/40',
-      borderL: 'before:bg-amber-500',
-      text: 'text-amber-500',
-      dot: 'bg-amber-500',
-      glow: 'shadow-[0_0_24px_-6px_rgba(245,158,11,0.35)]',
-    },
-    normal: {
-      label: 'Normal',
-      ring: 'ring-emerald-500/40',
-      borderL: 'before:bg-emerald-500',
-      text: 'text-emerald-500',
-      dot: 'bg-emerald-500',
-      glow: '',
-    },
-    offline: {
-      label: 'Offline',
-      ring: 'ring-slate-500/40',
-      borderL: 'before:bg-slate-500',
-      text: 'text-slate-500',
-      dot: 'bg-slate-500',
-      glow: '',
-    },
-  } as const
-
-  const cfg = statusConfig[asset.status] || statusConfig.normal
+  const { language } = useAppStore()
+  const cfg = statusBadge(asset.status)
+  const label = statusLabel(asset.status, language)
 
   return (
     <motion.div
@@ -163,7 +132,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
       className={cn(
         'group relative saas-card saas-card-hover cursor-pointer p-5 overflow-hidden',
         'before:content-[""] before:absolute before:left-0 before:top-3 before:bottom-3 before:w-[3px] before:rounded-r-full',
-        cfg.borderL,
+        cfg.before,
         isSelected && cn('ring-2', cfg.ring, cfg.glow),
       )}
     >
@@ -186,7 +155,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
         </div>
         <div className="badge bg-card-hover border-border">
           <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot, 'animate-pulse')} />
-          <span className={cfg.text}>{cfg.label}</span>
+          <span className={cfg.text}>{label}</span>
         </div>
       </div>
 

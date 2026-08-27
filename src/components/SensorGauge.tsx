@@ -1,6 +1,8 @@
 import React from 'react';
 import { Sensor } from '../types';
 import { cn } from '../lib/utils';
+import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
 
 interface SensorGaugeProps {
   sensor: Sensor;
@@ -8,6 +10,8 @@ interface SensorGaugeProps {
 }
 
 export const SensorGauge: React.FC<SensorGaugeProps> = ({ sensor, compact = false }) => {
+  const { language } = useAppStore();
+  const t = translations[language].sensorGauge;
   const pct = Math.min(100, Math.max(0, ((sensor.value - sensor.min) / (sensor.max - sensor.min)) * 100));
   const thresholdPct = Math.min(100, ((sensor.threshold - sensor.min) / (sensor.max - sensor.min)) * 100);
 
@@ -40,7 +44,7 @@ export const SensorGauge: React.FC<SensorGaugeProps> = ({ sensor, compact = fals
           'text-[9px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0',
           sensor.status === 'normal' && !isOver ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400',
         )}>
-          {sensor.status === 'normal' && !isOver ? 'OK' : 'ALT'}
+          {sensor.status === 'normal' && !isOver ? t.ok : t.alt}
         </span>
       </div>
     );
@@ -69,7 +73,7 @@ export const SensorGauge: React.FC<SensorGaugeProps> = ({ sensor, compact = fals
             ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
             : 'bg-amber-500/15 text-amber-400 border border-amber-500/20',
         )}>
-          {sensor.status === 'normal' && !isOver ? 'Normal' : 'Atenção'}
+          {sensor.status === 'normal' && !isOver ? t.normal : t.attention}
         </span>
       </div>
 
@@ -80,12 +84,12 @@ export const SensorGauge: React.FC<SensorGaugeProps> = ({ sensor, compact = fals
           <div
             className="absolute top-0 bottom-0 w-0.5 bg-amber-400"
             style={{ left: `${thresholdPct}%` }}
-            title={`Threshold: ${sensor.threshold} ${sensor.unit}`}
+            title={`${t.threshold}: ${sensor.threshold} ${sensor.unit}`}
           />
         </div>
         <div className="flex justify-between text-[9px] text-muted font-mono">
           <span>{sensor.min} {sensor.unit}</span>
-          <span className="text-amber-500/70">lim {sensor.threshold} {sensor.unit}</span>
+          <span className="text-amber-500/70">{t.lim} {sensor.threshold} {sensor.unit}</span>
           <span>{sensor.max} {sensor.unit}</span>
         </div>
       </div>

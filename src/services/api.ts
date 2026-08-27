@@ -567,6 +567,36 @@ export const apiService = {
     if (error) fail(error, 'Não foi possível registrar a placa.');
   },
 
+  /** Últimos equipamentos com placa confirmada — para a lista "Registros Recentes". */
+  async getRecentEquipment(limit = 5): Promise<
+    { id: string; name: string; spec: string; date: string; assetTag: string | null }[]
+  > {
+    const { data, error } = await supabase
+      .from('asset_nameplates')
+      .select('id, manufacturer, model, serial_number, confirmed_at, created_at, assets(tag, name)')
+      .eq('status', 'confirmed')
+      .order('confirmed_at', { ascending: false })
+      .limit(limit);
+
+    if (error) fail(error, 'Não foi possível carregar os registros recentes.');
+
+    return (data ?? []).map((row) => {
+      const asset = (Array.isArray(row.assets) ? row.assets[0] : row.assets) as
+        | { tag: string; name: string }
+        | null;
+      const name = asset?.name ?? row.model ?? 'Equipamento sem vínculo';
+      const spec = [row.manufacturer, row.model].filter(Boolean).join(' ')
+        + (row.serial_number ? ` | SN: ${row.serial_number}` : '');
+      return {
+        id: row.id,
+        name,
+        spec: spec || 'Sem especificações extraídas',
+        date: new Date(row.confirmed_at ?? row.created_at).toLocaleDateString('pt-BR'),
+        assetTag: asset?.tag ?? null,
+      };
+    });
+  },
+
   /**
    * Extrai os dados da placa via modelo de OCR WEG W22 (pasta `ocr/`, FastAPI).
    *

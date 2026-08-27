@@ -3,13 +3,7 @@ import { Send, Bot, User, Sparkles, ChevronRight, MessageSquarePlus, FileText } 
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { ChatMessage } from '../types';
-
-const QUICK_QUESTIONS = [
-  'Quais ativos precisam de manutenção hoje?',
-  'Qual o status do compressor CMP-001?',
-  'Explique o insight de anomalia do MTR-002.',
-  'O que a placa do motor informa sobre a vibração esperada?',
-];
+import { translations } from '../translations';
 
 /** Interpreta **negrito** sem markdown completo — evita dangerouslySetInnerHTML. */
 function renderContent(content: string): React.ReactNode {
@@ -30,17 +24,19 @@ function dedupeCitations(citations: ChatMessage['citations']) {
   return [...seen.values()];
 }
 
-const GREETING: ChatMessage = {
-  id: 'init',
-  role: 'assistant',
-  content: 'Olá! Eu sou a Inteligência Forzy. Posso responder sobre telemetria em tempo real, alertas, histórico de manutenções e dados das placas dos equipamentos — e lembro do que conversamos, então você pode fazer perguntas de acompanhamento. Selecione um ativo na Planta para focar a conversa ou faça uma pergunta geral.',
-  timestamp: new Date().toISOString(),
-};
-
 export const AIAssistant: React.FC = () => {
   const {
-    selectedAssetId, chatMessages, addChatMessage, conversationId, setConversationId, clearChatMessages,
+    selectedAssetId, chatMessages, addChatMessage, conversationId, setConversationId, clearChatMessages, language,
   } = useAppStore();
+  const t = translations[language].assistant;
+  const locale = language === 'pt' ? 'pt-BR' : 'en-US';
+  const QUICK_QUESTIONS = [t.quick_q1, t.quick_q2, t.quick_q3, t.quick_q4];
+  const GREETING: ChatMessage = {
+    id: 'init',
+    role: 'assistant',
+    content: t.greeting,
+    timestamp: new Date().toISOString(),
+  };
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -101,7 +97,7 @@ export const AIAssistant: React.FC = () => {
       addChatMessage({
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: 'Desculpe, não foi possível processar sua mensagem agora. Verifique sua conexão e tente novamente.',
+        content: t.error_message,
         timestamp: new Date().toISOString(),
       });
     } finally {
@@ -118,12 +114,12 @@ export const AIAssistant: React.FC = () => {
             <Bot size={18} className="text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-foreground">Inteligência Forzy</h3>
+            <h3 className="text-sm font-bold text-foreground">{t.header_title}</h3>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Online</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">{t.online}</span>
               {selectedAssetId && (
-                <span className="text-[9px] text-primary font-bold ml-2">· contexto ativo</span>
+                <span className="text-[9px] text-primary font-bold ml-2">· {t.context_active}</span>
               )}
             </div>
           </div>
@@ -132,7 +128,7 @@ export const AIAssistant: React.FC = () => {
           <button
             onClick={handleNewConversation}
             disabled={isTyping || chatMessages.length <= 1}
-            title="Iniciar nova conversa"
+            title={t.new_conversation}
             className="w-8 h-8 rounded-md flex items-center justify-center text-muted hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <MessageSquarePlus size={16} />
@@ -173,10 +169,10 @@ export const AIAssistant: React.FC = () => {
                 )}
 
                 <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-muted opacity-50">
-                  {new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(m.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                   {m.offline && (
                     <span className="text-amber-500 opacity-100 font-sans font-semibold uppercase tracking-wide">
-                      · modo offline
+                      · {t.offline_mode}
                     </span>
                   )}
                 </div>
@@ -225,7 +221,7 @@ export const AIAssistant: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={selectedAssetId ? 'Pergunta sobre o ativo selecionado…' : 'Pergunte sobre seus ativos…'}
+            placeholder={selectedAssetId ? t.placeholder_with_asset : t.placeholder_generic}
             className="w-full h-12 pl-4 pr-12 rounded-lg bg-card-hover border border-border text-foreground placeholder:text-muted-soft focus:outline-none focus:border-primary/50 transition-all text-sm font-medium"
           />
           <button

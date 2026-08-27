@@ -1,29 +1,41 @@
 import { Bot, Sparkles, MessageSquare, ShieldCheck, BarChart2 } from 'lucide-react';
 import { AIAssistant } from '../components/AIAssistant';
-
-const quickQuestions = [
-  { icon: MessageSquare, text: 'Quais ativos precisam de manutenção hoje?', color: 'text-amber-500' },
-  { icon: BarChart2, text: 'Gere um relatório de eficiência da Hall A.', color: 'text-emerald-500' },
-  { icon: ShieldCheck, text: 'Verifique o status do Motor de Produção.', color: 'text-amber-500' },
-];
+import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
 
 export const AssistantPage: React.FC = () => {
+  const { language } = useAppStore();
+  const t = translations[language].assistant;
+
+  const quickQuestions = [
+    { icon: MessageSquare, text: t.sidebar_q1, color: 'text-amber-500' },
+    { icon: BarChart2, text: t.sidebar_q2, color: 'text-emerald-500' },
+    { icon: ShieldCheck, text: t.sidebar_q3, color: 'text-amber-500' },
+  ];
+
+  const capabilities = [
+    t.capability1,
+    t.capability2,
+    t.capability3,
+    t.capability4,
+  ];
+
   return (
     <div className="h-full flex flex-col gap-8 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-3">
             <Bot className="w-7 h-7 text-primary" />
-            Assistente IA
+            {t.title}
           </h1>
           <p>
-            Fale com a Inteligência Forzy para insights preditivos e suporte operacional
+            {t.subtitle}
           </p>
         </div>
 
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/10 text-primary">
           <Sparkles size={14} className="animate-pulse" />
-          <span className="text-[10px] font-bold uppercase tracking-widest">Contexto Ativo</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest">{t.context_badge}</span>
         </div>
       </div>
 
@@ -34,7 +46,7 @@ export const AssistantPage: React.FC = () => {
 
         <div className="space-y-8">
           <div className="saas-card p-6">
-            <span className="section-title">Sugestões Rápidas</span>
+            <span className="section-title">{t.quick_suggestions}</span>
             <div className="space-y-3">
               {quickQuestions.map((q, i) => (
                 <button
@@ -53,14 +65,9 @@ export const AssistantPage: React.FC = () => {
           </div>
 
           <div className="saas-card p-6 bg-primary/5 border-primary/10">
-            <span className="section-title !text-primary">Capacidades da IA</span>
+            <span className="section-title !text-primary">{t.capabilities_title}</span>
             <ul className="space-y-3">
-              {[
-                'Análise preditiva de causa raiz',
-                'Otimização de cronograma de manutenção',
-                'Resumo do histórico de anomalias',
-                'Cálculo de RUL (Vida Útil Restante)',
-              ].map((item, i) => (
+              {capabilities.map((item, i) => (
                 <li key={i} className="flex items-center gap-3 text-xs font-medium text-muted">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary/50" />
                   {item}
