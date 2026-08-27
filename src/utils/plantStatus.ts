@@ -1,4 +1,5 @@
 import { Asset, Sensor } from '../types';
+import { translations, Language } from '../translations';
 
 export interface StatusConfig {
   fill: string;
@@ -21,6 +22,68 @@ export const STATUS_COLORS: Record<string, StatusConfig> = {
 
 export const statusConfig = (status: string): StatusConfig =>
   STATUS_COLORS[status] ?? STATUS_COLORS.normal;
+
+/**
+ * Rótulo de status traduzido — `STATUS_COLORS[x].label`/`STATUS_BADGE[x].label`
+ * ficam como fallback em PT (usados por SVG/contextos sem acesso a `language`),
+ * mas todo lugar com acesso ao idioma deve chamar esta função em vez de `.label`.
+ */
+export function statusLabel(status: string, language: Language): string {
+  const s = translations[language].common.status;
+  return s[status as keyof typeof s] ?? s.normal;
+}
+
+export interface StatusBadgeConfig {
+  label: string;
+  text: string;
+  dot: string;
+  before: string;
+  ring: string;
+  glow: string;
+}
+
+/**
+ * Mesma semântica de `STATUS_COLORS`, em classes Tailwind — para pílulas e
+ * cartões de ativo (Dashboard, AssetTile). Antes cada componente reimplementava
+ * este mapa com valores levemente diferentes; agora é uma fonte só.
+ */
+export const STATUS_BADGE: Record<string, StatusBadgeConfig> = {
+  critical: {
+    label: 'Crítico',
+    text: 'text-red-500',
+    dot: 'bg-red-500',
+    before: 'before:bg-red-500',
+    ring: 'ring-red-500/40',
+    glow: 'shadow-[0_0_24px_-6px_rgba(239,68,68,0.4)]',
+  },
+  warning: {
+    label: 'Alerta',
+    text: 'text-amber-500',
+    dot: 'bg-amber-500',
+    before: 'before:bg-amber-500',
+    ring: 'ring-amber-500/40',
+    glow: 'shadow-[0_0_24px_-6px_rgba(245,158,11,0.35)]',
+  },
+  normal: {
+    label: 'Normal',
+    text: 'text-emerald-500',
+    dot: 'bg-emerald-500',
+    before: 'before:bg-emerald-500',
+    ring: 'ring-emerald-500/40',
+    glow: '',
+  },
+  offline: {
+    label: 'Offline',
+    text: 'text-slate-500',
+    dot: 'bg-slate-500',
+    before: 'before:bg-slate-500',
+    ring: 'ring-slate-500/40',
+    glow: '',
+  },
+};
+
+export const statusBadge = (status: string): StatusBadgeConfig =>
+  STATUS_BADGE[status] ?? STATUS_BADGE.normal;
 
 /** Quanto o status "grita" (0 = calmo, 1 = crítico). Dirige brilho e pulso na cena. */
 export const statusUrgency = (status: string): number =>

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Asset } from '../types';
 import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
 import { cn } from '../lib/utils';
 // Fonte única das cores de status — compartilhada com a planta 3D para que as
 // duas vistas nunca discordem sobre o que é "crítico".
-import { STATUS_COLORS } from '../utils/plantStatus';
+import { STATUS_COLORS, statusLabel } from '../utils/plantStatus';
 
 // Sequência de inspeção: ordem recomendada por área (Hall A → Hall B → Hall C → Cobertura)
 const INSPECTION_ORDER: string[] = ['MTR-001', 'MTR-002', 'BBA-001', 'CMP-001', 'EXA-001'];
@@ -42,7 +43,9 @@ const ASSET_ICONS: Record<string, string> = {
 };
 
 export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAssetId, onSelectAsset }) => {
-  const { darkMode } = useAppStore();
+  const { darkMode, language } = useAppStore();
+  const t = translations[language].plant;
+  const common = translations[language].common;
   const p = darkMode ? DARK_PALETTE : LIGHT_PALETTE;
   const [tooltip, setTooltip] = useState<{ asset: Asset; x: number; y: number } | null>(null);
 
@@ -216,10 +219,10 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
         {/* Legenda — fluxo de inspeção */}
         <g transform="translate(510, 530)">
           <line x1={0} y1={8} x2={22} y2={8} stroke={p.flow} strokeWidth="1.5" strokeDasharray="5 3" markerEnd="url(#inspection-arrow)" />
-          <text x={28} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">Fluxo de Inspeção</text>
+          <text x={28} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{t.flow_label}</text>
           <circle cx={140} cy={8} r={7} fill={p.badgeFill} stroke={p.flow} strokeWidth="1.5" />
           <text x={140} y={12} textAnchor="middle" dominantBaseline="middle" fill={p.flow} fontSize="7" fontWeight="800" fontFamily="monospace">N</text>
-          <text x={152} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">Ordem</text>
+          <text x={152} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{t.order_label}</text>
         </g>
       </svg>
 
@@ -243,11 +246,11 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
             </span>
             <span className={cn(
               'text-[9px] font-bold uppercase',
-              STATUS_COLORS[tooltip.asset.status]?.label === 'Crítico' ? 'text-red-600 dark:text-red-400' :
-              STATUS_COLORS[tooltip.asset.status]?.label === 'Alerta' ? 'text-amber-600 dark:text-amber-400' :
+              tooltip.asset.status === 'critical' ? 'text-red-600 dark:text-red-400' :
+              tooltip.asset.status === 'warning' ? 'text-amber-600 dark:text-amber-400' :
               'text-emerald-600 dark:text-emerald-400',
             )}>
-              {STATUS_COLORS[tooltip.asset.status]?.label}
+              {statusLabel(tooltip.asset.status, language)}
             </span>
           </div>
           <p className="text-[11px] font-semibold text-foreground">{tooltip.asset.name}</p>
@@ -259,22 +262,22 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
           )}
           <div className="mt-2 pt-2 border-t border-border flex gap-4">
             <div>
-              <span className="text-[9px] text-muted uppercase">Disp.</span>
+              <span className="text-[9px] text-muted uppercase">{common.disp}</span>
               <p className="text-[11px] font-bold text-foreground">{tooltip.asset.uptime.toFixed(1)}%</p>
             </div>
             <div>
-              <span className="text-[9px] text-muted uppercase">Anomalia</span>
+              <span className="text-[9px] text-muted uppercase">{common.anomaly}</span>
               <p className={cn(
                 'text-[11px] font-bold',
                 tooltip.asset.anomalyScore > 50 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400',
               )}>{tooltip.asset.anomalyScore}%</p>
             </div>
             <div>
-              <span className="text-[9px] text-muted uppercase">Sensores</span>
+              <span className="text-[9px] text-muted uppercase">{common.sensors}</span>
               <p className="text-[11px] font-bold text-foreground">{tooltip.asset.sensors.length}</p>
             </div>
           </div>
-          <p className="text-[9px] text-primary mt-2 font-medium">Clique para selecionar →</p>
+          <p className="text-[9px] text-primary mt-2 font-medium">{t.click_select}</p>
         </div>
       )}
     </div>

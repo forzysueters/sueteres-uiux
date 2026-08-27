@@ -14,6 +14,7 @@ interface AppStore {
   alerts: Alert[];
   kpis: KPIMetrics | null;
   chatMessages: ChatMessage[];
+  conversationId: string | null;
   loading: boolean;
   error: string | null;
 
@@ -27,6 +28,7 @@ interface AppStore {
   resolveAlert: (alertId: string) => void;
   addChatMessage: (message: ChatMessage) => void;
   clearChatMessages: () => void;
+  setConversationId: (id: string | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -46,6 +48,7 @@ export const useAppStore = create<AppStore>((set) => ({
   alerts: [],
   kpis: null,
   chatMessages: [],
+  conversationId: null,
   loading: false,
   error: null,
 
@@ -63,7 +66,8 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   addChatMessage: (message) =>
     set((state) => ({ chatMessages: [...state.chatMessages, message] })),
-  clearChatMessages: () => set({ chatMessages: [] }),
+  clearChatMessages: () => set({ chatMessages: [], conversationId: null }),
+  setConversationId: (id) => set({ conversationId: id }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),

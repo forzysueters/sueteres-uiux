@@ -20,10 +20,14 @@ import {
   User,
   LogOut,
   ChevronDown,
+  Menu,
+  X,
 } from 'lucide-react'
 import { useAppStore } from './store/appStore'
 import { translations } from './translations'
 import { useAuthStore } from './store/authStore'
+import { useAlerts } from './hooks/useAlerts'
+import { ROLE_LABELS } from './types/auth'
 import { Dashboard } from './pages/Dashboard'
 import { PlantNavigation } from './pages/PlantNavigation'
 import { AssetMonitorPage } from './pages/AssetMonitorPage'
@@ -39,7 +43,9 @@ import { cn } from './lib/utils'
 
 const AppContent = () => {
   const { darkMode, primaryColor, language } = useAppStore()
-  const { logout } = useAuthStore()
+  const { logout, user } = useAuthStore()
+  const { alerts } = useAlerts()
+  const activeAlertsCount = alerts.filter((a) => !a.resolved).length
   const t = translations[language]
 
   const handleLogout = async () => {
@@ -52,6 +58,7 @@ const AppContent = () => {
 
   const [time, setTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
 
@@ -80,12 +87,13 @@ const AppContent = () => {
 
   useEffect(() => {
     setShowProfileMenu(false)
+    setShowMobileMenu(false)
   }, [location])
 
   const navItems = [
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
-    { id: 'alerts', label: t.nav.alerts, path: '/alertas', icon: Bell, badge: 3 },
+    { id: 'alerts', label: t.nav.alerts, path: '/alertas', icon: Bell, badge: activeAlertsCount },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
     { id: 'assistant', label: t.nav.assistant, path: '/assistente', icon: Bot },
   ]
@@ -112,7 +120,7 @@ const AppContent = () => {
             />
           </Link>
 
-          <div className="hidden md:flex items-center gap-0.5 h-full">
+          <div className="hidden xl:flex items-center gap-0.5 h-full">
             {navItems.map((item) => (
               <NavLink
                 key={item.id}
@@ -137,7 +145,7 @@ const AppContent = () => {
                       strokeWidth={2.2}
                     />
                     {item.label}
-                    {item.badge && (
+                    {(item.badge ?? 0) > 0 && (
                       <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500/15 text-red-500 text-[10px] font-bold rounded-md border border-red-500/25">
                         {item.badge}
                       </span>
@@ -160,7 +168,7 @@ const AppContent = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-card-hover border border-border">
+          <div className="hidden xl:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-card-hover border border-border">
             <span className="live-dot" />
             <div className="flex items-center gap-1.5 text-muted">
               <Clock size={12} />
@@ -174,7 +182,16 @@ const AppContent = () => {
             </div>
           </div>
 
-          <div className="hidden md:block h-6 w-px bg-border" />
+          <div className="hidden xl:block h-6 w-px bg-border" />
+
+          <button
+            onClick={() => setShowMobileMenu((v) => !v)}
+            aria-label={showMobileMenu ? 'Fechar menu' : 'Abrir menu'}
+            aria-expanded={showMobileMenu}
+            className="xl:hidden w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-card-hover transition-colors"
+          >
+            {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
+          </button>
 
           <div className="relative" ref={menuRef}>
             <button
@@ -183,10 +200,10 @@ const AppContent = () => {
             >
               <div className="hidden sm:flex flex-col items-end">
                 <span className="text-xs font-semibold text-foreground transition-colors">
-                  Gerente Técnico
+                  {user?.name ?? '—'}
                 </span>
                 <span className="text-[10px] text-muted-soft font-medium">
-                  {language === 'pt' ? 'Administrador' : 'Administrator'}
+                  {user ? ROLE_LABELS[user.role] : ''}
                 </span>
               </div>
               <div className="relative w-9 h-9 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/30 flex items-center justify-center overflow-hidden">
@@ -217,9 +234,9 @@ const AppContent = () => {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-foreground">
-                          Gerente Técnico
+                          {user?.name ?? '—'}
                         </p>
-                        <p className="text-[11px] text-muted">tecnico@forzy.com.br</p>
+                        <p className="text-[11px] text-muted">{user?.email ?? ''}</p>
                       </div>
                     </div>
                   </div>
@@ -254,6 +271,43 @@ const AppContent = () => {
           </div>
         </div>
       </nav>
+
+      {/* Mobile nav drawer — os links somem em telas < md; sem isto não havia
+          como navegar entre páginas no celular. */}
+      <AnimatePresence>
+        {showMobileMenu && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="xl:hidden overflow-hidden border-b border-border bg-background-elevated"
+          >
+            <div className="p-3 space-y-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.id}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      isActive ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-card-hover hover:text-foreground',
+                    )
+                  }
+                >
+                  <item.icon size={16} strokeWidth={2.2} />
+                  {item.label}
+                  {(item.badge ?? 0) > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500/15 text-red-500 text-[10px] font-bold rounded-md border border-red-500/25">
+                      {item.badge}
+                    </span>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Page content */}
       <main className="flex-1 overflow-y-auto scrollbar-thin">

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Activity, AlertCircle, Zap, Cpu, TrendingUp, Sparkles } from 'lucide-react'
+import { Activity, AlertCircle, Zap, Cpu, Sparkles, AlertOctagon, Factory } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import { translations } from '../translations'
 import { apiService } from '../services/api'
 import { KPICard } from '../components/Cards'
 import { cn } from '../lib/utils'
+import { STATUS_COLORS, statusBadge, statusLabel } from '../utils/plantStatus'
+import { CardSkeleton, ChartSkeleton } from '../components/SkeletonLoaders'
+import { tooltipStyle } from '../theme'
 import {
   BarChart,
   Bar,
@@ -22,15 +26,6 @@ import {
   Area,
 } from 'recharts'
 
-const STATUS_COLORS: Record<string, string> = {
-  Normal: '#10B981',
-  Alerta: '#F59E0B',
-  Warning: '#F59E0B',
-  Crítico: '#EF4444',
-  Critical: '#EF4444',
-  Offline: '#64748B',
-}
-
 const containerVariants = {
   hidden: { opacity: 0 },
   show: {
@@ -46,10 +41,11 @@ const itemVariants = {
 
 export const Dashboard: React.FC = () => {
   const { assets, setAssets, kpis, setKPIs, language } = useAppStore()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const t = translations[language].dashboard
-  const common = translations[language].common
 
   useEffect(() => {
     loadDashboardData()
@@ -66,23 +62,27 @@ export const Dashboard: React.FC = () => {
       ])
       setAssets(assetsData)
       setKPIs(kpiData)
+      setError(null)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : language === 'pt'
+            ? 'Não foi possível carregar os dados da operação.'
+            : 'Could not load operation data.',
+      )
     } finally {
       setLoading(false)
     }
   }
 
-  const assetStatusData = [
-    { name: 'Normal', value: assets.filter((a) => a.status === 'normal').length },
-    {
-      name: language === 'pt' ? 'Alerta' : 'Warning',
-      value: assets.filter((a) => a.status === 'warning').length,
-    },
-    {
-      name: language === 'pt' ? 'Crítico' : 'Critical',
-      value: assets.filter((a) => a.status === 'critical').length,
-    },
-    { name: 'Offline', value: assets.filter((a) => a.status === 'offline').length },
-  ].filter((d) => d.value > 0)
+  const assetStatusData = (['normal', 'warning', 'critical', 'offline'] as const)
+    .map((status) => ({
+      status,
+      name: statusLabel(status, language),
+      value: assets.filter((a) => a.status === status).length,
+    }))
+    .filter((d) => d.value > 0)
 
   const uptimeData = assets.map((a) => ({
     name: a.name.length > 10 ? a.name.substring(0, 10) + '…' : a.name,
@@ -96,12 +96,32 @@ export const Dashboard: React.FC = () => {
 
   if (loading && assets.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 py-20">
-        <div className="relative">
-          <Activity className="w-10 h-10 text-primary animate-spin" />
-          <div className="absolute inset-0 blur-xl bg-primary/30 animate-pulse" />
+      <div className="space-y-8">
+        <CardSkeleton count={4} />
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          <div className="lg:col-span-2"><ChartSkeleton height={280} /></div>
+          <div className="lg:col-span-3"><ChartSkeleton height={280} /></div>
         </div>
-        <p className="text-sm font-medium text-muted">{common.loading}</p>
+        <ChartSkeleton height={220} />
+      </div>
+    )
+  }
+
+  if (error && assets.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+        <div className="w-12 h-12 rounded-xl bg-danger/10 border border-danger/20 flex items-center justify-center text-danger">
+          <AlertOctagon size={22} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground">{error}</p>
+          <p className="text-xs text-muted mt-1">
+            {language === 'pt' ? 'Verifique sua conexão e tente novamente.' : 'Check your connection and try again.'}
+          </p>
+        </div>
+        <button onClick={loadDashboardData} className="btn-ghost text-xs">
+          {language === 'pt' ? 'Tentar novamente' : 'Try again'}
+        </button>
       </div>
     )
   }
@@ -123,7 +143,7 @@ export const Dashboard: React.FC = () => {
             <Sparkles size={11} className="text-primary" />
             <span>Operations Console</span>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">{t.title}</h1>
+          <h1>{t.title}</h1>
           <p className="mt-1.5">
             {t.subtitle} · <span className="font-semibold text-foreground-soft tabular-nums">{assets.length}</span> {t.tracked}
           </p>
@@ -137,13 +157,40 @@ export const Dashboard: React.FC = () => {
             </span>
             <span className="text-muted-soft font-mono text-[10px]">5s</span>
           </div>
-          <button className="btn-ghost text-xs">
-            <TrendingUp size={14} />
-            {language === 'pt' ? 'Relatório' : 'Report'}
-          </button>
         </div>
       </motion.div>
 
+      {error && (
+        <motion.div
+          variants={itemVariants}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger"
+        >
+          <AlertOctagon size={16} className="flex-shrink-0" />
+          <span>{error}</span>
+        </motion.div>
+      )}
+
+      {assets.length === 0 && !error ? (
+        <motion.div
+          variants={itemVariants}
+          className="saas-card flex flex-col items-center justify-center gap-3 py-24 text-center"
+        >
+          <div className="w-12 h-12 rounded-xl bg-card-hover border border-border flex items-center justify-center text-muted">
+            <Factory size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {language === 'pt' ? 'Nenhum ativo cadastrado ainda' : 'No assets registered yet'}
+            </p>
+            <p className="text-xs text-muted mt-1">
+              {language === 'pt'
+                ? 'Cadastre um equipamento para começar a monitorar a operação.'
+                : 'Register an equipment to start monitoring the operation.'}
+            </p>
+          </div>
+        </motion.div>
+      ) : (
+      <>
       {/* KPI grid */}
       <motion.div
         variants={itemVariants}
@@ -192,17 +239,17 @@ export const Dashboard: React.FC = () => {
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <defs>
-                {Object.entries(STATUS_COLORS).map(([name, color]) => (
+                {Object.entries(STATUS_COLORS).map(([status, cfg]) => (
                   <linearGradient
-                    id={`pie-${name}`}
-                    key={name}
+                    id={`pie-${status}`}
+                    key={status}
                     x1="0"
                     y1="0"
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor={color} stopOpacity={1} />
-                    <stop offset="100%" stopColor={color} stopOpacity={0.6} />
+                    <stop offset="0%" stopColor={cfg.fill} stopOpacity={1} />
+                    <stop offset="100%" stopColor={cfg.fill} stopOpacity={0.6} />
                   </linearGradient>
                 ))}
               </defs>
@@ -217,21 +264,10 @@ export const Dashboard: React.FC = () => {
                 stroke="none"
               >
                 {assetStatusData.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={`url(#pie-${entry.name in STATUS_COLORS ? entry.name : 'Normal'})`}
-                  />
+                  <Cell key={`cell-${index}`} fill={`url(#pie-${entry.status})`} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--card)',
-                  border: '1px solid var(--border-strong)',
-                  borderRadius: '12px',
-                  boxShadow: '0 12px 32px -8px rgba(0,0,0,0.5)',
-                }}
-                itemStyle={{ fontSize: '12px', fontWeight: 600 }}
-              />
+              <Tooltip contentStyle={tooltipStyle} itemStyle={{ fontSize: '12px', fontWeight: 600 }} />
               <Legend
                 iconType="circle"
                 formatter={(value) => (
@@ -256,14 +292,7 @@ export const Dashboard: React.FC = () => {
               <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} />
               <YAxis axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--card)',
-                  border: '1px solid var(--border-strong)',
-                  borderRadius: '12px',
-                }}
-                cursor={{ fill: 'rgba(var(--primary-rgb),0.04)' }}
-              />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(var(--primary-rgb),0.04)' }} />
               <Bar
                 dataKey="anomaly"
                 fill="url(#anomalyGrad)"
@@ -297,13 +326,7 @@ export const Dashboard: React.FC = () => {
             <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
             <XAxis dataKey="name" axisLine={false} tickLine={false} />
             <YAxis axisLine={false} tickLine={false} domain={[85, 100]} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border-strong)',
-                borderRadius: '12px',
-              }}
-            />
+            <Tooltip contentStyle={tooltipStyle} />
             <Area
               type="monotone"
               dataKey="uptime"
@@ -327,42 +350,16 @@ export const Dashboard: React.FC = () => {
       <motion.div variants={itemVariants} className="space-y-4">
         <div className="flex items-center justify-between">
           <span className="section-title !mb-0">{t.critical_summary}</span>
-          <button className="text-[11px] font-semibold text-muted hover:text-primary transition-colors">
+          <button
+            onClick={() => navigate('/alertas')}
+            className="text-[11px] font-semibold text-muted hover:text-primary transition-colors"
+          >
             {language === 'pt' ? 'Ver todos →' : 'View all →'}
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {assets.slice(0, 4).map((asset, i) => {
-            const statusColors: Record<
-              string,
-              { ring: string; text: string; label: string; dot: string }
-            > = {
-              critical: {
-                ring: 'before:bg-red-500',
-                text: 'text-red-500',
-                label: language === 'pt' ? 'Crítico' : 'Critical',
-                dot: 'bg-red-500',
-              },
-              warning: {
-                ring: 'before:bg-amber-500',
-                text: 'text-amber-500',
-                label: language === 'pt' ? 'Alerta' : 'Warning',
-                dot: 'bg-amber-500',
-              },
-              normal: {
-                ring: 'before:bg-emerald-500',
-                text: 'text-emerald-500',
-                label: 'Normal',
-                dot: 'bg-emerald-500',
-              },
-              offline: {
-                ring: 'before:bg-slate-500',
-                text: 'text-slate-500',
-                label: 'Offline',
-                dot: 'bg-slate-500',
-              },
-            }
-            const sc = statusColors[asset.status] ?? statusColors.normal
+            const sc = statusBadge(asset.status)
 
             return (
               <motion.div
@@ -374,7 +371,7 @@ export const Dashboard: React.FC = () => {
                 className={cn(
                   'group relative saas-card saas-card-hover p-4 cursor-pointer',
                   'before:content-[""] before:absolute before:left-0 before:top-3 before:bottom-3 before:w-[3px] before:rounded-r-full',
-                  sc.ring,
+                  sc.before,
                 )}
               >
                 <div className="flex items-center justify-between mb-1">
@@ -388,7 +385,7 @@ export const Dashboard: React.FC = () => {
                     )}
                   >
                     <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', sc.dot)} />
-                    {sc.label}
+                    {statusLabel(asset.status, language)}
                   </span>
                 </div>
                 <p className="text-[10px] text-muted-soft uppercase tracking-wider mb-3 truncate">
@@ -410,6 +407,8 @@ export const Dashboard: React.FC = () => {
           })}
         </div>
       </motion.div>
+      </>
+      )}
     </motion.div>
   )
 }

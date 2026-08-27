@@ -2,7 +2,9 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, ArrowRight, CheckCircle2, Crosshair, WifiOff } from 'lucide-react';
 import { Asset } from '../types';
-import { byTriage, statusConfig, worstSensor } from '../utils/plantStatus';
+import { byTriage, statusConfig, statusLabel, worstSensor } from '../utils/plantStatus';
+import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
 import { cn } from '../lib/utils';
 
 /**
@@ -38,6 +40,8 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
   onFocus,
   onOpen,
 }) => {
+  const { language } = useAppStore();
+  const t = translations[language].plantAlertRail;
   const ordered = useMemo(() => [...assets].sort(byTriage), [assets]);
   const needsAttention = ordered.filter((a) => a.status === 'critical' || a.status === 'warning');
   const healthy = ordered.length - needsAttention.length;
@@ -45,9 +49,9 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="section-title">Triagem</span>
+        <span className="section-title">{t.triage}</span>
         <span className="font-mono text-[10px] text-muted">
-          {needsAttention.length} de {ordered.length} exigem atenção
+          {needsAttention.length} {t.of} {ordered.length} {t.need_attention}
         </span>
       </div>
 
@@ -55,7 +59,7 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
         <div className="saas-card flex items-center gap-2 p-4">
           <CheckCircle2 size={16} className="text-emerald-500" />
           <span className="text-xs font-semibold text-foreground">
-            Nenhum alerta ativo na planta
+            {t.no_active_alerts}
           </span>
         </div>
       )}
@@ -100,7 +104,7 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
                     className="ml-auto text-[9px] font-bold uppercase tracking-wide"
                     style={{ color: cfg.fill }}
                   >
-                    {cfg.label}
+                    {statusLabel(asset.status, language)}
                   </span>
                 </div>
 
@@ -124,7 +128,7 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
                 {asset.status === 'offline' && (
                   <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted">
                     <WifiOff size={10} />
-                    Sem comunicação
+                    {t.no_comm}
                   </div>
                 )}
 
@@ -147,7 +151,7 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
                 <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
                   <span className="flex items-center gap-1 text-[9px] text-muted">
                     <Crosshair size={9} />
-                    Focar
+                    {t.focus}
                   </span>
                   <button
                     onClick={(e) => {
@@ -156,7 +160,7 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
                     }}
                     className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold text-primary transition-colors hover:bg-primary/10"
                   >
-                    Inspecionar
+                    {t.inspect}
                     <ArrowRight size={9} />
                   </button>
                 </div>
@@ -168,7 +172,7 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
 
       {healthy > 0 && (
         <p className="text-center text-[10px] text-muted">
-          {healthy} {healthy === 1 ? 'ativo operando normal' : 'ativos operando normais'}
+          {healthy} {healthy === 1 ? t.all_normal_singular : t.all_normal_plural}
         </p>
       )}
     </div>
