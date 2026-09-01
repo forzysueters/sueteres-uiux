@@ -13,6 +13,8 @@ import { TimeSeriesChart } from '../components/TimeSeriesChart';
 import { KPICard } from '../components/Cards';
 import { HealthGauge } from '../components/HealthGauge';
 import { PageLoader } from '../components/SkeletonLoaders';
+import { AssetReport } from '../components/AssetReport';
+import { MaintenanceScheduler } from '../components/MaintenanceScheduler';
 import { SensorHistorySeries } from '../types';
 import {
   ArrowLeft, Activity, Tag, AlertTriangle, CheckCircle2, TrendingUp,
@@ -52,6 +54,10 @@ export const AssetMonitorPage: React.FC = () => {
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
   const [history, setHistory] = useState<SensorHistorySeries[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Janela própria do relatório. Não reaproveita `history` porque aquela segue a
+  // faixa que o usuário escolhe no gráfico — a "média 2h" mudaria de sentido.
+  const [history2h, setHistory2h] = useState<SensorHistorySeries[]>([]);
+  const [schedulerOpen, setSchedulerOpen] = useState(false);
 
   const { alerts, resolveAlert } = useAlerts(assetId);
   const [assetsLoading, setAssetsLoading] = useState(assets.length === 0);
@@ -91,6 +97,14 @@ export const AssetMonitorPage: React.FC = () => {
     });
   }, [assetId, historyRange]);
 
+  useEffect(() => {
+    if (!assetId) return;
+    apiService
+      .getSensorHistory(assetId, '2h')
+      .then(setHistory2h)
+      .catch(() => setHistory2h([])); // relatório degrada para "—", não quebra a página
+  }, [assetId]);
+
   if (assetsLoading) {
     return <PageLoader label={t.loading} />;
   }
@@ -124,6 +138,20 @@ export const AssetMonitorPage: React.FC = () => {
     offline:  { text: 'text-slate-500', dot: 'bg-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20', glow: 'rgba(100,116,139,0.22)' },
   };
   const cfg = statusConfig[asset.status] || statusConfig.normal;
+
+  // O navegador usa o document.title como nome sugerido do PDF; sem trocar,
+  // todo relatório sairia salvo como "IDT Platform…". Restaura no afterprint
+  // porque o Safari retoma a execução antes de a caixa de impressão fechar.
+  const handleExport = () => {
+    const previousTitle = document.title;
+    document.title = `${asset.tag} — ${translations[language].report.title}`;
+    const restore = () => {
+      document.title = previousTitle;
+      window.removeEventListener('afterprint', restore);
+    };
+    window.addEventListener('afterprint', restore);
+    window.print();
+  };
 
   const activeAlerts = alerts.filter((a) => !a.resolved);
   const currentHistory = selectedSensor ? history.find((h) => h.sensorName === selectedSensor) : null;
@@ -171,11 +199,11 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-ghost text-xs opacity-40 cursor-not-allowed" disabled title={t.coming_soon}>
+            <button className="btn-ghost text-xs" onClick={handleExport} title={t.export_hint}>
               <Download size={14} />
               {t.export}
             </button>
-            <button className="btn-primary text-xs opacity-40 cursor-not-allowed" disabled title={t.coming_soon}>
+            <button className="btn-primary text-xs" onClick={() => setSchedulerOpen(true)}>
               <Shield size={14} />
               {t.schedule_maintenance}
             </button>
@@ -521,6 +549,16 @@ export const AssetMonitorPage: React.FC = () => {
           ))}
         </div>
       </motion.div>
+
+      {/* Folha A4 do Exportar — invisível na tela, montada via portal no body. */}
+      <AssetReport asset={asset} alerts={alerts} language={language} history2h={history2h} />
+
+      <MaintenanceScheduler
+        open={schedulerOpen}
+        onOpenChange={setSchedulerOpen}
+        asset={asset}
+        language={language}
+      />
     </motion.div>
   );
 };

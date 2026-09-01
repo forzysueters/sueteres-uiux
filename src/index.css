@@ -395,3 +395,324 @@ p {
 }
 
 .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* ───────── Relatório de ativo (somente impressão) ─────────
+   Renderizado por AssetReport.tsx como filho direto do <body> (portal) e
+   escondido na tela. O botão Exportar chama window.print(); o usuário salva
+   como PDF pela própria caixa do navegador. Cores são fixas em tema claro:
+   imprimir o dark mode gastaria tinta e sairia ilegível. */
+#asset-report { display: none; }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm;
+  }
+
+  /* Só o relatório vai ao papel — a casca do app (#root) sai de cena. O `:has`
+     é essencial: sem ele, um Ctrl+P em qualquer outra rota (onde o relatório
+     não está montado) esconderia tudo e imprimiria uma folha em branco. */
+  body:has(#asset-report) > *:not(#asset-report) { display: none !important; }
+
+  html,
+  body {
+    background: #ffffff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #asset-report {
+    display: block !important;
+    color: #0f172a;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.45;
+    /* sem isto o navegador descarta os fundos das tarjas de status */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* A tipografia global do app usa tokens de tema; aqui ela é neutralizada. */
+  #asset-report h1,
+  #asset-report h2,
+  #asset-report p {
+    margin: 0;
+    color: #0f172a;
+    letter-spacing: normal;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  /* ── Cabeçalho ── */
+  .rep-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f59e0b;
+  }
+  .rep-brand {
+    font-size: 7.5pt !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em !important;
+    color: #b45309 !important;
+  }
+  .rep-title {
+    font-size: 17pt !important;
+    font-weight: 800;
+    margin-top: 2px !important;
+  }
+  .rep-subtitle {
+    font-size: 8.5pt !important;
+    color: #52514e !important;
+    margin-top: 1px !important;
+  }
+  .rep-header-meta {
+    text-align: right;
+    font-size: 8pt;
+    color: #64748b;
+  }
+  .rep-header-meta p { font-size: 8pt !important; color: #64748b !important; }
+  .rep-tag {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12pt !important;
+    font-weight: 700;
+    color: #0f172a !important;
+  }
+
+  /* ── Seções ── */
+  .rep-section {
+    margin-top: 14px;
+    break-inside: avoid;
+  }
+  .rep-section-title {
+    font-size: 8pt !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em !important;
+    color: #475569 !important;
+    padding-bottom: 3px;
+    margin-bottom: 7px !important;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  /* ── Pares rótulo/valor ── */
+  .rep-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px 14px;
+  }
+  .rep-field { display: flex; flex-direction: column; gap: 1px; }
+  .rep-field-label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+  }
+  .rep-field-value { font-size: 9.5pt; font-weight: 600; }
+
+  /* ── Painel de abertura: herói + medidor + tiles ── */
+  .rep-summary {
+    display: grid;
+    grid-template-columns: 1fr 2.6fr;
+    gap: 10px;
+    margin-top: 12px;
+    break-inside: avoid;
+  }
+  .rep-hero {
+    border: 1px solid #e1e0d9;
+    border-radius: 6px;
+    padding: 9px 11px;
+  }
+  /* Número-herói: um só no documento. Figuras proporcionais de propósito —
+     tabular-nums alarga os dígitos e deixa um "72" frouxo neste corpo. */
+  .rep-hero-value {
+    font-size: 30pt !important;
+    font-weight: 800;
+    line-height: 1.02 !important;
+    margin: 1px 0 6px !important;
+    color: #0b0b0b !important;
+  }
+  .rep-hero-value em {
+    font-size: 10pt;
+    font-style: normal;
+    font-weight: 600;
+    color: #52514e;
+  }
+  .rep-meter {
+    display: block;
+    height: 7px;
+    border-radius: 999px;
+    background: #ececea;
+    overflow: hidden;
+  }
+  .rep-meter-fill {
+    display: block;
+    height: 100%;
+    border-radius: 0 4px 4px 0; /* extremidade do dado arredondada, base reta */
+  }
+  .rep-hero-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 7px;
+    flex-wrap: wrap;
+  }
+  .rep-hero-sev { font-size: 8pt; color: #52514e; }
+
+  .rep-tiles {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .rep-tile {
+    border: 1px solid #e1e0d9;
+    border-radius: 6px;
+    padding: 9px 10px;
+  }
+  /* Rótulos como "Score de Anomalia" quebram em duas linhas e empurram o valor
+     para baixo; reservar a altura das duas linhas mantém os números alinhados. */
+  .rep-tile .rep-field-label {
+    display: block;
+    min-height: 2.3em; /* duas linhas a 1.15 — abaixo disso o valor desalinha */
+    line-height: 1.15;
+  }
+  .rep-tile-value {
+    font-size: 16pt !important;
+    font-weight: 800;
+    line-height: 1.1 !important;
+    margin-top: 2px !important;
+    color: #0b0b0b !important;
+  }
+  .rep-tile-value em {
+    font-size: 8pt;
+    font-style: normal;
+    font-weight: 600;
+    color: #52514e;
+  }
+
+  /* ── Bullet bar do sensor: leitura dentro da faixa, marca no limite ── */
+  .rep-bullet-col { width: 132px; }
+  .rep-bullet {
+    position: relative;
+    display: block;
+    height: 8px;
+    border-radius: 999px;
+    background: #ececea;
+    overflow: hidden;
+  }
+  .rep-bullet-fill {
+    display: block;
+    height: 100%;
+    border-radius: 0 4px 4px 0;
+  }
+  /* Traço do limite: tinta, não cor de estado — é referência, não medida. */
+  .rep-bullet-threshold {
+    position: absolute;
+    top: -1px;
+    bottom: -1px;
+    width: 1.5px;
+    margin-left: -0.75px;
+    background: #0b0b0b;
+  }
+  /* Tendência vs. média 2h: tinta neutra de propósito — é direção, não estado,
+     e não pode ser confundida com as cores reservadas de status. */
+  .rep-trend {
+    margin-left: 3px;
+    font-size: 6.5pt;
+    color: #52514e;
+  }
+  .rep-bullet-scale {
+    display: block;
+    margin-top: 2px;
+    font-size: 6.5pt;
+    color: #898781;
+    font-variant-numeric: tabular-nums;
+  }
+  .rep-legend {
+    margin-top: 5px !important;
+    font-size: 6.5pt !important;
+    color: #898781 !important;
+  }
+
+  .rep-insight {
+    margin-top: 8px !important;
+    padding: 7px 9px;
+    border-left: 3px solid #f59e0b;
+    background: #fffbeb;
+    font-size: 9pt !important;
+    color: #0f172a !important;
+  }
+
+  /* ── Tabelas ── */
+  .rep-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+  }
+  .rep-table th {
+    text-align: left;
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 4px 6px;
+  }
+  .rep-table td {
+    border: 1px solid #e2e8f0;
+    padding: 4px 6px;
+    vertical-align: top;
+  }
+  .rep-table tr { break-inside: avoid; }
+  /* Repete o cabeçalho quando a tabela atravessa a quebra de página. */
+  .rep-table thead { display: table-header-group; }
+  .rep-num {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums; /* colunas precisam alinhar na vertical */
+  }
+  .rep-nowrap { white-space: nowrap; }
+  .rep-muted { color: #64748b; font-size: 8pt; }
+  .rep-empty { font-size: 9pt !important; color: #64748b !important; font-style: italic; }
+
+  /* ── Tarjas de status ──
+     Glifo + rótulo sempre juntos. Não é enfeite: crítico e normal ficam a
+     ΔE 4.1 em deuteranopia (e viram o mesmo cinza numa impressora P&B), então
+     a forma e o texto é que carregam o estado — a cor só reforça. */
+  .rep-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .rep-glyph { font-size: 6pt; line-height: 1; }
+  .rep-status-normal   { background: #e6f5e6; color: #0a6b0a; }
+  .rep-status-warning  { background: #fef3d7; color: #8a5a00; }
+  .rep-status-critical { background: #f8e0e0; color: #a32e2e; }
+  .rep-status-offline  { background: #f0efec; color: #52514e; }
+  .rep-status-info     { background: #dde9f9; color: #1c5cab; }
+
+  /* Preenchimentos de dado (medidor e bullet) — paleta de status validada. */
+  .rep-fill-normal   { background: #0ca30c; }
+  .rep-fill-warning  { background: #fab219; }
+  .rep-fill-critical { background: #d03b3b; }
+  .rep-fill-offline  { background: #898781; }
+  .rep-fill-info     { background: #2a78d6; }
+
+  .rep-footer {
+    margin-top: 18px;
+    padding-top: 6px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    text-align: center;
+  }
+}

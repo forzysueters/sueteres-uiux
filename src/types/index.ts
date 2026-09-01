@@ -85,6 +85,31 @@ export interface Alert {
   mlInsight?: string;
 }
 
+// ─── Manutenção ─────────────────────────────────────────────────────────────
+/** Espelha public.maintenance_type do banco. */
+export type MaintenanceType =
+  | 'preventive' | 'corrective' | 'predictive' | 'calibration' | 'inspection';
+
+/** Espelha public.criticality_level, usado como prioridade da OM. */
+export type MaintenancePriority = 'low' | 'medium' | 'high' | 'critical';
+
+export interface Technician {
+  id: string;
+  name: string;
+  role: 'technician' | 'engineer';
+  jobTitle: string | null;
+}
+
+export interface NewMaintenanceOrder {
+  assetId: string;
+  type: MaintenanceType;
+  priority: MaintenancePriority;
+  title: string;
+  description: string;
+  scheduledFor: string;   // ISO
+  assignedTo: string;     // profiles.id
+}
+
 // ─── Equipment Registration ─────────────────────────────────────────────────
 export interface EquipmentRegistration {
   id: string;

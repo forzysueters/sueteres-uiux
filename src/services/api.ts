@@ -1,6 +1,7 @@
 import {
   Asset, Alert, KPIMetrics, EquipmentRegistration,
   ChatMessage, Sensor, SensorHistorySeries, MotorNameplate,
+  Technician, NewMaintenanceOrder,
 } from '../types';
 import {
   ocrAPI, OcrNetworkError, OcrMode, NameplateResult,
@@ -419,10 +420,11 @@ export const apiService = {
   /** Séries históricas de todos os sensores de um ativo, agregadas no banco. */
   async getSensorHistory(
     assetId: string,
-    range: '1h' | '6h' | '24h' | '7d' = '24h',
+    range: '1h' | '2h' | '6h' | '24h' | '7d' = '24h',
   ): Promise<SensorHistorySeries[]> {
     const cfg: Record<string, { hours: number; bucketMinutes: number }> = {
       '1h':  { hours: 1,   bucketMinutes: 1 },
+      '2h':  { hours: 2,   bucketMinutes: 5 },
       '6h':  { hours: 6,   bucketMinutes: 5 },
       '24h': { hours: 24,  bucketMinutes: 30 },
       '7d':  { hours: 168, bucketMinutes: 120 },
@@ -481,6 +483,51 @@ export const apiService = {
   async resolveAlert(alertId: string): Promise<void> {
     const { error } = await supabase.rpc('resolve_alert', { p_alert_id: alertId });
     if (error) fail(error, 'Não foi possível resolver o alerta.');
+  },
+
+  /** Perfis que podem receber uma OM. Engenheiros entram junto porque em planta
+   *  pequena costumam assumir a execução — a policy de leitura já os expõe. */
+  async getTechnicians(): Promise<Technician[]> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role, job_title')
+      .in('role', ['technician', 'engineer'])
+      .eq('is_active', true)
+      .order('full_name');
+
+    if (error) fail(error, 'Não foi possível carregar os técnicos.');
+
+    return (data ?? []).map((row) => ({
+      id: row.id as string,
+      name: (row.full_name as string) || (row.email as string),
+      role: row.role as 'technician' | 'engineer',
+      jobTitle: (row.job_title as string) ?? null,
+    }));
+  },
+
+  /** Abre uma OM agendada para o ativo. `scheduledFor` já vem em ISO/UTC. */
+  async createMaintenanceOrder(input: NewMaintenanceOrder): Promise<{ orderNumber: string }> {
+    const { data: auth } = await supabase.auth.getUser();
+
+    const { data, error } = await supabase
+      .from('maintenance_orders')
+      .insert({
+        asset_id: input.assetId,
+        maintenance_type: input.type,
+        priority: input.priority,
+        title: input.title,
+        description: input.description || null,
+        scheduled_for: input.scheduledFor,
+        assigned_to: input.assignedTo,
+        created_by: auth?.user?.id ?? null,
+        status: 'scheduled',
+      })
+      .select('order_number')
+      .single();
+
+    if (error) fail(error, 'Não foi possível agendar a manutenção.');
+
+    return { orderNumber: data.order_number as string };
   },
 
   async getKPIMetrics(): Promise<KPIMetrics> {
