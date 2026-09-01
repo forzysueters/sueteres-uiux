@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
+import { supabase, describeSupabaseError } from '../lib/supabase'
 import {
   Lock,
   Mail,
@@ -25,6 +27,7 @@ export const LoginPage = () => {
   const [localError, setLocalError] = useState<string | null>(null)
   const [showDemo, setShowDemo] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [resetSending, setResetSending] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -63,6 +66,26 @@ export const LoginPage = () => {
 
   const handleDemoLogin = (email: string) => {
     setCredentials({ email, password: 'password123' })
+  }
+
+  const handleForgotPassword = async () => {
+    setLocalError(null)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(credentials.email)) {
+      setLocalError('Informe seu e-mail no campo acima para recuperar a senha')
+      return
+    }
+    setResetSending(true)
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(credentials.email, {
+        redirectTo: window.location.origin,
+      })
+      if (resetError) throw resetError
+      toast.success(`Enviamos um link de recuperação para ${credentials.email}`)
+    } catch (err) {
+      setLocalError(describeSupabaseError(err, 'Não foi possível enviar o e-mail de recuperação.'))
+    } finally {
+      setResetSending(false)
+    }
   }
 
   const features = [
@@ -225,9 +248,11 @@ export const LoginPage = () => {
                     </label>
                     <button
                       type="button"
-                      className="text-[11px] font-medium text-white/50 hover:text-amber-400 transition-colors"
+                      onClick={handleForgotPassword}
+                      disabled={resetSending}
+                      className="text-[11px] font-medium text-white/50 hover:text-amber-400 transition-colors disabled:opacity-50"
                     >
-                      Esqueci minha senha
+                      {resetSending ? 'Enviando…' : 'Esqueci minha senha'}
                     </button>
                   </div>
                   <div className="relative group">

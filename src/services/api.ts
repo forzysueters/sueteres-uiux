@@ -567,6 +567,36 @@ export const apiService = {
     if (error) fail(error, 'Não foi possível registrar a placa.');
   },
 
+  /** Últimos equipamentos com placa confirmada — para a lista "Registros Recentes". */
+  async getRecentEquipment(limit = 5): Promise<
+    { id: string; name: string; spec: string; date: string; assetTag: string | null }[]
+  > {
+    const { data, error } = await supabase
+      .from('asset_nameplates')
+      .select('id, manufacturer, model, serial_number, confirmed_at, created_at, assets(tag, name)')
+      .eq('status', 'confirmed')
+      .order('confirmed_at', { ascending: false })
+      .limit(limit);
+
+    if (error) fail(error, 'Não foi possível carregar os registros recentes.');
+
+    return (data ?? []).map((row) => {
+      const asset = (Array.isArray(row.assets) ? row.assets[0] : row.assets) as
+        | { tag: string; name: string }
+        | null;
+      const name = asset?.name ?? row.model ?? 'Equipamento sem vínculo';
+      const spec = [row.manufacturer, row.model].filter(Boolean).join(' ')
+        + (row.serial_number ? ` | SN: ${row.serial_number}` : '');
+      return {
+        id: row.id,
+        name,
+        spec: spec || 'Sem especificações extraídas',
+        date: new Date(row.confirmed_at ?? row.created_at).toLocaleDateString('pt-BR'),
+        assetTag: asset?.tag ?? null,
+      };
+    });
+  },
+
   /**
    * Extrai os dados da placa via modelo de OCR WEG W22 (pasta `ocr/`, FastAPI).
    *
@@ -598,21 +628,55 @@ export const apiService = {
   },
 
   /**
-   * Resposta do assistente, composta a partir de dados reais do banco:
-   * telemetria corrente, alertas abertos, saídas dos modelos e trechos
-   * recuperados da documentação técnica.
+   * Resposta do assistente conversacional.
+   *
+   * Envia a pergunta, o histórico recente e o ativo em foco para a Edge
+   * Function `ai-chat`, que monta o contexto real do site (telemetria,
+   * alertas, predições, manutenção, documentação técnica) e delega a redação
+   * da resposta ao Gemini — preservando o contexto entre turnos da conversa.
+   *
+   * Se a function não estiver disponível (não implantada, sem
+   * `GEMINI_API_KEY`, ou offline), cai para o motor determinístico local
+   * (`assistantEngine`), no mesmo padrão de fallback já usado para OCR e
+   * anomalia: a demo nunca quebra, só perde a redação em linguagem natural.
    */
-  async getChatResponse(message: string, assetContext?: string): Promise<ChatMessage> {
-    const { answerQuestion } = await import('./assistantEngine');
-    const answer = await answerQuestion(message, assetContext ?? null);
+  async getChatResponse(
+    message: string,
+    assetContext: string | undefined,
+    history: Pick<ChatMessage, 'role' | 'content'>[],
+    conversationId: string | null,
+  ): Promise<ChatMessage & { conversationId: string | null }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-chat', {
+        body: { question: message, assetContext: assetContext ?? null, conversationId, history },
+      });
+      if (error) throw error;
+      if (!data?.content) throw new Error('empty_response');
 
-    return {
-      id: `msg-${Date.now()}`,
-      role: 'assistant',
-      content: answer.content,
-      timestamp: new Date().toISOString(),
-      assetContext,
-    };
+      return {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: data.content,
+        timestamp: new Date().toISOString(),
+        assetContext,
+        citations: data.citations,
+        conversationId: data.conversationId ?? conversationId,
+      };
+    } catch (err) {
+      console.warn('[ai-chat] indisponível — usando motor local determinístico:', (err as Error).message);
+      const { answerQuestion } = await import('./assistantEngine');
+      const answer = await answerQuestion(message, assetContext ?? null);
+
+      return {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: answer.content,
+        timestamp: new Date().toISOString(),
+        assetContext,
+        offline: true,
+        conversationId,
+      };
+    }
   },
 
   /** Envia a foto da placa para o bucket de equipamentos. */

@@ -1,6 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
+import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
 
 type Severity = 'ok' | 'info' | 'alerta' | 'critico';
 
@@ -14,18 +16,18 @@ interface HealthGaugeProps {
 }
 
 // Cor do arco segue a faixa de saúde (consistente com o resto da tela do ativo).
-const colorForHealth = (v: number) => {
-  if (v >= 85) return { stroke: '#10b981', text: 'text-emerald-500 dark:text-emerald-400', label: 'Saudável' };
-  if (v >= 65) return { stroke: '#f59e0b', text: 'text-amber-500 dark:text-amber-400', label: 'Alerta' };
-  return { stroke: '#ef4444', text: 'text-red-500 dark:text-red-400', label: 'Crítico' };
+const colorForHealth = (v: number, t: (typeof translations)['pt']['healthGauge']) => {
+  if (v >= 85) return { stroke: '#10b981', text: 'text-emerald-500 dark:text-emerald-400', label: t.healthy };
+  if (v >= 65) return { stroke: '#f59e0b', text: 'text-amber-500 dark:text-amber-400', label: t.alert };
+  return { stroke: '#ef4444', text: 'text-red-500 dark:text-red-400', label: t.critical };
 };
 
-const labelForSeverity: Record<Severity, string> = {
-  ok: 'Saudável',
-  info: 'Estável',
-  alerta: 'Alerta',
-  critico: 'Crítico',
-};
+const labelForSeverity = (t: (typeof translations)['pt']['healthGauge']): Record<Severity, string> => ({
+  ok: t.healthy,
+  info: t.stable,
+  alerta: t.alert,
+  critico: t.critical,
+});
 
 export const HealthGauge: React.FC<HealthGaugeProps> = ({
   value,
@@ -33,9 +35,11 @@ export const HealthGauge: React.FC<HealthGaugeProps> = ({
   size = 176,
   className,
 }) => {
+  const { language } = useAppStore();
+  const t = translations[language].healthGauge;
   const clamped = Math.min(100, Math.max(0, value));
-  const cfg = colorForHealth(clamped);
-  const label = severity ? labelForSeverity[severity] : cfg.label;
+  const cfg = colorForHealth(clamped, t);
+  const label = severity ? labelForSeverity(t)[severity] : cfg.label;
 
   // Traço proporcional ao diâmetro (≈12 em size=176), com piso p/ tamanhos baixos.
   const stroke = Math.max(6, Math.round(size * 0.068));
@@ -115,7 +119,7 @@ export const HealthGauge: React.FC<HealthGaugeProps> = ({
           className="font-bold uppercase tracking-[0.18em] text-muted leading-none"
           style={{ fontSize: captionSize, marginTop: labelGap }}
         >
-          Saúde
+          {t.health}
         </span>
         <span
           className={cn(

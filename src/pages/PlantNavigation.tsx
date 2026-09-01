@@ -1,13 +1,14 @@
 import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
 import { apiService } from '../services/api';
 import { AssetTile } from '../components/Cards';
 import { PlantFloorMap } from '../components/PlantFloorMap';
 import { PlantAlertRail } from '../components/PlantAlertRail';
-import { STATUS_COLORS } from '../utils/plantStatus';
+import { STATUS_COLORS, statusLabel } from '../utils/plantStatus';
 import {
-  Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, Box, Maximize2,
+  Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, Box, Maximize2, Factory, AlertOctagon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { CameraFocus } from '../components/three/PlantScene3D';
@@ -15,30 +16,47 @@ import type { CameraFocus } from '../components/three/PlantScene3D';
 // arrastar a biblioteca 3D para o bundle inicial.
 import { HALLS, hallForArea, hallBounds, PLANT_BOUNDS } from '../components/three/plantLayout';
 import { hasWebGL } from '../utils/webgl';
+import { PageLoader } from '../components/SkeletonLoaders';
 
 // A cena arrasta three.js junto — só carrega quando o modo 3D é usado.
 const PlantScene3D = lazy(() => import('../components/three/PlantScene3D'));
 
 type ViewMode = '3d' | 'map' | 'grid';
 
-const VIEW_TABS: { id: ViewMode; label: string; icon: typeof Map }[] = [
-  { id: '3d', label: 'Planta 3D', icon: Box },
-  { id: 'map', label: 'Mapa 2D', icon: Map },
-  { id: 'grid', label: 'Grade', icon: LayoutGrid },
-];
-
 export const PlantNavigation: React.FC = () => {
-  const { assets, setAssets, selectedAssetId, setSelectedAsset } = useAppStore();
+  const { assets, setAssets, selectedAssetId, setSelectedAsset, language } = useAppStore();
+  const t = translations[language].plant;
+  const common = translations[language].common;
   const navigate = useNavigate();
+
+  const VIEW_TABS: { id: ViewMode; label: string; icon: typeof Map }[] = [
+    { id: '3d', label: t.view_3d, icon: Box },
+    { id: 'map', label: t.view_map, icon: Map },
+    { id: 'grid', label: t.view_grid, icon: LayoutGrid },
+  ];
 
   // WebGL ausente (VM, driver bloqueado, GPU em lista negra) → 2D direto.
   const webgl = useMemo(() => hasWebGL(), []);
   const [viewMode, setViewMode] = useState<ViewMode>(webgl ? '3d' : 'map');
   const [areaFilter, setAreaFilter] = useState<string>('all');
   const [focus, setFocus] = useState<CameraFocus>({ kind: 'scope', assetId: null, nonce: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAssets = () => {
+    setLoading(true);
+    apiService
+      .getAssets()
+      .then((data) => {
+        setAssets(data);
+        setError(null);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : t.load_error))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    apiService.getAssets().then(setAssets);
+    loadAssets();
   }, []);
 
   const areas = ['all', ...Array.from(new Set(assets.map(a => a.area)))];
@@ -89,6 +107,39 @@ export const PlantNavigation: React.FC = () => {
     setFocus(f => ({ kind: 'scope', assetId: null, nonce: f.nonce + 1 }));
   };
 
+  if (loading && assets.length === 0) {
+    return <PageLoader label={t.loading} />;
+  }
+
+  if (error && assets.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+        <div className="w-12 h-12 rounded-xl bg-danger/10 border border-danger/20 flex items-center justify-center text-danger">
+          <AlertOctagon size={22} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground">{error}</p>
+          <p className="text-xs text-muted mt-1">{t.retry_hint}</p>
+        </div>
+        <button onClick={loadAssets} className="btn-ghost text-xs">{common.retry}</button>
+      </div>
+    );
+  }
+
+  if (!loading && !error && assets.length === 0) {
+    return (
+      <div className="saas-card flex flex-col items-center justify-center gap-3 py-24 text-center">
+        <div className="w-12 h-12 rounded-xl bg-card-hover border border-border flex items-center justify-center text-muted">
+          <Factory size={22} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground">{t.empty_title}</p>
+          <p className="text-xs text-muted mt-1">{t.empty_desc}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -98,28 +149,26 @@ export const PlantNavigation: React.FC = () => {
             <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center">
               <Map className="w-7 h-7 text-primary" />
             </div>
-            Planta / Gêmeo Digital
+            {t.title}
           </h1>
-          <p className="text-sm text-muted">
-            Navegação hierárquica por área e ativo — clique em um ativo para inspecionar a telemetria
-          </p>
+          <p className="text-sm text-muted">{t.subtitle}</p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           <div className="badge badge-success px-3 py-1.5">
             <CheckCircle2 size={14} />
-            {totalOnline} Online
+            {totalOnline} {common.online}
           </div>
           {criticalCount > 0 && (
             <div className="badge badge-critical px-3 py-1.5">
               <AlertTriangle size={14} />
-              {criticalCount} Crítico
+              {criticalCount} {statusLabel('critical', language)}
             </div>
           )}
           {warningCount > 0 && (
             <div className="badge badge-warning px-3 py-1.5">
               <AlertTriangle size={14} />
-              {warningCount} Alerta
+              {warningCount} {statusLabel('warning', language)}
             </div>
           )}
         </div>
@@ -136,7 +185,7 @@ export const PlantNavigation: React.FC = () => {
                 key={tab.id}
                 onClick={() => !disabled && setViewMode(tab.id)}
                 disabled={disabled}
-                title={disabled ? 'WebGL indisponível neste navegador' : undefined}
+                title={disabled ? t.webgl_unavailable : undefined}
                 className={cn(
                   'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
                   viewMode === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-foreground',
@@ -161,7 +210,7 @@ export const PlantNavigation: React.FC = () => {
                 areaFilter === area ? 'bg-card-hover text-foreground' : 'text-muted hover:text-foreground-soft',
               )}
             >
-              {area === 'all' ? 'Todas as Áreas' : area}
+              {area === 'all' ? t.all_areas : area}
             </button>
           ))}
         </div>
@@ -169,7 +218,7 @@ export const PlantNavigation: React.FC = () => {
         <div className="ml-auto flex items-center gap-2">
           <WifiOff size={13} className="text-muted" />
           <span className="text-[11px] font-bold text-muted uppercase tracking-tighter">
-            {assets.filter(a => a.status === 'offline').length} offline
+            {assets.filter(a => a.status === 'offline').length} {common.status.offline.toLowerCase()}
           </span>
         </div>
       </div>
@@ -185,7 +234,7 @@ export const PlantNavigation: React.FC = () => {
                   <div className="flex h-full w-full items-center justify-center rounded-xl bg-card-hover">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      <span className="text-[11px] font-semibold text-muted">Montando a planta…</span>
+                      <span className="text-[11px] font-semibold text-muted">{t.loading_scene}</span>
                     </div>
                   </div>
                 }
@@ -210,23 +259,23 @@ export const PlantNavigation: React.FC = () => {
                 className="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-lg border border-border bg-card/90 px-2.5 py-1.5 text-[10px] font-bold text-muted backdrop-blur-sm transition-colors hover:text-foreground"
               >
                 <Maximize2 size={11} />
-                {isolated ? `Reenquadrar ${areaFilter}` : 'Vista geral'}
+                {isolated ? `${t.reframe} ${areaFilter}` : t.general_view}
               </button>
 
               {/* Legenda de status */}
               <div className="absolute bottom-3 left-3 z-10 flex items-center gap-3 rounded-lg border border-border bg-card/85 px-3 py-1.5 backdrop-blur-sm">
-                {Object.entries(STATUS_COLORS).map(([key, cfg]) => (
+                {Object.keys(STATUS_COLORS).map((key) => (
                   <div key={key} className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cfg.fill }} />
-                    <span className="text-[9px] font-semibold text-muted">{cfg.label}</span>
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[key].fill }} />
+                    <span className="text-[9px] font-semibold text-muted">{statusLabel(key, language)}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             <p className="mt-2 shrink-0 text-center text-[10px] text-muted">
-              Arraste para orbitar · role para aproximar · clique num equipamento para inspecionar
-              {isolated ? ' · clique fora do hall para voltar' : ' · clique num hall para isolá-lo'}
+              {t.orbit_hint}
+              {isolated ? t.orbit_hint_exit_hall : t.orbit_hint_isolate_hall}
             </p>
           </div>
 
@@ -308,12 +357,12 @@ export const PlantNavigation: React.FC = () => {
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-foreground uppercase tracking-wider">{area}</span>
-                <span className="text-[10px] font-mono text-muted">{areaAssets.length} ativos</span>
+                <span className="text-[10px] font-mono text-muted">{areaAssets.length} {t.assets_suffix}</span>
               </div>
               <div className="flex gap-3 mb-2">
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{ok} normal</span>
-                {warn > 0 && <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">{warn} alerta</span>}
-                {crit > 0 && <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">{crit} crítico</span>}
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{ok} {statusLabel('normal', language).toLowerCase()}</span>
+                {warn > 0 && <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">{warn} {statusLabel('warning', language).toLowerCase()}</span>}
+                {crit > 0 && <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">{crit} {statusLabel('critical', language).toLowerCase()}</span>}
               </div>
               <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex">
                 <div className="h-full bg-emerald-500" style={{ width: `${(ok / areaAssets.length) * 100}%` }} />

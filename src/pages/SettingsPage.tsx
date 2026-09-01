@@ -76,7 +76,7 @@ export const SettingsPage: React.FC = () => {
                   onClick={() => setPrimaryColor('purple')}
                   className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${primaryColor === 'purple' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'}`}
                 >
-                  <div className="w-6 h-6 rounded-full bg-[#7C3AED] shadow-lg flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-[#8B5CF6] shadow-lg flex items-center justify-center">
                     {primaryColor === 'purple' && <Check size={14} className="text-white" />}
                   </div>
                   <span className="text-xs font-bold text-foreground">Classic (Purple)</span>

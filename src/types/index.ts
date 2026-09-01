@@ -100,12 +100,22 @@ export interface EquipmentRegistration {
 }
 
 // ─── Chat ──────────────────────────────────────────────────────────────────
+export interface ChatCitation {
+  chunk_id: string;
+  document_id: string;
+  document_title: string;
+  page_number: number | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   assetContext?: string;
+  citations?: ChatCitation[];
+  /** true quando a resposta veio do motor determinístico local (LLM indisponível). */
+  offline?: boolean;
 }
 
 // ─── KPI ───────────────────────────────────────────────────────────────────

@@ -2,6 +2,8 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
+import { statusLabel } from '../utils/plantStatus';
 import { apiService } from '../services/api';
 import { useAssetRealtime } from '../hooks/useAssetRealtime';
 import { useAlerts } from '../hooks/useAlerts';
@@ -10,6 +12,7 @@ import { NameplateCard } from '../components/NameplateCard';
 import { TimeSeriesChart } from '../components/TimeSeriesChart';
 import { KPICard } from '../components/Cards';
 import { HealthGauge } from '../components/HealthGauge';
+import { PageLoader } from '../components/SkeletonLoaders';
 import { SensorHistorySeries } from '../types';
 import {
   ArrowLeft, Activity, Tag, AlertTriangle, CheckCircle2, TrendingUp,
@@ -39,7 +42,10 @@ const itemVariants = {
 export const AssetMonitorPage: React.FC = () => {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
-  const { assets, setAssets, darkMode } = useAppStore();
+  const { assets, setAssets, darkMode, language } = useAppStore();
+  const t = translations[language].assetMonitor;
+  const common = translations[language].common;
+  const locale = language === 'pt' ? 'pt-BR' : 'en-US';
 
   const [tab, setTab] = useState<Tab>('sensors');
   const [historyRange, setHistoryRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
@@ -48,12 +54,25 @@ export const AssetMonitorPage: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const { alerts, resolveAlert } = useAlerts(assetId);
+  const [assetsLoading, setAssetsLoading] = useState(assets.length === 0);
+  const [assetsError, setAssetsError] = useState<string | null>(null);
 
-  // Load assets if not already in store
+  // Load assets if not already in store — necessário para link direto/refresh
+  // nesta rota, onde o store pode estar vazio no primeiro render.
   useEffect(() => {
-    if (assets.length === 0) {
-      apiService.getAssets().then(setAssets);
+    if (assets.length > 0) {
+      setAssetsLoading(false);
+      return;
     }
+    setAssetsLoading(true);
+    apiService
+      .getAssets()
+      .then((data) => {
+        setAssets(data);
+        setAssetsError(null);
+      })
+      .catch((err) => setAssetsError(err instanceof Error ? err.message : t.load_error))
+      .finally(() => setAssetsLoading(false));
   }, []);
 
   const asset = assets.find((a) => a.id === assetId);
@@ -72,6 +91,10 @@ export const AssetMonitorPage: React.FC = () => {
     });
   }, [assetId, historyRange]);
 
+  if (assetsLoading) {
+    return <PageLoader label={t.loading} />;
+  }
+
   if (!asset) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
@@ -79,24 +102,26 @@ export const AssetMonitorPage: React.FC = () => {
           <Activity size={28} className="text-muted" />
         </div>
         <div>
-          <p className="text-base font-semibold text-foreground">Ativo não encontrado</p>
+          <p className="text-base font-semibold text-foreground">
+            {assetsError ? t.load_error : t.not_found_title}
+          </p>
           <p className="text-sm text-muted mt-1">
-            O ativo solicitado não existe ou ainda não foi carregado.
+            {assetsError ?? t.not_found_desc}
           </p>
         </div>
         <button onClick={() => navigate('/planta')} className="btn-ghost text-sm">
           <ArrowLeft size={15} />
-          Voltar para a Planta
+          {t.back_to_plant}
         </button>
       </div>
     );
   }
 
   const statusConfig = {
-    critical: { text: 'text-red-500', dot: 'bg-red-500', label: 'Crítico', bg: 'bg-red-500/10', border: 'border-red-500/20', glow: 'rgba(239,68,68,0.30)' },
-    warning:  { text: 'text-amber-500', dot: 'bg-amber-500', label: 'Alerta', bg: 'bg-amber-500/10', border: 'border-amber-500/20', glow: 'rgba(245,158,11,0.28)' },
-    normal:   { text: 'text-emerald-500', dot: 'bg-emerald-500', label: 'Normal', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', glow: 'rgba(16,185,129,0.26)' },
-    offline:  { text: 'text-slate-500', dot: 'bg-slate-500', label: 'Offline', bg: 'bg-slate-500/10', border: 'border-slate-500/20', glow: 'rgba(100,116,139,0.22)' },
+    critical: { text: 'text-red-500', dot: 'bg-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20', glow: 'rgba(239,68,68,0.30)' },
+    warning:  { text: 'text-amber-500', dot: 'bg-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', glow: 'rgba(245,158,11,0.28)' },
+    normal:   { text: 'text-emerald-500', dot: 'bg-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', glow: 'rgba(16,185,129,0.26)' },
+    offline:  { text: 'text-slate-500', dot: 'bg-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20', glow: 'rgba(100,116,139,0.22)' },
   };
   const cfg = statusConfig[asset.status] || statusConfig.normal;
 
@@ -116,10 +141,10 @@ export const AssetMonitorPage: React.FC = () => {
         : 'text-emerald-700 dark:text-emerald-200/80';
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
-    { id: 'sensors',   label: 'Sensores',  icon: Activity },
-    { id: 'history',   label: 'Histórico', icon: TrendingUp },
-    { id: 'nameplate', label: 'Placa',     icon: Tag },
-    { id: 'alerts',    label: 'Alertas',   icon: AlertTriangle, badge: activeAlerts.length },
+    { id: 'sensors',   label: t.tab_sensors,   icon: Activity },
+    { id: 'history',   label: t.tab_history,   icon: TrendingUp },
+    { id: 'nameplate', label: t.tab_nameplate, icon: Tag },
+    { id: 'alerts',    label: t.tab_alerts,    icon: AlertTriangle, badge: activeAlerts.length },
   ];
 
   return (
@@ -138,7 +163,7 @@ export const AssetMonitorPage: React.FC = () => {
               className="flex items-center gap-1.5 text-muted hover:text-foreground transition-colors flex-shrink-0"
             >
               <ArrowLeft size={16} />
-              Planta
+              {t.breadcrumb_plant}
             </button>
             <span className="text-border-strong">/</span>
             <span className="text-muted truncate">{asset.area}</span>
@@ -146,13 +171,13 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-ghost text-xs">
+            <button className="btn-ghost text-xs opacity-40 cursor-not-allowed" disabled title={t.coming_soon}>
               <Download size={14} />
-              Exportar
+              {t.export}
             </button>
-            <button className="btn-primary text-xs">
+            <button className="btn-primary text-xs opacity-40 cursor-not-allowed" disabled title={t.coming_soon}>
               <Shield size={14} />
-              Agendar Manutenção
+              {t.schedule_maintenance}
             </button>
           </div>
         </div>
@@ -171,11 +196,11 @@ export const AssetMonitorPage: React.FC = () => {
             </span>
             <span className={cn('inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider', cfg.text)}>
               <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', cfg.dot)} />
-              {cfg.label}
+              {statusLabel(asset.status, language)}
             </span>
             <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
               <span className="live-dot scale-75" />
-              Live · 2s
+              {t.live} · 2s
             </span>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
@@ -185,7 +210,7 @@ export const AssetMonitorPage: React.FC = () => {
         </div>
         <span className="ml-auto hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card-hover text-[10px] font-semibold uppercase tracking-wider text-muted">
           <Gauge size={11} className="text-primary" />
-          Monitoramento de Ativo
+          {t.monitoring}
         </span>
       </motion.div>
 
@@ -213,7 +238,7 @@ export const AssetMonitorPage: React.FC = () => {
           fallback={
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted">
               <RefreshCw size={22} className="animate-spin text-primary" />
-              <span className="text-[11px] font-medium">Carregando modelo 3D…</span>
+              <span className="text-[11px] font-medium">{t.loading_model_3d}</span>
             </div>
           }
         >
@@ -230,14 +255,14 @@ export const AssetMonitorPage: React.FC = () => {
               <div>
                 <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
                   <Clock size={10} className="text-primary" />
-                  Vida Útil
+                  {t.rul}
                 </p>
                 <p className="text-sm font-bold text-foreground tabular-nums">~{Math.round(health * 2.4)}d</p>
               </div>
               <div>
                 <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
                   <Gauge size={10} className="text-primary" />
-                  Saúde
+                  {t.health}
                 </p>
                 <p className="text-sm font-bold text-foreground tabular-nums">{health}/100</p>
               </div>
@@ -245,7 +270,7 @@ export const AssetMonitorPage: React.FC = () => {
                 <div className="col-span-2">
                   <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
                     <Thermometer size={10} className="text-primary" />
-                    Resíduo Térmico
+                    {t.thermal_residual}
                   </p>
                   <p className="text-sm font-bold text-foreground tabular-nums">
                     {asset.thermalResidual > 0 ? '+' : ''}{asset.thermalResidual.toFixed(1)}°C
@@ -259,12 +284,12 @@ export const AssetMonitorPage: React.FC = () => {
         {/* Overlay: marcador do gêmeo digital */}
         <span className="absolute top-4 right-4 z-10 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/70 dark:bg-slate-950/55 border border-border text-[9px] font-bold uppercase tracking-wider text-muted backdrop-blur-md pointer-events-none">
           <Box size={11} className="text-primary" />
-          Gêmeo Digital 3D
+          {t.digital_twin_3d}
         </span>
 
         {/* Overlay: dica de interação */}
         <span className="absolute bottom-4 right-4 z-10 text-[10px] text-muted/80 pointer-events-none select-none">
-          Arraste para girar · Scroll para zoom
+          {t.drag_hint}
         </span>
       </motion.div>
 
@@ -276,7 +301,7 @@ export const AssetMonitorPage: React.FC = () => {
         >
           <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-xs font-bold text-primary mb-1">Insight Preditivo IA</p>
+            <p className="text-xs font-bold text-primary mb-1">{t.ai_insight}</p>
             <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
           </div>
         </motion.div>
@@ -284,10 +309,10 @@ export const AssetMonitorPage: React.FC = () => {
 
       {/* ───────── KPIs premium ───────── */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 xl:grid-cols-4 gap-5">
-        <KPICard title="Disponibilidade" value={asset.uptime.toFixed(1)} unit="%" icon={Activity} accent="success" />
-        <KPICard title="Anomalia" value={asset.anomalyScore.toFixed(0)} unit="%" icon={Zap} accent={asset.anomalyScore >= 50 ? 'danger' : 'warning'} />
-        <KPICard title="Sensores Ativos" value={asset.sensors.length} icon={Gauge} accent="info" />
-        <KPICard title="Alertas Ativos" value={activeAlerts.length} icon={Bell} accent={activeAlerts.length > 0 ? 'danger' : 'success'} />
+        <KPICard title={t.availability} value={asset.uptime.toFixed(1)} unit="%" icon={Activity} accent="success" />
+        <KPICard title={common.anomaly} value={asset.anomalyScore.toFixed(0)} unit="%" icon={Zap} accent={asset.anomalyScore >= 50 ? 'danger' : 'warning'} />
+        <KPICard title={t.active_sensors} value={asset.sensors.length} icon={Gauge} accent="info" />
+        <KPICard title={t.active_alerts} value={activeAlerts.length} icon={Bell} accent={activeAlerts.length > 0 ? 'danger' : 'success'} />
       </motion.div>
 
       {/* ───────── Abas ───────── */}
@@ -326,10 +351,10 @@ export const AssetMonitorPage: React.FC = () => {
           {tab === 'sensors' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="section-title !mb-0">Telemetria em Tempo Real</span>
+                <span className="section-title !mb-0">{t.realtime_telemetry}</span>
                 <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
                   <span className="live-dot" />
-                  Live · 2s
+                  {t.live} · 2s
                 </span>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -344,7 +369,7 @@ export const AssetMonitorPage: React.FC = () => {
           {tab === 'history' && (
             <div className="saas-card-premium p-6 space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-3">
-                <span className="section-title !mb-0">Histórico de Sensores</span>
+                <span className="section-title !mb-0">{t.sensor_history}</span>
                 <div className="flex gap-1">
                   {RANGES.map((r) => (
                     <button
@@ -380,7 +405,7 @@ export const AssetMonitorPage: React.FC = () => {
               {historyLoading ? (
                 <div className="h-56 flex items-center justify-center text-muted text-sm">
                   <RefreshCw size={16} className="animate-spin mr-2" />
-                  Carregando histórico…
+                  {t.loading_history}
                 </div>
               ) : currentHistory ? (
                 <TimeSeriesChart
@@ -393,7 +418,7 @@ export const AssetMonitorPage: React.FC = () => {
                 />
               ) : (
                 <div className="h-56 flex items-center justify-center text-muted text-sm">
-                  Selecione um sensor acima
+                  {t.select_sensor}
                 </div>
               )}
             </div>
@@ -409,13 +434,13 @@ export const AssetMonitorPage: React.FC = () => {
                   <div className="w-14 h-14 rounded-2xl bg-card-hover border border-border flex items-center justify-center mb-4">
                     <Tag size={26} className="text-muted" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">Placa não cadastrada</p>
+                  <p className="text-sm font-semibold text-foreground">{t.no_nameplate_title}</p>
                   <p className="text-xs text-muted mt-1 max-w-xs">
-                    Registre a placa de identificação deste ativo via OCR na tela de Equipamentos.
+                    {t.no_nameplate_desc}
                   </p>
                   <button onClick={() => navigate('/equipamentos')} className="btn-ghost text-xs mt-4">
                     <Tag size={14} />
-                    Ir para Equipamentos
+                    {t.go_to_equipment}
                   </button>
                 </div>
               )}
@@ -430,8 +455,8 @@ export const AssetMonitorPage: React.FC = () => {
                   <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-4">
                     <CheckCircle2 size={26} className="text-emerald-500" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">Sem alertas para este ativo</p>
-                  <p className="text-xs text-muted mt-1">Todos os parâmetros estão dentro do esperado.</p>
+                  <p className="text-sm font-semibold text-foreground">{t.no_alerts_title}</p>
+                  <p className="text-xs text-muted mt-1">{t.no_alerts_desc}</p>
                 </div>
               ) : (
                 alerts.map((alert) => (
@@ -462,13 +487,13 @@ export const AssetMonitorPage: React.FC = () => {
                           className="text-[10px] font-bold text-emerald-500 flex items-center gap-1 hover:text-emerald-400 transition-colors whitespace-nowrap"
                         >
                           <CheckCircle2 size={12} />
-                          Resolver
+                          {t.resolve}
                         </button>
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-2">
-                      <span className="text-[9px] font-mono text-muted">{new Date(alert.timestamp).toLocaleString('pt-BR')}</span>
-                      {alert.resolved && <span className="text-[9px] font-bold text-emerald-500">Resolvido</span>}
+                      <span className="text-[9px] font-mono text-muted">{new Date(alert.timestamp).toLocaleString(locale)}</span>
+                      {alert.resolved && <span className="text-[9px] font-bold text-emerald-500">{t.resolved}</span>}
                     </div>
                   </div>
                 ))
@@ -480,17 +505,17 @@ export const AssetMonitorPage: React.FC = () => {
 
       {/* ───────── Manutenção (persistente) ───────── */}
       <motion.div variants={itemVariants} className="saas-card p-5">
-        <span className="section-title">Manutenção</span>
+        <span className="section-title">{t.maintenance}</span>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
-            { label: 'Última Manutenção', date: asset.lastMaintenance, icon: CheckCircle2, color: 'text-emerald-500' },
-            { label: 'Próxima Manutenção', date: asset.nextMaintenance, icon: Zap, color: 'text-primary' },
+            { label: t.last_maintenance, date: asset.lastMaintenance, icon: CheckCircle2, color: 'text-emerald-500' },
+            { label: t.next_maintenance, date: asset.nextMaintenance, icon: Zap, color: 'text-primary' },
           ].map(({ label, date, icon: Icon, color }) => (
             <div key={label} className="flex items-center gap-3 p-3 rounded-lg bg-card-hover border border-border">
               <Icon size={18} className={color} />
               <div>
                 <p className="text-[9px] text-muted uppercase tracking-wider">{label}</p>
-                <p className="text-sm font-bold text-foreground">{new Date(date).toLocaleDateString('pt-BR')}</p>
+                <p className="text-sm font-bold text-foreground">{new Date(date).toLocaleDateString(locale)}</p>
               </div>
             </div>
           ))}

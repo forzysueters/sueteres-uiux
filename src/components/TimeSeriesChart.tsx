@@ -11,6 +11,8 @@ import {
   Area,
 } from 'recharts';
 import { tooltipStyle } from '../theme';
+import { useAppStore } from '../store/appStore';
+import { translations } from '../translations';
 
 interface TimeSeriesData {
   timestamp: string;
@@ -37,6 +39,8 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   thresholdKey,
   type = 'area',
 }) => {
+  const { language } = useAppStore();
+  const thresholdLabel = translations[language].sensorGauge.threshold;
   const ChartComponent = type === 'area' ? AreaChart : LineChart;
   const gradId = `ts-gradient-${dataKey}`;
 
@@ -115,7 +119,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
                 strokeDasharray="6 4"
                 strokeWidth={1.5}
                 dot={false}
-                name="Threshold"
+                name={thresholdLabel}
                 isAnimationActive={false}
               />
             ) : (
@@ -126,7 +130,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
                 strokeDasharray="6 4"
                 strokeWidth={1.5}
                 dot={false}
-                name="Threshold"
+                name={thresholdLabel}
                 isAnimationActive={false}
               />
             )

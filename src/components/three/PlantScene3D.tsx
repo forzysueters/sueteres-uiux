@@ -4,7 +4,8 @@ import { OrbitControls, AdaptiveDpr, PerformanceMonitor } from '@react-three/dre
 import * as THREE from 'three';
 import { Asset } from '../../types';
 import { useAppStore } from '../../store/appStore';
-import { statusConfig } from '../../utils/plantStatus';
+import { translations } from '../../translations';
+import { statusConfig, statusLabel } from '../../utils/plantStatus';
 import { cn } from '../../lib/utils';
 import { AssetMarker } from './AssetMarker';
 import { PlantFloor } from './PlantFloor';
@@ -113,7 +114,9 @@ export function PlantScene3D({
   onExitIsolation,
   focus,
 }: PlantScene3DProps) {
-  const { darkMode } = useAppStore();
+  const { darkMode, language } = useAppStore();
+  const t = translations[language].plant;
+  const common = translations[language].common;
   const palette = darkMode ? DARK_FLOOR : LIGHT_FLOOR;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -270,18 +273,18 @@ export function PlantScene3D({
               className="text-[9px] font-bold uppercase"
               style={{ color: statusConfig(hovered.status).fill }}
             >
-              {statusConfig(hovered.status).label}
+              {statusLabel(hovered.status, language)}
             </span>
           </div>
           <p className="text-[11px] font-semibold text-foreground">{hovered.name}</p>
           <p className="mt-0.5 text-[10px] text-muted">{hovered.location}</p>
           <div className="mt-2 flex gap-4 border-t border-border pt-2">
             <div>
-              <span className="text-[9px] uppercase text-muted">Disp.</span>
+              <span className="text-[9px] uppercase text-muted">{common.disp}</span>
               <p className="text-[11px] font-bold text-foreground">{hovered.uptime.toFixed(1)}%</p>
             </div>
             <div>
-              <span className="text-[9px] uppercase text-muted">Anomalia</span>
+              <span className="text-[9px] uppercase text-muted">{common.anomaly}</span>
               <p
                 className={cn(
                   'text-[11px] font-bold',
@@ -294,7 +297,7 @@ export function PlantScene3D({
               </p>
             </div>
           </div>
-          <p className="mt-2 text-[9px] font-medium text-primary">Clique para inspecionar →</p>
+          <p className="mt-2 text-[9px] font-medium text-primary">{t.click_inspect}</p>
         </div>
       )}
     </div>

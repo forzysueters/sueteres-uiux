@@ -150,17 +150,23 @@ export function AssetMarker({ asset, isSelected, onSelect, onHover }: AssetMarke
         <cylinderGeometry args={[1.3, 1.3, 2.6, 12]} />
       </mesh>
 
-      {/* Etiqueta de TAG */}
-      <Html position={[0, LABEL_Y, 0]} center distanceFactor={22} zIndexRange={[20, 0]}>
+      {/* Etiqueta de TAG — cores respeitam o tema (`dark:`): no claro, o piso é
+          claro (LIGHT_FLOOR), então uma etiqueta quase preta ficaria quebrada.
+          `distanceFactor` mais alto + padding menor reduzem a área de colisão
+          entre etiquetas de ativos próximos (ex.: Hall A com 3 ativos juntos)
+          sem mudar posições/dados — uma colisão residual em ângulos muito
+          fechados ainda é possível e exigiria um sistema de anti-colisão de
+          rótulos, fora do escopo desta rodada. */}
+      <Html position={[0, LABEL_Y, 0]} center distanceFactor={27} zIndexRange={[20, 0]}>
         <div
           className={cn(
-            'pointer-events-none select-none whitespace-nowrap rounded-md border px-2 py-1 font-mono text-[11px] font-bold tracking-wider backdrop-blur-sm transition-colors',
+            'pointer-events-none select-none whitespace-nowrap rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider backdrop-blur-sm transition-colors',
             asset.status === 'critical'
-              ? 'border-red-500/60 bg-red-950/80 text-red-300'
+              ? 'border-red-400/70 bg-red-50/90 text-red-700 dark:border-red-500/60 dark:bg-red-950/80 dark:text-red-300'
               : asset.status === 'warning'
-                ? 'border-amber-500/60 bg-amber-950/80 text-amber-300'
-                : 'border-slate-600/60 bg-slate-950/75 text-slate-300',
-            highlighted && 'border-white/70 text-white',
+                ? 'border-amber-400/70 bg-amber-50/90 text-amber-700 dark:border-amber-500/60 dark:bg-amber-950/80 dark:text-amber-300'
+                : 'border-slate-300/80 bg-white/90 text-slate-700 dark:border-slate-600/60 dark:bg-slate-950/75 dark:text-slate-300',
+            highlighted && 'border-slate-900/60 text-slate-900 dark:border-white/70 dark:text-white',
           )}
         >
           {asset.tag}
