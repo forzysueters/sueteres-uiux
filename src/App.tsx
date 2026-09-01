@@ -93,7 +93,6 @@ const AppContent = () => {
   const navItems = [
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
-    { id: 'alerts', label: t.nav.alerts, path: '/alertas', icon: Bell, badge: activeAlertsCount },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
     { id: 'assistant', label: t.nav.assistant, path: '/assistente', icon: Bot },
   ]
@@ -145,11 +144,6 @@ const AppContent = () => {
                       strokeWidth={2.2}
                     />
                     {item.label}
-                    {(item.badge ?? 0) > 0 && (
-                      <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500/15 text-red-500 text-[10px] font-bold rounded-md border border-red-500/25">
-                        {item.badge}
-                      </span>
-                    )}
                     {isActive && (
                       <motion.div
                         layoutId="nav-active"
@@ -181,6 +175,27 @@ const AppContent = () => {
               </span>
             </div>
           </div>
+
+          <NavLink
+            to="/alertas"
+            aria-label={t.nav.alerts}
+            title={t.nav.alerts}
+            className={({ isActive }) =>
+              cn(
+                'relative flex items-center justify-center w-9 h-9 rounded-lg border transition-colors',
+                isActive
+                  ? 'bg-primary/10 border-primary/30 text-primary'
+                  : 'bg-card-hover border-border text-muted hover:text-foreground-soft',
+              )
+            }
+          >
+            <Bell size={16} strokeWidth={2.2} />
+            {activeAlertsCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-background-elevated">
+                {activeAlertsCount}
+              </span>
+            )}
+          </NavLink>
 
           <div className="hidden xl:block h-6 w-px bg-border" />
 
@@ -297,11 +312,6 @@ const AppContent = () => {
                 >
                   <item.icon size={16} strokeWidth={2.2} />
                   {item.label}
-                  {(item.badge ?? 0) > 0 && (
-                    <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500/15 text-red-500 text-[10px] font-bold rounded-md border border-red-500/25">
-                      {item.badge}
-                    </span>
-                  )}
                 </NavLink>
               ))}
             </div>
