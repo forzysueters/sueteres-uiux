@@ -20,6 +20,7 @@ import {
   Thermometer, Clock, Box,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 // Visualizador 3D carregado sob demanda — mantém o bundle three fora do
 // caminho crítico da renderização inicial da rota.
@@ -46,6 +47,7 @@ export const AssetMonitorPage: React.FC = () => {
   const t = translations[language].assetMonitor;
   const common = translations[language].common;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
+  const isMobile = useIsMobile();
 
   const [tab, setTab] = useState<Tab>('sensors');
   const [historyRange, setHistoryRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
@@ -155,9 +157,9 @@ export const AssetMonitorPage: React.FC = () => {
       className="space-y-8"
     >
       {/* ───────── Barra de ações fixa ───────── */}
-      <div className="sticky top-0 z-30 -mx-6 md:-mx-8 px-6 md:px-8 py-3 bg-background/80 backdrop-blur-xl border-b border-border">
+      <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-3 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             <button
               onClick={() => navigate('/planta')}
               className="flex items-center gap-1.5 text-muted hover:text-foreground transition-colors flex-shrink-0"
@@ -204,7 +206,7 @@ export const AssetMonitorPage: React.FC = () => {
             </span>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight truncate">{asset.name}</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground tracking-tight break-words">{asset.name}</h1>
             <p className="text-sm text-muted">{asset.location}</p>
           </div>
         </div>
@@ -217,7 +219,7 @@ export const AssetMonitorPage: React.FC = () => {
       {/* ───────── Gêmeo Digital 3D (protagonista, full-width) ───────── */}
       <motion.div
         variants={itemVariants}
-        className="relative -mx-6 md:-mx-8 h-[50vh] min-h-[420px] overflow-hidden border-y border-border bg-background/40"
+        className="relative -mx-4 sm:-mx-6 md:-mx-8 h-[50vh] min-h-[320px] sm:min-h-[420px] overflow-hidden border-y border-border bg-background/40"
       >
         {/* Atmosfera reativa ao status */}
         <div
@@ -248,10 +250,10 @@ export const AssetMonitorPage: React.FC = () => {
         </Suspense>
 
         {/* Overlay: placar de saúde (glassmorphism, flutuante) */}
-        <div className="absolute top-4 left-4 z-10 w-[220px] rounded-2xl border border-border bg-white/70 dark:bg-slate-950/55 backdrop-blur-xl shadow-lg p-4">
+        <div className="absolute top-3 left-3 z-10 w-[150px] sm:top-4 sm:left-4 sm:w-[220px] rounded-2xl border border-border bg-white/70 dark:bg-slate-950/55 backdrop-blur-xl shadow-lg p-3 sm:p-4">
           <div className="flex flex-col items-center gap-3">
-            <HealthGauge value={health} severity={severity} size={150} />
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 w-full pt-3 border-t border-border">
+            <HealthGauge value={health} severity={severity} size={isMobile ? 104 : 150} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 w-full pt-3 border-t border-border">
               <div>
                 <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
                   <Clock size={10} className="text-primary" />
@@ -267,7 +269,7 @@ export const AssetMonitorPage: React.FC = () => {
                 <p className="text-sm font-bold text-foreground tabular-nums">{health}/100</p>
               </div>
               {asset.thermalResidual != null && (
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
                     <Thermometer size={10} className="text-primary" />
                     {t.thermal_residual}
@@ -317,13 +319,13 @@ export const AssetMonitorPage: React.FC = () => {
 
       {/* ───────── Abas ───────── */}
       <motion.div variants={itemVariants}>
-        <div className="flex items-center gap-1 border-b border-border overflow-x-auto scrollbar-thin">
+        <div className="flex flex-wrap items-center gap-x-1 border-b border-border">
           {tabs.map(({ id, label, icon: Icon, badge }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
               className={cn(
-                'group relative flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors flex-shrink-0 whitespace-nowrap',
+                'group relative flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-semibold transition-colors flex-shrink-0 whitespace-nowrap',
                 tab === id ? 'text-foreground' : 'text-muted hover:text-foreground-soft',
               )}
             >
@@ -367,7 +369,7 @@ export const AssetMonitorPage: React.FC = () => {
 
           {/* HISTÓRICO */}
           {tab === 'history' && (
-            <div className="saas-card-premium p-6 space-y-4">
+            <div className="saas-card-premium p-4 sm:p-6 space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <span className="section-title !mb-0">{t.sensor_history}</span>
                 <div className="flex gap-1">

@@ -16,6 +16,7 @@ import type { CameraFocus } from '../components/three/PlantScene3D';
 // arrastar a biblioteca 3D para o bundle inicial.
 import { HALLS, hallForArea, hallBounds, PLANT_BOUNDS } from '../components/three/plantLayout';
 import { hasWebGL } from '../utils/webgl';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import { PageLoader } from '../components/SkeletonLoaders';
 
 // A cena arrasta three.js junto — só carrega quando o modo 3D é usado.
@@ -37,6 +38,9 @@ export const PlantNavigation: React.FC = () => {
 
   // WebGL ausente (VM, driver bloqueado, GPU em lista negra) → 2D direto.
   const webgl = useMemo(() => hasWebGL(), []);
+  // A grade posicional (linhas x colunas da planta) nao cabe em 375px: no
+  // celular ela vira uma lista de uma coluna so, sem as celulas vazias.
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>(webgl ? '3d' : 'map');
   const [areaFilter, setAreaFilter] = useState<string>('all');
   const [focus, setFocus] = useState<CameraFocus>({ kind: 'scope', assetId: null, nonce: 0 });
@@ -145,11 +149,11 @@ export const PlantNavigation: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center">
-              <Map className="w-7 h-7 text-primary" />
+          <h1 className="flex items-center gap-3 text-2xl sm:text-3xl">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-card border border-border flex flex-shrink-0 items-center justify-center">
+              <Map className="w-6 h-6 sm:w-7 sm:h-7 text-primary" />
             </div>
-            {t.title}
+            <span className="min-w-0 break-words">{t.title}</span>
           </h1>
           <p className="text-sm text-muted">{t.subtitle}</p>
         </div>
@@ -176,7 +180,7 @@ export const PlantNavigation: React.FC = () => {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-card border border-border">
+        <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-card border border-border">
           {VIEW_TABS.map(tab => {
             const Icon = tab.icon;
             const disabled = tab.id === '3d' && !webgl;
@@ -187,7 +191,7 @@ export const PlantNavigation: React.FC = () => {
                 disabled={disabled}
                 title={disabled ? t.webgl_unavailable : undefined}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
+                  'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all',
                   viewMode === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-foreground',
                   disabled && 'opacity-40 cursor-not-allowed hover:text-muted',
                 )}
@@ -199,14 +203,14 @@ export const PlantNavigation: React.FC = () => {
           })}
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-card border border-border">
+        <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-card border border-border">
           <Filter size={12} className="text-muted ml-2" />
           {areas.map(area => (
             <button
               key={area}
               onClick={() => changeArea(area)}
               className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
+                'px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all',
                 areaFilter === area ? 'bg-card-hover text-foreground' : 'text-muted hover:text-foreground-soft',
               )}
             >
@@ -215,7 +219,7 @@ export const PlantNavigation: React.FC = () => {
           ))}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
           <WifiOff size={13} className="text-muted" />
           <span className="text-[11px] font-bold text-muted uppercase tracking-tighter">
             {assets.filter(a => a.status === 'offline').length} {common.status.offline.toLowerCase()}
@@ -226,7 +230,7 @@ export const PlantNavigation: React.FC = () => {
       {/* Main view */}
       {viewMode === '3d' && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_330px] xl:h-[calc(100vh-15rem)] xl:min-h-[540px]">
-          <div className="saas-card bg-card-hover flex h-[60vh] min-h-[400px] flex-col p-3 xl:h-full">
+          <div className="saas-card bg-card-hover flex h-[55vh] min-h-[320px] flex-col p-2 sm:min-h-[400px] sm:p-3 xl:h-full">
             {/* min-h-0 é o que permite o canvas encolher dentro do flex */}
             <div className="relative min-h-0 flex-1">
               <Suspense
@@ -263,7 +267,7 @@ export const PlantNavigation: React.FC = () => {
               </button>
 
               {/* Legenda de status */}
-              <div className="absolute bottom-3 left-3 z-10 flex items-center gap-3 rounded-lg border border-border bg-card/85 px-3 py-1.5 backdrop-blur-sm">
+              <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-card/85 px-3 py-1.5 backdrop-blur-sm sm:right-auto">
                 {Object.keys(STATUS_COLORS).map((key) => (
                   <div key={key} className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[key].fill }} />
@@ -279,7 +283,7 @@ export const PlantNavigation: React.FC = () => {
             </p>
           </div>
 
-          <div className="saas-card overflow-hidden p-4 xl:h-full">
+          <div className="saas-card max-h-[70vh] overflow-hidden p-3 sm:p-4 xl:max-h-none xl:h-full">
             <PlantAlertRail
               assets={filteredAssets}
               selectedAssetId={selectedAssetId}
@@ -291,7 +295,7 @@ export const PlantNavigation: React.FC = () => {
       )}
 
       {viewMode === 'map' && (
-        <div className="saas-card p-4 bg-card-hover">
+        <div className="saas-card p-2 sm:p-4 bg-card-hover">
           <PlantFloorMap
             assets={areaFilter === 'all' ? assets : filteredAssets}
             selectedAssetId={selectedAssetId}
@@ -301,38 +305,51 @@ export const PlantNavigation: React.FC = () => {
       )}
 
       {viewMode === 'grid' && (
-        <div className="saas-card p-8 overflow-auto bg-card-hover">
-          <div
-            className="grid gap-6 relative mx-auto"
-            style={{
-              gridTemplateColumns: `repeat(${maxX}, minmax(200px, 1fr))`,
-              gridTemplateRows: `repeat(${maxY}, auto)`,
-              width: 'max-content',
-              minWidth: '100%',
-            }}
-          >
-            {Array.from({ length: maxX }).map((_, x) =>
-              Array.from({ length: maxY }).map((_, y) => {
-                const asset = filteredAssets.find(a => a.x === x + 1 && a.y === y + 1);
-                if (!asset) {
+        <div className="saas-card p-3 sm:p-6 lg:p-8 bg-card-hover">
+          {/* Em telas pequenas a matriz posicional passaria de 1200px de
+              largura e obrigaria a arrastar para o lado — vira lista. */}
+          {isMobile ? (
+            <div className="grid grid-cols-1 gap-4">
+              {filteredAssets.map((asset) => (
+                <AssetTile
+                  key={asset.id}
+                  asset={asset}
+                  isSelected={selectedAssetId === asset.id}
+                  onClick={handleAssetSelect}
+                />
+              ))}
+            </div>
+          ) : (
+            <div
+              className="grid w-full gap-4 relative lg:gap-6"
+              style={{
+                gridTemplateColumns: `repeat(${maxX}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${maxY}, auto)`,
+              }}
+            >
+              {Array.from({ length: maxX }).map((_, x) =>
+                Array.from({ length: maxY }).map((_, y) => {
+                  const asset = filteredAssets.find(a => a.x === x + 1 && a.y === y + 1);
+                  if (!asset) {
+                    return (
+                      <div key={`empty-${x}-${y}`} className="min-h-[150px] rounded-xl flex flex-col items-center justify-center border border-border bg-card-hover/50">
+                        <span className="text-[10px] font-mono text-muted-soft">{x + 1},{y + 1}</span>
+                      </div>
+                    );
+                  }
                   return (
-                    <div key={`empty-${x}-${y}`} className="min-h-[150px] rounded-xl flex flex-col items-center justify-center border border-border bg-card-hover/50">
-                      <span className="text-[10px] font-mono text-muted-soft">{x + 1},{y + 1}</span>
+                    <div key={asset.id} className="h-full min-h-[150px]">
+                      <AssetTile
+                        asset={asset}
+                        isSelected={selectedAssetId === asset.id}
+                        onClick={handleAssetSelect}
+                      />
                     </div>
                   );
-                }
-                return (
-                  <div key={asset.id} className="h-full min-h-[150px]">
-                    <AssetTile
-                      asset={asset}
-                      isSelected={selectedAssetId === asset.id}
-                      onClick={handleAssetSelect}
-                    />
-                  </div>
-                );
-              })
-            )}
-          </div>
+                })
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -340,7 +357,7 @@ export const PlantNavigation: React.FC = () => {
           o filtro de área que eles fazem já existe na toolbar acima, e o
           detalhamento de status já está na régua de triagem ao lado da cena. */}
       {viewMode !== '3d' && (
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {areas.filter(a => a !== 'all').map(area => {
           const areaAssets = assets.filter(a => a.area === area);
           const ok   = areaAssets.filter(a => a.status === 'normal').length;

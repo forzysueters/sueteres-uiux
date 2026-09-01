@@ -39,13 +39,13 @@ export const AssistantPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
-        <div className="lg:col-span-2 h-[600px] lg:h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 flex-1 min-h-0">
+        <div className="lg:col-span-2 h-[70vh] min-h-[440px] lg:h-full">
           <AIAssistant />
         </div>
 
-        <div className="space-y-8">
-          <div className="saas-card p-6">
+        <div className="space-y-6 lg:space-y-8">
+          <div className="saas-card p-4 sm:p-6">
             <span className="section-title">{t.quick_suggestions}</span>
             <div className="space-y-3">
               {quickQuestions.map((q, i) => (
@@ -64,7 +64,7 @@ export const AssistantPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="saas-card p-6 bg-primary/5 border-primary/10">
+          <div className="saas-card p-4 sm:p-6 bg-primary/5 border-primary/10">
             <span className="section-title !text-primary">{t.capabilities_title}</span>
             <ul className="space-y-3">
               {capabilities.map((item, i) => (

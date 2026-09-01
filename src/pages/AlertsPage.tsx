@@ -68,14 +68,21 @@ export const AlertsPage: React.FC = () => {
 
       {/* Toolbar: stat strip + tab filter, one visual row — não duas caixas empilhadas */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-        <div className="saas-card flex items-center gap-5 px-5 py-3 overflow-x-auto">
+        <div className="saas-card grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3 sm:flex sm:items-center sm:gap-5 sm:px-5">
           {[
             { label: t.total, value: stats.total, icon: Bell, color: 'text-primary' },
             { label: t.critical, value: stats.critical, icon: ShieldAlert, color: 'text-danger' },
             { label: t.active, value: stats.active, icon: AlertTriangle, color: 'text-warning' },
             { label: t.resolved, value: stats.resolved, icon: CheckCircle2, color: 'text-success' },
           ].map(({ label, value, icon: Icon, color }, i) => (
-            <div key={label} className={cn('flex items-center gap-2 flex-shrink-0', i > 0 && 'pl-5 border-l border-border')}>
+            <div
+              key={label}
+              className={cn(
+                'flex items-center gap-2 sm:flex-shrink-0',
+                // A borda divisória só faz sentido quando eles estão em linha.
+                i > 0 && 'sm:pl-5 sm:border-l sm:border-border',
+              )}
+            >
               <Icon size={14} className={color} />
               <span className="text-lg font-bold text-foreground tabular-nums">{value}</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted whitespace-nowrap">{label}</span>
@@ -83,7 +90,7 @@ export const AlertsPage: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-card border border-border flex-shrink-0">
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-card border border-border sm:flex sm:items-center sm:flex-shrink-0">
           {tabs.map(({ id, label, count }) => {
             const isActive = filter === id;
             return (
@@ -91,7 +98,7 @@ export const AlertsPage: React.FC = () => {
                 key={id}
                 onClick={() => setFilter(id)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
+                  'flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all sm:justify-start',
                   isActive ? 'bg-primary text-white' : 'text-muted hover:text-foreground',
                 )}
               >

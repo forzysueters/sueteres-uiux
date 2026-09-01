@@ -118,15 +118,15 @@ export const LoginPage = () => {
       />
 
       {/* Top bar */}
-      <header className="relative z-10 flex items-center justify-between px-6 md:px-10 h-28">
-        <img src={logoWhite} alt="Forzy" className="h-16 md:h-20 w-auto drop-shadow-[0_0_28px_rgba(245,158,11,0.3)]" />
+      <header className="relative z-10 flex items-center justify-between px-5 md:px-10 h-20 sm:h-28">
+        <img src={logoWhite} alt="Forzy" className="h-11 sm:h-16 md:h-20 w-auto drop-shadow-[0_0_28px_rgba(245,158,11,0.3)]" />
         <div className="hidden md:flex items-center gap-2 text-xs font-medium text-white/60">
           <span className="live-dot" />
           <span>Plataforma operacional · Online</span>
         </div>
       </header>
 
-      <main className="relative z-10 grid lg:grid-cols-[1.1fr_minmax(0,440px)] gap-12 lg:gap-20 items-center px-6 md:px-10 lg:px-16 pb-16">
+      <main className="relative z-10 grid lg:grid-cols-[1.1fr_minmax(0,440px)] gap-12 lg:gap-20 items-center px-4 sm:px-6 md:px-10 lg:px-16 pb-10 sm:pb-16">
         {/* ─── Left: pitch ─── */}
         <motion.section
           initial={{ opacity: 0, y: 16 }}
@@ -188,14 +188,14 @@ export const LoginPage = () => {
           <div className="relative">
             {/* gradient border */}
             <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-amber-500/40 via-white/5 to-transparent opacity-80 pointer-events-none" />
-            <div className="relative rounded-3xl bg-[#0B0D14]/90 backdrop-blur-2xl border border-white/[0.06] p-8 md:p-10 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.7)]">
+            <div className="relative rounded-3xl bg-[#0B0D14]/90 backdrop-blur-2xl border border-white/[0.06] p-5 sm:p-8 md:p-10 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.7)]">
               {/* Logo on small screens */}
-              <div className="lg:hidden mb-8 flex justify-center">
-                <img src={logoWhite} alt="Forzy" className="h-16 w-auto" />
+              <div className="lg:hidden mb-6 sm:mb-8 flex justify-center">
+                <img src={logoWhite} alt="Forzy" className="h-12 sm:h-16 w-auto" />
               </div>
 
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white tracking-tight mb-2">
+                <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
                   Acesse sua plataforma
                 </h2>
                 <p className="text-sm text-white/50">
@@ -346,18 +346,18 @@ export const LoginPage = () => {
                       type="button"
                       className="w-full text-left p-3 bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 rounded-xl transition-all group"
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
                           <p className="text-sm font-semibold text-white/90 group-hover:text-amber-400 transition-colors">
                             {cred.role}
                           </p>
-                          <p className="text-[11px] text-white/40 font-mono">
+                          <p className="text-[11px] text-white/40 font-mono break-all">
                             {cred.email}
                           </p>
                         </div>
                         <ArrowRight
                           size={14}
-                          className="text-white/30 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all"
+                          className="flex-shrink-0 text-white/30 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all"
                         />
                       </div>
                     </button>

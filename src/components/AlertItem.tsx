@@ -40,7 +40,7 @@ export const AlertItem: React.FC<AlertItemProps> = ({ alert, onResolve }) => {
         alert.resolved ? 'opacity-60 border-l-border-strong' : cfg.borderL,
       )}
     >
-      <div className="flex items-start gap-3 p-4">
+      <div className="flex items-start gap-3 p-3 sm:p-4">
         <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', cfg.iconBg, cfg.iconColor)}>
           <Icon size={16} />
         </div>
@@ -48,7 +48,7 @@ export const AlertItem: React.FC<AlertItemProps> = ({ alert, onResolve }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0 flex-wrap">
-              <h4 className="font-bold text-sm text-foreground truncate">{alert.title}</h4>
+              <h4 className="min-w-0 font-bold text-sm text-foreground break-words">{alert.title}</h4>
               <span className={`badge ${cfg.badge}`}>
                 {SEVERITY_LABELS[language][alert.severity as keyof typeof SEVERITY_LABELS['pt']] ?? alert.severity}
               </span>
@@ -66,8 +66,8 @@ export const AlertItem: React.FC<AlertItemProps> = ({ alert, onResolve }) => {
 
           <p className="text-xs text-muted mt-1 leading-relaxed line-clamp-2">{alert.description}</p>
 
-          <div className="flex items-center gap-1.5 mt-2 text-[10px] font-medium text-muted-soft">
-            <span className="font-mono font-bold text-foreground-soft">{alert.assetTag}</span>
+          <div className="flex min-w-0 items-center gap-1.5 mt-2 text-[10px] font-medium text-muted-soft">
+            <span className="flex-shrink-0 font-mono font-bold text-foreground-soft">{alert.assetTag}</span>
             <span className="text-border-strong">•</span>
             <span className="truncate">{alert.assetName}</span>
           </div>
@@ -100,7 +100,7 @@ export const AlertItem: React.FC<AlertItemProps> = ({ alert, onResolve }) => {
             </div>
           )}
 
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex flex-wrap items-center gap-2 mt-3">
             {!alert.resolved && (
               <button
                 onClick={() => onResolve(alert.id)}

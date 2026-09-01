@@ -164,26 +164,29 @@ export const AccountPage: React.FC = () => {
       </div>
 
       <div className="saas-card overflow-hidden">
-        <div className="p-8 border-b border-border bg-card-hover flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-24 h-24 rounded-2xl bg-card-hover border border-border flex items-center justify-center text-muted">
+        <div className="p-5 sm:p-8 border-b border-border bg-card-hover flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-2xl bg-card-hover border border-border flex items-center justify-center text-muted">
             <User size={48} />
           </div>
-          <div className="text-center sm:text-left">
+          <div className="min-w-0 text-center sm:text-left">
             <h2 className="!mb-1">{user?.name ?? '—'}</h2>
             <p className="font-medium text-primary">{roleLabel}{user?.jobTitle ? ` · ${user.jobTitle}` : ''}</p>
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4 text-xs font-medium text-muted">
-              <span className="flex items-center gap-1.5"><Mail size={14} /> {user?.email ?? '—'}</span>
+              <span className="flex min-w-0 max-w-full items-center gap-1.5">
+                <Mail size={14} className="flex-shrink-0" />
+                <span className="break-all">{user?.email ?? '—'}</span>
+              </span>
               {user?.department && (
                 <span className="flex items-center gap-1.5"><Building2 size={14} /> {user.department}</span>
               )}
             </div>
           </div>
-          <button onClick={() => setEditOpen(true)} className="sm:ml-auto btn-primary !py-2 !px-6 !text-xs !rounded-lg">
+          <button onClick={() => setEditOpen(true)} className="w-full sm:w-auto sm:ml-auto btn-primary !py-2 !px-6 !text-xs !rounded-lg">
             {t.edit_profile}
           </button>
         </div>
 
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="p-5 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
           <div className="space-y-4">
             <h3 className="flex items-center gap-2">
               <Shield size={18} className="text-primary" />
@@ -206,13 +209,13 @@ export const AccountPage: React.FC = () => {
               {t.access}
             </h3>
             <div className="p-4 rounded-xl border border-border bg-card-hover space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted">{t.role_label}</span>
-                <span className="font-bold text-foreground uppercase tracking-widest">{roleLabel}</span>
+              <div className="flex justify-between items-center gap-3 text-xs">
+                <span className="flex-shrink-0 text-muted">{t.role_label}</span>
+                <span className="text-right font-bold text-foreground uppercase tracking-widest">{roleLabel}</span>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted">{t.write_access}</span>
-                <span className={`font-bold uppercase tracking-widest ${writeAccess ? 'text-success' : 'text-warning'}`}>
+              <div className="flex justify-between items-center gap-3 text-xs">
+                <span className="flex-shrink-0 text-muted">{t.write_access}</span>
+                <span className={`text-right font-bold uppercase tracking-widest ${writeAccess ? 'text-success' : 'text-warning'}`}>
                   {writeAccess ? t.granted : t.read_only}
                 </span>
               </div>

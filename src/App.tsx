@@ -100,22 +100,22 @@ const AppContent = () => {
   return (
     <div className="flex flex-col h-screen bg-background text-foreground font-sans overflow-hidden">
       {/* Navbar */}
-      <nav className="relative h-20 border-b border-border bg-background-elevated/80 backdrop-blur-xl px-4 md:px-6 flex items-center justify-between z-40 sticky top-0">
+      <nav className="relative h-16 md:h-20 border-b border-border bg-background-elevated/80 backdrop-blur-xl px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 z-40 sticky top-0">
         {/* subtle bottom gradient */}
         <div
           aria-hidden
           className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-border-strong to-transparent"
         />
 
-        <div className="flex items-center gap-6 md:gap-8 h-full">
+        <div className="flex min-w-0 items-center gap-4 md:gap-8 h-full">
           <Link
             to="/planta"
-            className="flex items-center h-full transition-opacity hover:opacity-80"
+            className="flex min-w-0 items-center h-full transition-opacity hover:opacity-80"
           >
             <img
               src={darkMode ? logoWhite : logoBlack}
               alt="Forzy Logo"
-              className="h-12 w-auto object-contain"
+              className="h-9 sm:h-10 md:h-12 w-auto object-contain"
             />
           </Link>
 
@@ -161,7 +161,7 @@ const AppContent = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3 md:gap-4">
           <div className="hidden xl:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-card-hover border border-border">
             <span className="live-dot" />
             <div className="flex items-center gap-1.5 text-muted">
@@ -321,7 +321,7 @@ const AppContent = () => {
 
       {/* Page content */}
       <main className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="max-w-[1600px] mx-auto p-6 md:p-8">
+        <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8 overflow-x-clip">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

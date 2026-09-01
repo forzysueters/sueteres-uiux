@@ -90,17 +90,17 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   return (
     <div className="saas-card overflow-hidden animate-fade-in">
       {/* Header / Stepper */}
-      <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-card-hover">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-card-hover border border-border flex items-center justify-center text-primary">
+      <div className="px-4 sm:px-6 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3 bg-card-hover">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="w-8 h-8 flex-shrink-0 rounded bg-card-hover border border-border flex items-center justify-center text-primary">
             <Bot size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-bold text-sm text-foreground">{t.pipeline_title}</h2>
             <p className="text-[10px] text-muted">{t.pipeline_subtitle}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {[
             { n: 1, label: t.step_upload },
             { n: 2, label: t.step_ocr },
@@ -121,7 +121,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         {/* STEP 1 — Upload */}
         {step === 1 && (
           <div className="space-y-6">
@@ -149,7 +149,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
 
             <div
               {...getRootProps()}
-              className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
+              className={`border-2 border-dashed rounded-xl p-6 sm:p-12 text-center flex flex-col items-center justify-center transition-all cursor-pointer ${
                 isDragActive ? 'border-primary bg-primary/5' : 'border-border bg-card-hover hover:border-primary/50 hover:bg-border/40'
               }`}
             >
@@ -221,7 +221,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
         {/* STEP 3 — Review */}
         {step === 3 && extractedData && (
           <div className="animate-fade-in space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-border">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
               <div className="flex items-center gap-2 text-emerald-500">
                 <Sparkles size={14} />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
@@ -286,7 +286,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
               </div>
             )}
 
-            <div key={previewUrl ?? 'fields'} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+            <div key={previewUrl ?? 'fields'} className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 md:gap-x-8 gap-y-5">
               {fields.map(({ label, key, icon: Icon, type }) => (
                 <div key={key} className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted flex items-center gap-1.5">
@@ -302,11 +302,11 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
               ))}
             </div>
 
-            <div className="pt-6 flex gap-3">
-              <button onClick={reset} className="flex-1 h-11 rounded-lg font-bold text-xs bg-card-hover text-muted hover:bg-border transition-all">
+            <div className="pt-6 flex flex-col gap-3 sm:flex-row">
+              <button onClick={reset} className="h-11 rounded-lg font-bold text-xs bg-card-hover text-muted hover:bg-border transition-all sm:flex-1">
                 {t.cancel}
               </button>
-              <button onClick={handleRegister} className="flex-[2] h-11 rounded-lg font-bold text-xs bg-primary text-white hover:bg-primary/90 transition-all flex items-center justify-center gap-2">
+              <button onClick={handleRegister} className="h-11 rounded-lg font-bold text-xs bg-primary text-white hover:bg-primary/90 transition-all flex items-center justify-center gap-2 sm:flex-[2]">
                 <CheckCircle2 size={16} />
                 {t.confirm_registration}
               </button>

@@ -66,7 +66,7 @@ export const KPICard: React.FC<KPICardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -2 }}
-      className="group relative saas-card-premium p-5 overflow-hidden"
+      className="group relative saas-card-premium p-4 sm:p-5 overflow-hidden"
     >
       {/* Decorative glow on hover */}
       <div
@@ -103,8 +103,8 @@ export const KPICard: React.FC<KPICardProps> = ({
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted mb-2">
         {title}
       </p>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-3xl font-bold text-foreground tabular-nums tracking-tight">
+      <div className="flex flex-wrap items-baseline gap-1.5">
+        <span className="text-2xl sm:text-3xl font-bold text-foreground tabular-nums tracking-tight break-all">
           {value}
         </span>
         {unit && <span className="text-sm font-medium text-muted-soft">{unit}</span>}
@@ -130,7 +130,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
       transition={{ duration: 0.2 }}
       onClick={() => onClick(asset.id)}
       className={cn(
-        'group relative saas-card saas-card-hover cursor-pointer p-5 overflow-hidden',
+        'group relative saas-card saas-card-hover cursor-pointer p-4 sm:p-5 overflow-hidden',
         'before:content-[""] before:absolute before:left-0 before:top-3 before:bottom-3 before:w-[3px] before:rounded-r-full',
         cfg.before,
         isSelected && cn('ring-2', cfg.ring, cfg.glow),
@@ -153,7 +153,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
         >
           <Factory size={20} strokeWidth={2} />
         </div>
-        <div className="badge bg-card-hover border-border">
+        <div className="badge bg-card-hover border-border flex-shrink-0">
           <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot, 'animate-pulse')} />
           <span className={cfg.text}>{label}</span>
         </div>
@@ -172,7 +172,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
         {asset.location}
       </p>
 
-      <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-3 border-t border-border">
         <div>
           <span className="text-[9px] font-bold text-muted-soft uppercase tracking-wider">Uptime</span>
           <p className="text-sm font-bold text-foreground tabular-nums">{asset.uptime.toFixed(1)}%</p>

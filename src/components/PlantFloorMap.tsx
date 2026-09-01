@@ -6,6 +6,7 @@ import { cn } from '../lib/utils';
 // Fonte única das cores de status — compartilhada com a planta 3D para que as
 // duas vistas nunca discordem sobre o que é "crítico".
 import { STATUS_COLORS, statusLabel } from '../utils/plantStatus';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 // Sequência de inspeção: ordem recomendada por área (Hall A → Hall B → Hall C → Cobertura)
 const INSPECTION_ORDER: string[] = ['MTR-001', 'MTR-002', 'BBA-001', 'CMP-001', 'EXA-001'];
@@ -47,7 +48,13 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
   const t = translations[language].plant;
   const common = translations[language].common;
   const p = darkMode ? DARK_PALETTE : LIGHT_PALETTE;
-  const [tooltip, setTooltip] = useState<{ asset: Asset; x: number; y: number } | null>(null);
+  // Em 375px o SVG desenha ~318px de largura para um viewBox de 1000 unidades:
+  // tudo encolhe 3x. Os elementos que o operador precisa ler e tocar (círculo,
+  // TAG, ícone) crescem na mesma proporção; as legendas decorativas saem do
+  // SVG e viram etiquetas HTML abaixo do mapa, onde continuam legíveis.
+  const isMobile = useIsMobile();
+  const k = isMobile ? 2.7 : 1;
+  const [tooltip, setTooltip] = useState<{ asset: Asset; x: number; y: number; boxW: number } | null>(null);
 
   // Mapeia TAG → coordenadas SVG para desenhar o fluxo de inspeção
   const assetCoords = Object.fromEntries(
@@ -63,7 +70,8 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
     .filter(({ from, to }) => assetCoords[from] && assetCoords[to]);
 
   return (
-    <div className="relative w-full select-none" style={{ aspectRatio: '16/9' }}>
+    <div className="relative w-full select-none">
+      <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
       <svg
         viewBox="0 0 1000 562"
         className="w-full h-full rounded-xl overflow-hidden"
@@ -82,19 +90,19 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
 
         {/* HALL A */}
         <rect x="30" y="30" width="420" height="260" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
-        <text x="50" y="55" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL A</text>
+        {!isMobile && <text x="50" y="55" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL A</text>}
 
         {/* HALL B */}
         <rect x="30" y="320" width="420" height="210" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
-        <text x="50" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL B</text>
+        {!isMobile && <text x="50" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL B</text>}
 
         {/* HALL C */}
         <rect x="480" y="320" width="490" height="210" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
-        <text x="500" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL C</text>
+        {!isMobile && <text x="500" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL C</text>}
 
         {/* Área técnica / cobertura */}
         <rect x="480" y="30" width="490" height="260" rx="8" fill={p.hallFill} fillOpacity="0.4" stroke={p.hallStroke} strokeWidth="1.5" strokeDasharray="6 3" />
-        <text x="500" y="55" fill={p.coberturaLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">COBERTURA / ÁREA TÉCNICA</text>
+        {!isMobile && <text x="500" y="55" fill={p.coberturaLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">COBERTURA / ÁREA TÉCNICA</text>}
 
         {/* Definição da ponta de seta do fluxo de inspeção */}
         <defs>
@@ -155,33 +163,34 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
                   asset,
                   x: (cx / 1000) * rect.width,
                   y: (cy / 562) * rect.height,
+                  boxW: rect.width,
                 });
               }}
               onMouseLeave={() => setTooltip(null)}
             >
               {/* Anel de pulso (status crítico/warning) */}
               {(asset.status === 'critical' || asset.status === 'warning') && (
-                <circle cx={cx} cy={cy} r={26} fill="none" stroke={cfg.pulse} strokeWidth="2" opacity="0.4">
-                  <animate attributeName="r" values="22;30;22" dur="2s" repeatCount="indefinite" />
+                <circle cx={cx} cy={cy} r={26 * k} fill="none" stroke={cfg.pulse} strokeWidth={2 * k} opacity="0.4">
+                  <animate attributeName="r" values={`${22 * k};${30 * k};${22 * k}`} dur="2s" repeatCount="indefinite" />
                   <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite" />
                 </circle>
               )}
 
               {/* Anel de seleção */}
               {isSelected && (
-                <circle cx={cx} cy={cy} r={28} fill="none" stroke={p.selectionRing} strokeWidth="2.5" opacity="0.9" />
+                <circle cx={cx} cy={cy} r={28 * k} fill="none" stroke={p.selectionRing} strokeWidth={2.5 * k} opacity="0.9" />
               )}
 
               {/* Círculo principal */}
               <circle
-                cx={cx} cy={cy} r={20}
+                cx={cx} cy={cy} r={20 * k}
                 fill={cfg.fill} fillOpacity={isSelected ? 1 : 0.85}
-                stroke={cfg.stroke} strokeWidth={isSelected ? 2.5 : 1.5}
+                stroke={cfg.stroke} strokeWidth={(isSelected ? 2.5 : 1.5) * k}
               />
 
               {/* Ícone */}
-              <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
-                fill="white" fontSize="11" fontWeight="800" fontFamily="monospace">{icon}</text>
+              <text x={cx} y={cy + k} textAnchor="middle" dominantBaseline="middle"
+                fill="white" fontSize={11 * k} fontWeight="800" fontFamily="monospace">{icon}</text>
 
               {/* Badge de ordem de inspeção */}
               {(() => {
@@ -189,9 +198,9 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
                 if (order === -1) return null;
                 return (
                   <g>
-                    <circle cx={cx + 14} cy={cy - 14} r={9} fill={p.badgeFill} stroke={p.flow} strokeWidth="1.5" />
-                    <text x={cx + 14} y={cy - 14} textAnchor="middle" dominantBaseline="middle"
-                      fill={p.flow} fontSize="8" fontWeight="800" fontFamily="monospace">
+                    <circle cx={cx + 14 * k} cy={cy - 14 * k} r={9 * k} fill={p.badgeFill} stroke={p.flow} strokeWidth={1.5 * k} />
+                    <text x={cx + 14 * k} y={cy - 14 * k} textAnchor="middle" dominantBaseline="middle"
+                      fill={p.flow} fontSize={8 * k} fontWeight="800" fontFamily="monospace">
                       {order + 1}
                     </text>
                   </g>
@@ -199,9 +208,9 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
               })()}
 
               {/* TAG label */}
-              <rect x={cx - 22} y={cy + 24} width={44} height={16} rx={3} fill={p.tagBg} fillOpacity="0.85" />
-              <text x={cx} y={cy + 32} textAnchor="middle" dominantBaseline="middle"
-                fill={cfg.fill} fontSize="8.5" fontWeight="700" fontFamily="monospace" letterSpacing="0.5">
+              <rect x={cx - 22 * k} y={cy + 24 * k} width={44 * k} height={16 * k} rx={3 * k} fill={p.tagBg} fillOpacity="0.85" />
+              <text x={cx} y={cy + 32 * k} textAnchor="middle" dominantBaseline="middle"
+                fill={cfg.fill} fontSize={8.5 * k} fontWeight="700" fontFamily="monospace" letterSpacing={0.5 * k}>
                 {asset.tag ?? asset.id.toUpperCase().substring(0, 7)}
               </text>
             </g>
@@ -209,7 +218,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
         })}
 
         {/* Legenda — status dos ativos */}
-        {Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
+        {!isMobile && Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
           <g key={key} transform={`translate(${30 + i * 110}, 535)`}>
             <circle cx={8} cy={8} r={6} fill={cfg.fill} fillOpacity="0.85" />
             <text x={18} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{cfg.label}</text>
@@ -217,7 +226,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
         ))}
 
         {/* Legenda — fluxo de inspeção */}
-        <g transform="translate(510, 530)">
+        <g transform="translate(510, 530)" style={{ display: isMobile ? 'none' : undefined }}>
           <line x1={0} y1={8} x2={22} y2={8} stroke={p.flow} strokeWidth="1.5" strokeDasharray="5 3" markerEnd="url(#inspection-arrow)" />
           <text x={28} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{t.flow_label}</text>
           <circle cx={140} cy={8} r={7} fill={p.badgeFill} stroke={p.flow} strokeWidth="1.5" />
@@ -225,13 +234,29 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
           <text x={152} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{t.order_label}</text>
         </g>
       </svg>
+      </div>
+
+      {/* No celular as legendas saem do SVG (ficariam com ~3px) e viram
+          etiquetas HTML logo abaixo do mapa. */}
+      {isMobile && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {Object.entries(STATUS_COLORS).map(([key, cfg]) => (
+            <span key={key} className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cfg.fill }} />
+              <span className="text-[10px] font-semibold text-muted">{statusLabel(key, language)}</span>
+            </span>
+          ))}
+          <span className="text-[10px] font-semibold text-muted">· {t.flow_label}</span>
+          <span className="text-[10px] font-semibold text-muted">· {t.order_label}</span>
+        </div>
+      )}
 
       {/* Tooltip HTML */}
       {tooltip && (
         <div
-          className="absolute z-10 pointer-events-none bg-card border border-border rounded-xl shadow-panel px-4 py-3 min-w-[220px]"
+          className="absolute z-10 pointer-events-none bg-card border border-border rounded-xl shadow-panel px-4 py-3 w-[220px] max-w-[calc(100%-1rem)]"
           style={{
-            left: Math.min(tooltip.x + 16, (document.body.clientWidth * 0.8) - 240),
+            left: Math.max(0, Math.min(tooltip.x + 16, tooltip.boxW - 228)),
             top: Math.max(tooltip.y - 80, 8),
           }}
         >
@@ -260,7 +285,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
               {tooltip.asset.nameplate.manufacturer} {tooltip.asset.nameplate.model}
             </p>
           )}
-          <div className="mt-2 pt-2 border-t border-border flex gap-4">
+          <div className="mt-2 pt-2 border-t border-border flex flex-wrap gap-x-4 gap-y-2">
             <div>
               <span className="text-[9px] text-muted uppercase">{common.disp}</span>
               <p className="text-[11px] font-bold text-foreground">{tooltip.asset.uptime.toFixed(1)}%</p>
