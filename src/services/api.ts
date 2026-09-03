@@ -170,6 +170,7 @@ function mapAsset(row: ViewRow<'v_assets_full'>): Asset {
     name: row.name as string,
     type: row.asset_type as Asset['type'],
     area: (row.area_name as string) ?? '',
+    areaId: (row.area_id as string) ?? null,
     location: row.location as string,
     status: row.status as Asset['status'],
     uptime: Number(row.uptime ?? 0),
@@ -797,6 +798,56 @@ export const apiService = {
         throw new Error('Seu papel não permite remover ativos. Necessário administrador ou engenheiro.');
       }
       fail(error, 'Não foi possível desativar o ativo.');
+    }
+  },
+
+  /**
+   * Move um ativo na planta: grava o centro da pegada e, quando ele mudou de
+   * hall, a área e a célula da vista em grade.
+   *
+   * `grid_x`/`grid_y` são de OUTRA coisa (a matriz da vista "Grade", que agrupa
+   * por área) e normalmente não se mexe neles. Mas ao trocar de área o ativo
+   * entra numa matriz onde a célula antiga pode já estar ocupada — e como
+   * aquela vista faz `.find()` por célula, um dos dois sumiria da tela. Por
+   * isso o chamador passa uma célula livre junto.
+   */
+  async updateAssetLayout(
+    assetId: string,
+    layout: {
+      plantX: number;
+      plantY: number;
+      areaId?: string;
+      gridX?: number;
+      gridY?: number;
+    },
+  ): Promise<void> {
+    const patch = {
+      plant_x: layout.plantX,
+      plant_y: layout.plantY,
+      ...(layout.areaId ? { area_id: layout.areaId } : {}),
+      ...(layout.gridX != null ? { grid_x: layout.gridX } : {}),
+      ...(layout.gridY != null ? { grid_y: layout.gridY } : {}),
+    };
+
+    // O `.select('id')` não é cosmético: a RLS de UPDATE em `assets` é
+    // has_role('admin','engineer') e uma escrita recusada NÃO devolve erro —
+    // devolve zero linhas. Sem conferir isso, o editor diria "salvo" para quem
+    // não tem permissão e descartaria o rascunho do usuário.
+    const { data, error } = await supabase
+      .from('assets')
+      .update(patch)
+      .eq('id', assetId)
+      .select('id');
+
+    if (error) {
+      if ((error as { code?: string }).code === '42501') {
+        throw new Error('Seu papel não permite reposicionar ativos. Necessário administrador ou engenheiro.');
+      }
+      fail(error, 'Não foi possível gravar a posição do ativo.');
+    }
+
+    if (!data?.length) {
+      throw new Error('Posição recusada pelo banco — permissão insuficiente ou ativo inexistente.');
     }
   },
 

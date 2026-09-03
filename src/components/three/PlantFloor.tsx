@@ -138,8 +138,9 @@ export function PlantFloor({
   halls: Hall[];
   bounds: ViewBounds;
   isolated: boolean;
-  onIsolateHall: (area: string) => void;
-  onExitIsolation: () => void;
+  /** Ausentes no modo de editar layout: a laje deixa de ser clicável. */
+  onIsolateHall?: (area: string) => void;
+  onExitIsolation?: () => void;
 }) {
   const [cx, cz] = bounds.center;
   const floorW = bounds.size[0] * FLOOR_MARGIN_X;
@@ -172,7 +173,7 @@ export function PlantFloor({
         position={[cx, 0, cz]}
         receiveShadow
         onClick={
-          isolated
+          isolated && onExitIsolation
             ? (e) => {
                 e.stopPropagation();
                 onExitIsolation();

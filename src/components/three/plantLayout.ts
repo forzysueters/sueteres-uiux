@@ -14,7 +14,7 @@ export const SVG_D = 562;
  * Calibrado contra o tamanho das máquinas (~2,5 unidades): com o piso largo
  * demais os equipamentos viram pontinhos e a triagem morre.
  */
-const UNITS_PER_WORLD = 36;
+export const UNITS_PER_WORLD = 36;
 
 export const FLOOR_W = SVG_W / UNITS_PER_WORLD; // ~27.8
 export const FLOOR_D = SVG_D / UNITS_PER_WORLD; // ~15.6
@@ -38,6 +38,15 @@ export interface Hall {
    * `'Cobertura'` nunca acharia `'COBERTURA / ÁREA TÉCNICA'`.
    */
   area: string;
+  /**
+   * Retângulo original no viewBox (1000x562).
+   *
+   * Era argumento descartado do factory abaixo. Guardá-lo torna este arquivo a
+   * ÚNICA fonte da geometria dos halls: o PlantFloorMap desenha os `<rect>` a
+   * partir daqui (antes eram hardcoded lá também, com um comentário pedindo
+   * sincronia manual) e a malha do editor de layout recorta as células por ele.
+   */
+  svg: { x: number; y: number; w: number; h: number };
   /** Centro em world-space. */
   center: [number, number];
   /** Largura (X) e profundidade (Z) em world-space. */
@@ -55,13 +64,14 @@ function hall(
     id,
     label,
     area,
+    svg: { x, y, w, h },
     center: svgToWorld(x + w / 2, y + h / 2),
     size: [w / UNITS_PER_WORLD, h / UNITS_PER_WORLD],
     open,
   };
 }
 
-/** Espelha os <rect> hardcoded de PlantFloorMap.tsx (L85-98). */
+/** Fonte única dos halls — o PlantFloorMap desenha a partir daqui. */
 export const HALLS: Hall[] = [
   hall('hall-a', 'HALL A', 'Hall A', 30, 30, 420, 260),
   hall('hall-b', 'HALL B', 'Hall B', 30, 320, 420, 210),

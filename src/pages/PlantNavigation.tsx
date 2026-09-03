@@ -8,11 +8,15 @@ import { apiService } from '../services/api';
 import { AssetTile } from '../components/Cards';
 import { AssetRemovalDialog } from '../components/AssetRemovalDialog';
 import { InactiveAssetsPanel } from '../components/InactiveAssetsPanel';
+import { PlantLayoutToolbar } from '../components/PlantLayoutToolbar';
+import { HallChangeDialog } from '../components/HallChangeDialog';
+import { Dialog } from '../components/Dialog';
+import { usePlantLayoutEditor } from '../hooks/usePlantLayoutEditor';
 import { PlantFloorMap } from '../components/PlantFloorMap';
 import { PlantAlertRail } from '../components/PlantAlertRail';
 import { STATUS_COLORS, statusLabel } from '../utils/plantStatus';
 import {
-  Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, Box, Maximize2, Factory, AlertOctagon,
+  Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, Box, Maximize2, Factory, AlertOctagon, Move,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Asset, InactiveAsset } from '../types';
@@ -33,6 +37,8 @@ export const PlantNavigation: React.FC = () => {
   const { assets, setAssets, selectedAssetId, setSelectedAsset, language } = useAppStore();
   // Mesma regra da página do ativo: quem cadastra ativo também o remove.
   const mayRemoveAsset = canWriteAssets(useAuthStore((s) => s.user)?.role);
+  /** Mesma regra: quem cadastra e remove ativo também reposiciona. */
+  const mayEditLayout = mayRemoveAsset;
   const [removalTarget, setRemovalTarget] = useState<Asset | null>(null);
   const [inactive, setInactive] = useState<InactiveAsset[]>([]);
   const t = translations[language].plant;
@@ -53,6 +59,8 @@ export const PlantNavigation: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(webgl ? '3d' : 'map');
   const [areaFilter, setAreaFilter] = useState<string>('all');
   const [focus, setFocus] = useState<CameraFocus>({ kind: 'scope', assetId: null, nonce: 0 });
+  const [editMode, setEditMode] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +95,52 @@ export const PlantNavigation: React.FC = () => {
   }, [mayRemoveAsset]);
 
   const areas = ['all', ...Array.from(new Set(assets.map(a => a.area)))];
-  const filteredAssets = areaFilter === 'all' ? assets : assets.filter(a => a.area === areaFilter);
+  const editor = usePlantLayoutEditor(assets, editMode);
+
+  // Em edição as vistas desenham o RASCUNHO, não o que está no banco.
+  const shownAssets = editMode ? editor.displayAssets : assets;
+  const filteredAssets = areaFilter === 'all'
+    ? shownAssets
+    : shownAssets.filter(a => a.area === areaFilter);
+
+  const movedCount = useMemo(() => {
+    if (!editMode) return 0;
+    return editor.displayAssets.filter((d) => {
+      const orig = assets.find((a) => a.id === d.id);
+      return orig && (d.plantX !== orig.plantX || d.plantY !== orig.plantY || d.area !== orig.area);
+    }).length;
+  }, [editMode, editor.displayAssets, assets]);
+
+  const invalidCount = useMemo(
+    () => Array.from(editor.placement.values()).filter((p) => p !== 'ok').length,
+    [editor.placement],
+  );
+
+  /**
+   * Entrar em edição zera o filtro de área: a colisão é validada contra a
+   * planta inteira, e com um hall isolado a cena só receberia parte dos ativos
+   * — daria para empilhar equipamento sem ver.
+   */
+  const enterEditMode = () => {
+    setAreaFilter('all');
+    setFocus(f => ({ kind: 'scope', assetId: null, nonce: f.nonce + 1 }));
+    if (viewMode === 'grid') setViewMode(webgl ? '3d' : 'map');
+    setEditMode(true);
+  };
+
+  const leaveEditMode = () => {
+    if (editor.isDirty) { setConfirmDiscard(true); return; }
+    setEditMode(false);
+  };
+
+  const saveLayout = async () => {
+    try {
+      await editor.save();
+      setEditMode(false);
+    } catch {
+      // A mensagem já está em editor.error, renderizada na toolbar.
+    }
+  };
 
   const totalOnline = assets.filter(a => a.status !== 'offline').length;
   const criticalCount = assets.filter(a => a.status === 'critical').length;
@@ -206,7 +259,9 @@ export const PlantNavigation: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-card border border-border">
           {VIEW_TABS.map(tab => {
             const Icon = tab.icon;
-            const disabled = tab.id === '3d' && !webgl;
+            // A vista Grade é outra coisa (matriz por área, não geometria):
+            // não há o que arrastar nela.
+            const disabled = (tab.id === '3d' && !webgl) || (editMode && tab.id === 'grid');
             return (
               <button
                 key={tab.id}
@@ -232,15 +287,25 @@ export const PlantNavigation: React.FC = () => {
             <button
               key={area}
               onClick={() => changeArea(area)}
+              // Travado na edição: a colisão é validada contra a planta inteira.
+              disabled={editMode}
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all',
                 areaFilter === area ? 'bg-card-hover text-foreground' : 'text-muted hover:text-foreground-soft',
+                editMode && 'opacity-40 cursor-not-allowed',
               )}
             >
               {area === 'all' ? t.all_areas : area}
             </button>
           ))}
         </div>
+
+        {mayEditLayout && !isMobile && !editMode && (
+          <button onClick={enterEditMode} className="btn-ghost text-xs">
+            <Move size={13} />
+            {translations[language].plantLayout.edit_layout}
+          </button>
+        )}
 
         <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
           <WifiOff size={13} className="text-muted" />
@@ -276,6 +341,15 @@ export const PlantNavigation: React.FC = () => {
                   onIsolateHall={changeArea}
                   onExitIsolation={() => changeArea('all')}
                   focus={focus}
+                  editMode={editMode}
+                  editor={editMode ? {
+                    draft: editor.draft,
+                    placement: editor.placement,
+                    dragId: editor.dragId,
+                    startDrag: editor.startDrag,
+                    moveTo: editor.moveTo,
+                    endDrag: editor.endDrag,
+                  } : null}
                 />
               </Suspense>
 
@@ -317,12 +391,30 @@ export const PlantNavigation: React.FC = () => {
         </div>
       )}
 
+      {editMode && (
+        <PlantLayoutToolbar
+          movedCount={movedCount}
+          invalidCount={invalidCount}
+          saving={editor.saving}
+          error={editor.error}
+          onSave={saveLayout}
+          onCancel={leaveEditMode}
+        />
+      )}
+
       {viewMode === 'map' && (
         <div className="saas-card p-2 sm:p-4 bg-card-hover">
           <PlantFloorMap
-            assets={areaFilter === 'all' ? assets : filteredAssets}
+            assets={areaFilter === 'all' ? shownAssets : filteredAssets}
             selectedAssetId={selectedAssetId}
             onSelectAsset={handleAssetSelect}
+            editMode={editMode}
+            draftRects={editor.draft}
+            placement={editor.placement}
+            dragId={editor.dragId}
+            onDragStart={editor.startDrag}
+            onDragMove={editor.moveTo}
+            onDragEnd={editor.endDrag}
           />
         </div>
       )}
@@ -433,6 +525,34 @@ export const PlantNavigation: React.FC = () => {
         })}
       </div>
       )}
+
+      <HallChangeDialog
+        move={editor.pendingMove}
+        onConfirm={editor.confirmPendingMove}
+        onCancel={editor.cancelPendingMove}
+      />
+
+      <Dialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        title={translations[language].plantLayout.discard_title}
+        description={translations[language].plantLayout.discard_desc}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={() => setConfirmDiscard(false)}
+            className="h-10 rounded-lg font-bold text-xs bg-card-hover border border-border text-muted hover:bg-border transition-all sm:flex-1"
+          >
+            {translations[language].plantLayout.discard_keep}
+          </button>
+          <button
+            onClick={() => { setConfirmDiscard(false); setEditMode(false); }}
+            className="h-10 rounded-lg font-bold text-xs bg-red-500 text-white hover:bg-red-500/90 transition-all sm:flex-[2]"
+          >
+            {translations[language].plantLayout.discard_confirm}
+          </button>
+        </div>
+      </Dialog>
 
       {mayRemoveAsset && (
         <InactiveAssetsPanel

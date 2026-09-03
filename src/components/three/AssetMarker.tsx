@@ -1,10 +1,13 @@
-import { useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useEffect, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { Asset } from '../../types';
 import { statusConfig, statusUrgency } from '../../utils/plantStatus';
 import { plantToWorld } from './plantLayout';
+import { worldToSvg } from './plantGrid';
+import { useFloorPointer } from './useFloorPointer';
 import { MachineGeometry } from './MachineGeometry';
 import { cn } from '../../lib/utils';
 
@@ -20,6 +23,20 @@ import { cn } from '../../lib/utils';
 interface AssetMarkerProps {
   asset: Asset;
   isSelected: boolean;
+  /** Ativo sob o ponteiro, resolvido pela cena — `null` quando não há nenhum. */
+  hoveredId: string | null;
+  /** Ativo para onde a câmera foi apontada pela régua de triagem. */
+  focusedId: string | null;
+  /**
+   * Handlers do editor de layout. Quando presente, SUBSTITUI o clique de
+   * navegação da hitbox — clicar sem mover não pode abrir a página do ativo no
+   * meio de uma edição.
+   */
+  drag?: {
+    startDrag: (id: string) => void;
+    moveTo: (id: string, svgX: number, svgY: number) => void;
+    endDrag: (id: string) => void;
+  } | null;
   onSelect: (id: string) => void;
   onHover: (asset: Asset | null) => void;
 }
@@ -59,11 +76,11 @@ function PointerArrow({ color }: { color: string }) {
   );
 }
 
-export function AssetMarker({ asset, isSelected, onSelect, onHover }: AssetMarkerProps) {
+export function AssetMarker({ asset, isSelected, hoveredId, focusedId, drag = null, onSelect, onHover }: AssetMarkerProps) {
   const [x, z] = plantToWorld(asset.plantX, asset.plantY);
   const cfg = statusConfig(asset.status);
   const urgency = statusUrgency(asset.status);
-  const [hovered, setHovered] = useState(false);
+  const hovered = hoveredId === asset.id;
 
   const ringRef = useRef<THREE.Mesh>(null);
   const ringMat = useRef<THREE.MeshBasicMaterial>(null);
@@ -87,6 +104,88 @@ export function AssetMarker({ asset, isSelected, onSelect, onHover }: AssetMarke
   };
 
   const highlighted = hovered || isSelected;
+
+  // Uma seta por vez, e ela aponta para onde a CÂMERA está: o ponteiro manda
+  // enquanto está sobre um ativo; sem ponteiro, vale o foco da régua de
+  // triagem. Deliberadamente não segue `isSelected` — a seleção é global e
+  // sobrevive à ida e volta da página do ativo, o que deixava uma seta acesa
+  // na planta sem que ninguém tivesse pedido por ela.
+  const showArrow = hoveredId ? hovered : focusedId === asset.id;
+
+  // ─── Arrasto (modo de editar layout) ──────────────────────────────────────
+  // `makeDefault` no OrbitControls da cena publica os controles aqui.
+  const controls = useThree((s) => s.controls) as { enabled: boolean } | null;
+  const toFloor = useFloorPointer();
+  /** Distância entre o centro da máquina e o ponto agarrado, em world. */
+  const grab = useRef<{ dx: number; dz: number } | null>(null);
+
+  // Rede de segurança: se o marcador desmontar com o ponteiro em cima (troca de
+  // vista, salvamento, hot-reload), os controles ficariam desligados para
+  // sempre e a câmera travaria sem explicação.
+  useEffect(() => () => {
+    if (controls) controls.enabled = true;
+    document.body.style.cursor = 'auto';
+  }, [controls]);
+
+  const finishDrag = (e: ThreeEvent<PointerEvent>) => {
+    if (!grab.current || !drag) return;
+    e.stopPropagation();
+    grab.current = null;
+    try {
+      (e.target as Element)?.releasePointerCapture?.(e.pointerId);
+    } catch {
+      // O ponteiro pode já ter sido liberado pelo navegador; não é erro.
+    }
+    if (controls) controls.enabled = true;
+    drag.endDrag(asset.id);
+  };
+
+  const dragHandlers = drag ? {
+    // Os controles são desligados no HOVER, não no pointerdown. OrbitControls e
+    // R3F escutam o MESMO canvas, e qual deles roda primeiro é detalhe interno
+    // das duas bibliotecas. Desligando antes, o evento de orbitar nunca chega a
+    // nascer — não há corrida para vencer.
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+      e.stopPropagation();
+      if (controls) controls.enabled = false;
+      onHover(asset);
+      document.body.style.cursor = grab.current ? 'grabbing' : 'grab';
+    },
+    onPointerOut: (e: ThreeEvent<PointerEvent>) => {
+      e.stopPropagation();
+      // Não religa no meio do arrasto: o cursor sai de cima da máquina o tempo
+      // todo enquanto ela é arrastada.
+      if (!grab.current && controls) controls.enabled = true;
+      if (!grab.current) {
+        onHover(null);
+        document.body.style.cursor = 'auto';
+      }
+    },
+    onPointerDown: (e: ThreeEvent<PointerEvent>) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+      if (controls) controls.enabled = false;
+
+      const p = toFloor(e);
+      // Offset de agarre: sem ele a máquina salta para debaixo do cursor no
+      // primeiro pixel de movimento, deslocando-a sem o usuário ter pedido.
+      grab.current = p ? { dx: x - p[0], dz: z - p[1] } : { dx: 0, dz: 0 };
+      document.body.style.cursor = 'grabbing';
+      drag.startDrag(asset.id);
+    },
+    onPointerMove: (e: ThreeEvent<PointerEvent>) => {
+      if (!grab.current) return;
+      e.stopPropagation();
+      const p = toFloor(e);
+      if (!p) return;
+      const [sx, sy] = worldToSvg(p[0] + grab.current.dx, p[1] + grab.current.dz);
+      drag.moveTo(asset.id, sx, sy);
+    },
+    onPointerUp: finishDrag,
+    onPointerCancel: finishDrag,
+    onLostPointerCapture: finishDrag,
+  } : null;
 
   return (
     <group position={[x, 0, z]}>
@@ -129,22 +228,22 @@ export function AssetMarker({ asset, isSelected, onSelect, onHover }: AssetMarke
         running={asset.status !== 'offline'}
       />
 
-      {highlighted && <PointerArrow color={cfg.fill} />}
+      {showArrow && <PointerArrow color={cfg.fill} />}
 
       {/* Hitbox: alvo de clique generoso, independente da silhueta da máquina */}
       <mesh
         position={[0, 1.1, 0]}
         visible={false}
-        onClick={stopAnd(() => onSelect(asset.id))}
-        onPointerOver={stopAnd(() => {
-          setHovered(true);
-          onHover(asset);
-          document.body.style.cursor = 'pointer';
-        })}
-        onPointerOut={stopAnd(() => {
-          setHovered(false);
-          onHover(null);
-          document.body.style.cursor = 'auto';
+        {...(dragHandlers ?? {
+          onClick: stopAnd(() => onSelect(asset.id)),
+          onPointerOver: stopAnd(() => {
+            onHover(asset);
+            document.body.style.cursor = 'pointer';
+          }),
+          onPointerOut: stopAnd(() => {
+            onHover(null);
+            document.body.style.cursor = 'auto';
+          }),
         })}
       >
         <cylinderGeometry args={[1.3, 1.3, 2.6, 12]} />

@@ -127,16 +127,15 @@ from (values
 cross join public.plants p
 join public.areas ar on ar.plant_id = p.id and ar.code = v.area_code
 where p.code = 'FORZY-LAB'
+-- O layout NAO entra no do update: `area_id`, `grid_x/y` e `plant_x/y` sao
+-- posicionados pelo editor de planta da aplicacao, e reescreve-los aqui
+-- desfaria em silencio o trabalho de quem organizou a unidade. Ativo novo
+-- ainda nasce na posicao de fabrica, pelo INSERT acima.
 on conflict (plant_id, tag) do update
   set name             = excluded.name,
-      area_id          = excluded.area_id,
       asset_type       = excluded.asset_type,
       location         = excluded.location,
       criticality      = excluded.criticality,
-      grid_x           = excluded.grid_x,
-      grid_y           = excluded.grid_y,
-      plant_x          = excluded.plant_x,
-      plant_y          = excluded.plant_y,
       commissioned_at  = excluded.commissioned_at,
       last_maintenance = excluded.last_maintenance,
       next_maintenance = excluded.next_maintenance,

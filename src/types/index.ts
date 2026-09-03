@@ -57,6 +57,8 @@ export interface Asset {
   name: string;
   type: 'motor' | 'pump' | 'compressor' | 'fan';
   area: string;           // ex: "Hall A"
+  /** FK da área. Necessária para mover o ativo de hall sem casar nome por string. */
+  areaId: string | null;
   location: string;       // ex: "Hall A — Posto 1"
   status: 'normal' | 'warning' | 'critical' | 'offline';
   uptime: number;

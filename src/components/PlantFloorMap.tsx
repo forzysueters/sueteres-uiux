@@ -7,6 +7,12 @@ import { cn } from '../lib/utils';
 // duas vistas nunca discordem sobre o que é "crítico".
 import { STATUS_COLORS, statusLabel } from '../utils/plantStatus';
 import { useIsMobile } from '../hooks/useMediaQuery';
+// Geometria dos halls e malha de células — os mesmos módulos que a cena 3D usa,
+// para que as duas vistas nunca discordem sobre onde um hall começa.
+import { HALLS } from './three/plantLayout';
+import { CELL_SVG, cellsForHall } from './three/plantGrid';
+import type { CellRect } from './three/plantGrid';
+import type { Placement } from '../hooks/usePlantLayoutEditor';
 
 // Sequência de inspeção: ordem recomendada por área (Hall A → Hall B → Hall C → Cobertura)
 const INSPECTION_ORDER: string[] = ['MTR-001', 'MTR-002', 'BBA-001', 'CMP-001', 'EXA-001'];
@@ -23,6 +29,15 @@ interface PlantFloorMapProps {
   pickMode?: boolean;
   pendingPosition?: { x: number; y: number } | null;
   onPickPosition?: (x: number, y: number) => void;
+  /** Modo de editar layout: desenha a malha e habilita o arraste com snap. */
+  editMode?: boolean;
+  draftRects?: Record<string, CellRect>;
+  placement?: Map<string, Placement>;
+  dragId?: string | null;
+  onDragStart?: (id: string) => void;
+  /** Recebe coordenada SVG contínua; quem snapa é o hook do editor. */
+  onDragMove?: (id: string, svgX: number, svgY: number) => void;
+  onDragEnd?: (id: string) => void;
 }
 
 // Paleta estrutural do blueprint — adapta ao tema (as cores de status acima são semânticas e não mudam).
@@ -54,6 +69,8 @@ const ASSET_ICONS: Record<string, string> = {
 export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
   assets, selectedAssetId, onSelectAsset,
   pickMode = false, pendingPosition = null, onPickPosition,
+  editMode = false, draftRects, placement, dragId = null,
+  onDragStart, onDragMove, onDragEnd,
 }) => {
   const { darkMode, language } = useAppStore();
   const t = translations[language].plant;
@@ -80,6 +97,21 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
     .map((tag, i) => ({ from: tag, to: INSPECTION_ORDER[i + 1] }))
     .filter(({ from, to }) => assetCoords[from] && assetCoords[to]);
 
+  /**
+   * Ponto do evento → coordenada do viewBox, exata sob qualquer escala.
+   *
+   * O `handlePick` abaixo usa proporção do getBoundingClientRect, que ignora o
+   * preserveAspectRatio — o viewBox é 1000/562 = 1,7794 contra um contêiner
+   * 16/9 = 1,7778, e sobra ~0,1% de letterbox. Irrelevante para escolher um
+   * ponto; não para decidir em que célula a máquina cai.
+   */
+  const toViewBox = (svg: SVGSVGElement, e: React.PointerEvent): [number, number] | null => {
+    const m = svg.getScreenCTM();
+    if (!m) return null;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return [pt.x, pt.y];
+  };
+
   // Clique → % do viewBox. Usa o retângulo renderizado do SVG, então o valor
   // independe da escala em que o mapa está sendo exibido.
   const handlePick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -100,8 +132,22 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
       <svg
         viewBox="0 0 1000 562"
         className="w-full h-full rounded-xl overflow-hidden"
-        style={pickMode ? { cursor: 'crosshair' } : undefined}
-        onClick={handlePick}
+        style={
+          editMode
+            ? { cursor: dragId ? 'grabbing' : 'default', touchAction: 'none' }
+            : pickMode ? { cursor: 'crosshair' } : undefined
+        }
+        onClick={editMode ? undefined : handlePick}
+        // Os handlers de movimento ficam no <svg> raiz, não no <g> do ativo: o
+        // <g> some de baixo do cursor assim que a peça pula de célula, e o
+        // arrasto morreria no primeiro salto.
+        onPointerMove={(e) => {
+          if (!editMode || !dragId || !onDragMove) return;
+          const pt = toViewBox(e.currentTarget, e);
+          if (pt) onDragMove(dragId, pt[0], pt[1]);
+        }}
+        onPointerUp={() => { if (editMode && dragId) onDragEnd?.(dragId); }}
+        onPointerCancel={() => { if (editMode && dragId) onDragEnd?.(dragId); }}
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Fundo da fábrica */}
@@ -115,21 +161,71 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
           <line key={`gh-${i}`} x1={0} y1={i * 50} x2={1000} y2={i * 50} stroke={p.grid} strokeWidth="1" />
         ))}
 
-        {/* HALL A */}
-        <rect x="30" y="30" width="420" height="260" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
-        {!isMobile && <text x="50" y="55" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL A</text>}
+        {/* Halls — desenhados a partir de HALLS (plantLayout), a mesma fonte que
+            a cena 3D e a malha do editor usam. Antes eram quatro <rect> fixos
+            aqui, com um comentário lá pedindo sincronia manual. */}
+        {HALLS.map((hall) => (
+          <g key={hall.id}>
+            <rect
+              x={hall.svg.x} y={hall.svg.y} width={hall.svg.w} height={hall.svg.h} rx="8"
+              fill={p.hallFill} fillOpacity={hall.open ? 0.4 : 0.6}
+              stroke={p.hallStroke} strokeWidth="1.5"
+              strokeDasharray={hall.open ? '6 3' : undefined}
+            />
+            {!isMobile && (
+              <text
+                x={hall.svg.x + 20} y={hall.svg.y + 25}
+                fill={hall.open ? p.coberturaLabel : p.hallLabel}
+                fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2"
+              >
+                {hall.label}
+              </text>
+            )}
+          </g>
+        ))}
 
-        {/* HALL B */}
-        <rect x="30" y="320" width="420" height="210" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
-        {!isMobile && <text x="50" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL B</text>}
+        {/* Malha de células — só as que cabem inteiras no hall */}
+        {editMode && HALLS.map((hall) => {
+          const r = cellsForHall(hall);
+          const x0 = r.col * CELL_SVG;
+          const y0 = r.row * CELL_SVG;
+          return (
+            <g key={`grid-${hall.id}`} style={{ pointerEvents: 'none' }} opacity={0.55}>
+              {Array.from({ length: r.w + 1 }, (_, i) => (
+                <line key={`v${i}`} x1={x0 + i * CELL_SVG} y1={y0}
+                  x2={x0 + i * CELL_SVG} y2={y0 + r.h * CELL_SVG}
+                  stroke={p.hallStroke} strokeWidth="0.7" />
+              ))}
+              {Array.from({ length: r.h + 1 }, (_, i) => (
+                <line key={`h${i}`} x1={x0} y1={y0 + i * CELL_SVG}
+                  x2={x0 + r.w * CELL_SVG} y2={y0 + i * CELL_SVG}
+                  stroke={p.hallStroke} strokeWidth="0.7" />
+              ))}
+            </g>
+          );
+        })}
 
-        {/* HALL C */}
-        <rect x="480" y="320" width="490" height="210" rx="8" fill={p.hallFill} fillOpacity="0.6" stroke={p.hallStroke} strokeWidth="1.5" />
-        {!isMobile && <text x="500" y="345" fill={p.hallLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">HALL C</text>}
-
-        {/* Área técnica / cobertura */}
-        <rect x="480" y="30" width="490" height="260" rx="8" fill={p.hallFill} fillOpacity="0.4" stroke={p.hallStroke} strokeWidth="1.5" strokeDasharray="6 3" />
-        {!isMobile && <text x="500" y="55" fill={p.coberturaLabel} fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2">COBERTURA / ÁREA TÉCNICA</text>}
+        {/* Pegada de cada ativo — um retângulo por ativo, não N células */}
+        {editMode && assets.map((asset) => {
+          const r = draftRects?.[asset.id];
+          if (!r) return null;
+          const state = placement?.get(asset.id) ?? 'ok';
+          const isDragging = asset.id === dragId;
+          const color = state !== 'ok'
+            ? STATUS_COLORS.critical.fill
+            : isDragging ? p.flow : p.hallStroke;
+          return (
+            <rect
+              key={`fp-${asset.id}`}
+              style={{ pointerEvents: 'none' }}
+              x={r.col * CELL_SVG} y={r.row * CELL_SVG}
+              width={r.w * CELL_SVG} height={r.h * CELL_SVG} rx="3"
+              fill={color} fillOpacity={state === 'ok' ? 0.14 : 0.3}
+              stroke={color} strokeWidth={isDragging ? 2 : 1.4}
+              strokeDasharray={isDragging ? '6 4' : undefined}
+            />
+          );
+        })}
 
         {/* Definição da ponta de seta do fluxo de inspeção */}
         <defs>
@@ -138,8 +234,9 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
           </marker>
         </defs>
 
-        {/* Fluxo de inspeção — linhas tracejadas entre ativos */}
-        {inspectionSegments.map(({ from, to }) => {
+        {/* Fluxo de inspeção — escondido na edição: as setas cruzam a malha
+            e disputam leitura com as pegadas. */}
+        {!editMode && inspectionSegments.map(({ from, to }) => {
           const f = assetCoords[from];
           const t = assetCoords[to];
           // Encurta a linha para não sobrepor os círculos (raio 20 + margem)
@@ -184,9 +281,23 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
               // Em pickMode os ativos são só referência visual: o clique tem de
               // atravessar até o SVG, senão soltar o marcador em cima de um
               // ativo existente selecionaria o ativo em vez de fixar a posição.
-              style={pickMode ? { pointerEvents: 'none' } : { cursor: 'pointer' }}
-              onClick={() => onSelectAsset(isSelected ? null : asset.id)}
-              onMouseEnter={(e) => {
+              style={
+                pickMode ? { pointerEvents: 'none' }
+                  : editMode ? { cursor: asset.id === dragId ? 'grabbing' : 'grab' }
+                    : { cursor: 'pointer' }
+              }
+              onPointerDown={editMode ? (e) => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                // Captura no <svg>: o ponteiro continua sendo entregue mesmo
+                // quando sai do elemento (e da própria janela) durante o arrasto.
+                e.currentTarget.ownerSVGElement?.setPointerCapture(e.pointerId);
+                onDragStart?.(asset.id);
+              } : undefined}
+              onClick={editMode ? undefined : () => onSelectAsset(isSelected ? null : asset.id)}
+              // Sem tooltip na edição: o card seguiria o cursor por cima da
+              // malha justamente enquanto se escolhe a célula de destino.
+              onMouseEnter={editMode ? undefined : (e) => {
                 const svg = (e.target as SVGElement).closest('svg')!;
                 const rect = svg.getBoundingClientRect();
                 setTooltip({
@@ -196,7 +307,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
                   boxW: rect.width,
                 });
               }}
-              onMouseLeave={() => setTooltip(null)}
+              onMouseLeave={editMode ? undefined : () => setTooltip(null)}
             >
               {/* Anel de pulso (status crítico/warning) */}
               {(asset.status === 'critical' || asset.status === 'warning') && (
@@ -264,7 +375,7 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
         })()}
 
         {/* Legenda — status dos ativos */}
-        {!isMobile && !pickMode && Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
+        {!isMobile && !pickMode && !editMode && Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
           <g key={key} transform={`translate(${30 + i * 110}, 535)`}>
             <circle cx={8} cy={8} r={6} fill={cfg.fill} fillOpacity="0.85" />
             <text x={18} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{cfg.label}</text>
