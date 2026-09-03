@@ -1,4 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { AlertTriangle, Loader2, Move, Save, X } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { translations } from '../translations';
@@ -13,7 +15,18 @@ interface PlantLayoutToolbarProps {
   onCancel: () => void;
 }
 
-/** Barra do modo de edição — some junto com o modo. */
+/**
+ * Painel do modo de edição da planta.
+ *
+ * Fica FLUTUANDO no topo da tela, não no fluxo da página. No fluxo ele caía
+ * abaixo da cena 3D — fora da primeira dobra —, e quem clicava em "Editar
+ * planta" não via nem a instrução nem o botão de salvar.
+ *
+ * Não é um modal: os controles precisam continuar visíveis enquanto o usuário
+ * arrasta as máquinas. É uma barra fixa, que aparece com o modo e acompanha a
+ * rolagem. Desenhada em portal sobre o `body` para não herdar `overflow` nem
+ * contexto de empilhamento de nenhum contêiner da página.
+ */
 export const PlantLayoutToolbar: React.FC<PlantLayoutToolbarProps> = ({
   movedCount, invalidCount, saving, error, onSave, onCancel,
 }) => {
@@ -28,9 +41,29 @@ export const PlantLayoutToolbar: React.FC<PlantLayoutToolbarProps> = ({
     ? t.invalid_one
     : t.invalid_many.replace('{n}', String(invalidCount));
 
-  return (
-    <div className="saas-card border-primary/40 bg-primary/5 p-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0, y: -20, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+      role="region"
+      aria-label={t.editing}
+      // Abaixo da navbar (h-16 no celular, h-20 a partir de md) e acima do
+      // conteúdo, mas sob os diálogos (z-50) — descartar alterações precisa
+      // aparecer por cima desta barra.
+      className={cn(
+        // Centralizado por margem, não por transform: o framer-motion escreve a
+        // propriedade `transform` do elemento e apagaria um `-translate-x-1/2`.
+        'fixed inset-x-0 z-[45] mx-auto w-[calc(100%-1.5rem)] max-w-3xl',
+        'top-[4.75rem] md:top-[5.75rem]',
+        'rounded-2xl border border-primary/40 bg-card/95 p-3 sm:p-4 shadow-panel backdrop-blur-xl',
+        'space-y-3',
+      )}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <span className="w-8 h-8 flex-shrink-0 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
             <Move size={15} />
@@ -43,7 +76,7 @@ export const PlantLayoutToolbar: React.FC<PlantLayoutToolbarProps> = ({
 
         <div className="flex flex-shrink-0 items-center gap-2">
           <span className={cn(
-            'text-[11px] font-bold tabular-nums',
+            'text-[11px] font-bold tabular-nums whitespace-nowrap',
             movedCount > 0 ? 'text-primary' : 'text-muted',
           )}>
             {moved}
@@ -85,6 +118,7 @@ export const PlantLayoutToolbar: React.FC<PlantLayoutToolbarProps> = ({
           <p className="text-[11px] font-medium leading-relaxed">{error}</p>
         </div>
       )}
-    </div>
+    </motion.div>,
+    document.body,
   );
 };

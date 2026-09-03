@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
 import { useAuthStore } from '../store/authStore';
 import { canWriteAssets } from '../types/auth';
@@ -318,7 +319,7 @@ export const PlantNavigation: React.FC = () => {
       {/* Main view */}
       {viewMode === '3d' && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_330px] xl:h-[calc(100vh-15rem)] xl:min-h-[540px]">
-          <div className="saas-card bg-card-hover flex h-[55vh] min-h-[320px] flex-col p-2 sm:min-h-[400px] sm:p-3 xl:h-full">
+          <div data-tour="plant-scene" className="saas-card bg-card-hover flex h-[55vh] min-h-[320px] flex-col p-2 sm:min-h-[400px] sm:p-3 xl:h-full">
             {/* min-h-0 é o que permite o canvas encolher dentro do flex */}
             <div className="relative min-h-0 flex-1">
               <Suspense
@@ -380,7 +381,7 @@ export const PlantNavigation: React.FC = () => {
             </p>
           </div>
 
-          <div className="saas-card max-h-[70vh] overflow-hidden p-3 sm:p-4 xl:max-h-none xl:h-full">
+          <div data-tour="triage-rail" className="saas-card max-h-[70vh] overflow-hidden p-3 sm:p-4 xl:max-h-none xl:h-full">
             <PlantAlertRail
               assets={filteredAssets}
               selectedAssetId={selectedAssetId}
@@ -391,16 +392,19 @@ export const PlantNavigation: React.FC = () => {
         </div>
       )}
 
-      {editMode && (
-        <PlantLayoutToolbar
-          movedCount={movedCount}
-          invalidCount={invalidCount}
-          saving={editor.saving}
-          error={editor.error}
-          onSave={saveLayout}
-          onCancel={leaveEditMode}
-        />
-      )}
+      <AnimatePresence>
+        {editMode && (
+          <PlantLayoutToolbar
+            key="layout-toolbar"
+            movedCount={movedCount}
+            invalidCount={invalidCount}
+            saving={editor.saving}
+            error={editor.error}
+            onSave={saveLayout}
+            onCancel={leaveEditMode}
+          />
+        )}
+      </AnimatePresence>
 
       {viewMode === 'map' && (
         <div className="saas-card p-2 sm:p-4 bg-card-hover">
