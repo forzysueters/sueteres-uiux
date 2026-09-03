@@ -62,7 +62,10 @@ export const EquipmentPage: React.FC = () => {
         </div>
       </div>
 
-      <EquipmentRegistrationForm assetId={selectedAssetId || undefined} />
+      <EquipmentRegistrationForm
+        assetId={selectedAssetId || undefined}
+        onRegistered={loadRecent}
+      />
 
       <div className="saas-card p-4 sm:p-6">
         <span className="section-title">{t.recent}</span>

@@ -7,11 +7,13 @@ import {
   Activity,
   Factory,
   Tag,
+  Trash2,
 } from 'lucide-react'
 import { Asset } from '../types'
 import { cn } from '../lib/utils'
 import { statusBadge, statusLabel } from '../utils/plantStatus'
 import { useAppStore } from '../store/appStore'
+import { translations } from '../translations'
 
 interface KPICardProps {
   title: string
@@ -117,12 +119,15 @@ interface AssetTileProps {
   asset: Asset
   isSelected: boolean
   onClick: (id: string) => void
+  /** Quando presente, mostra a ação de remover no hover (admin/engenheiro). */
+  onRemove?: (asset: Asset) => void
 }
 
-export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick }) => {
+export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick, onRemove }) => {
   const { language } = useAppStore()
   const cfg = statusBadge(asset.status)
   const label = statusLabel(asset.status, language)
+  const removeLabel = translations[language].assetRemoval.action_remove
 
   return (
     <motion.div
@@ -153,9 +158,23 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
         >
           <Factory size={20} strokeWidth={2} />
         </div>
-        <div className="badge bg-card-hover border-border flex-shrink-0">
-          <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot, 'animate-pulse')} />
-          <span className={cfg.text}>{label}</span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="badge bg-card-hover border-border">
+            <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot, 'animate-pulse')} />
+            <span className={cfg.text}>{label}</span>
+          </div>
+          {onRemove && (
+            <button
+              // O card inteiro navega para o ativo; sem parar a propagação, o
+              // clique na lixeira abriria a página em vez do diálogo.
+              onClick={(e) => { e.stopPropagation(); onRemove(asset) }}
+              title={removeLabel}
+              aria-label={removeLabel}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted opacity-0 transition-all hover:bg-red-500/10 hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
 

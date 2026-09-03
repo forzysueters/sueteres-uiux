@@ -1,9 +1,13 @@
 import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
+import { canWriteAssets } from '../types/auth';
 import { translations } from '../translations';
 import { apiService } from '../services/api';
 import { AssetTile } from '../components/Cards';
+import { AssetRemovalDialog } from '../components/AssetRemovalDialog';
+import { InactiveAssetsPanel } from '../components/InactiveAssetsPanel';
 import { PlantFloorMap } from '../components/PlantFloorMap';
 import { PlantAlertRail } from '../components/PlantAlertRail';
 import { STATUS_COLORS, statusLabel } from '../utils/plantStatus';
@@ -11,6 +15,7 @@ import {
   Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, Box, Maximize2, Factory, AlertOctagon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import type { Asset, InactiveAsset } from '../types';
 import type { CameraFocus } from '../components/three/PlantScene3D';
 // plantLayout é TS puro (não importa `three`) — seguro trazer para cá sem
 // arrastar a biblioteca 3D para o bundle inicial.
@@ -26,6 +31,10 @@ type ViewMode = '3d' | 'map' | 'grid';
 
 export const PlantNavigation: React.FC = () => {
   const { assets, setAssets, selectedAssetId, setSelectedAsset, language } = useAppStore();
+  // Mesma regra da página do ativo: quem cadastra ativo também o remove.
+  const mayRemoveAsset = canWriteAssets(useAuthStore((s) => s.user)?.role);
+  const [removalTarget, setRemovalTarget] = useState<Asset | null>(null);
+  const [inactive, setInactive] = useState<InactiveAsset[]>([]);
   const t = translations[language].plant;
   const common = translations[language].common;
   const navigate = useNavigate();
@@ -59,9 +68,23 @@ export const PlantNavigation: React.FC = () => {
       .finally(() => setLoading(false));
   };
 
+  // Só admin/engenheiro veem (e podem reativar) ativo desativado; para os
+  // demais nem vale a consulta.
+  const loadInactive = () => {
+    if (!mayRemoveAsset) return;
+    apiService.getInactiveAssets().then(setInactive).catch(() => setInactive([]));
+  };
+
   useEffect(() => {
     loadAssets();
   }, []);
+
+  // Depende do papel, que chega depois do primeiro render: `verifyAuth` resolve
+  // a sessão de forma assíncrona, então um efeito com [] leria o papel ainda
+  // vazio e a lista nunca carregaria.
+  useEffect(() => {
+    loadInactive();
+  }, [mayRemoveAsset]);
 
   const areas = ['all', ...Array.from(new Set(assets.map(a => a.area)))];
   const filteredAssets = areaFilter === 'all' ? assets : assets.filter(a => a.area === areaFilter);
@@ -316,6 +339,7 @@ export const PlantNavigation: React.FC = () => {
                   asset={asset}
                   isSelected={selectedAssetId === asset.id}
                   onClick={handleAssetSelect}
+                  onRemove={mayRemoveAsset ? setRemovalTarget : undefined}
                 />
               ))}
             </div>
@@ -343,6 +367,7 @@ export const PlantNavigation: React.FC = () => {
                         asset={asset}
                         isSelected={selectedAssetId === asset.id}
                         onClick={handleAssetSelect}
+                        onRemove={mayRemoveAsset ? setRemovalTarget : undefined}
                       />
                     </div>
                   );
@@ -407,6 +432,29 @@ export const PlantNavigation: React.FC = () => {
           );
         })}
       </div>
+      )}
+
+      {mayRemoveAsset && (
+        <InactiveAssetsPanel
+          assets={inactive}
+          onReactivated={() => { loadAssets(); loadInactive(); }}
+        />
+      )}
+
+      {removalTarget && (
+        <AssetRemovalDialog
+          asset={removalTarget}
+          open={removalTarget !== null}
+          onOpenChange={(open) => { if (!open) setRemovalTarget(null); }}
+          onRemoved={() => {
+            // Sai do store na hora; desativado some da view, apagado deixa de
+            // existir. Se era o selecionado, limpa o contexto do assistente.
+            setAssets(assets.filter((a) => a.id !== removalTarget.id));
+            if (selectedAssetId === removalTarget.id) setSelectedAsset(null);
+            setRemovalTarget(null);
+            loadInactive();
+          }}
+        />
       )}
     </div>
   );

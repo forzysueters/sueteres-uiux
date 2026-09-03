@@ -15,6 +15,14 @@ interface PlantFloorMapProps {
   assets: Asset[];
   selectedAssetId: string | null;
   onSelectAsset: (id: string | null) => void;
+  /**
+   * Modo de posicionamento (wizard de cadastro): o clique no mapa devolve a
+   * coordenada em % em vez de selecionar um ativo. Os ativos existentes
+   * continuam desenhados, como referência de onde não colidir.
+   */
+  pickMode?: boolean;
+  pendingPosition?: { x: number; y: number } | null;
+  onPickPosition?: (x: number, y: number) => void;
 }
 
 // Paleta estrutural do blueprint — adapta ao tema (as cores de status acima são semânticas e não mudam).
@@ -43,7 +51,10 @@ const ASSET_ICONS: Record<string, string> = {
   fan:        'E',
 };
 
-export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAssetId, onSelectAsset }) => {
+export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
+  assets, selectedAssetId, onSelectAsset,
+  pickMode = false, pendingPosition = null, onPickPosition,
+}) => {
   const { darkMode, language } = useAppStore();
   const t = translations[language].plant;
   const common = translations[language].common;
@@ -69,12 +80,28 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
     .map((tag, i) => ({ from: tag, to: INSPECTION_ORDER[i + 1] }))
     .filter(({ from, to }) => assetCoords[from] && assetCoords[to]);
 
+  // Clique → % do viewBox. Usa o retângulo renderizado do SVG, então o valor
+  // independe da escala em que o mapa está sendo exibido.
+  const handlePick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!pickMode || !onPickPosition) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const clamp = (n: number) => Math.min(Math.max(n, 0), 100);
+    onPickPosition(
+      parseFloat(clamp(x).toFixed(2)),
+      parseFloat(clamp(y).toFixed(2)),
+    );
+  };
+
   return (
     <div className="relative w-full select-none">
       <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
       <svg
         viewBox="0 0 1000 562"
         className="w-full h-full rounded-xl overflow-hidden"
+        style={pickMode ? { cursor: 'crosshair' } : undefined}
+        onClick={handlePick}
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Fundo da fábrica */}
@@ -154,7 +181,10 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
           return (
             <g
               key={asset.id}
-              style={{ cursor: 'pointer' }}
+              // Em pickMode os ativos são só referência visual: o clique tem de
+              // atravessar até o SVG, senão soltar o marcador em cima de um
+              // ativo existente selecionaria o ativo em vez de fixar a posição.
+              style={pickMode ? { pointerEvents: 'none' } : { cursor: 'pointer' }}
               onClick={() => onSelectAsset(isSelected ? null : asset.id)}
               onMouseEnter={(e) => {
                 const svg = (e.target as SVGElement).closest('svg')!;
@@ -217,8 +247,24 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({ assets, selectedAs
           );
         })}
 
+        {/* Marcador fantasma — posição escolhida para o ativo em cadastro */}
+        {pickMode && pendingPosition && (() => {
+          const cx = (pendingPosition.x / 100) * 1000;
+          const cy = (pendingPosition.y / 100) * 562;
+          return (
+            <g style={{ pointerEvents: 'none' }}>
+              <circle cx={cx} cy={cy} r={20 * k} fill={p.flow} fillOpacity="0.2"
+                stroke={p.flow} strokeWidth={2 * k} strokeDasharray={`${5 * k} ${3 * k}`}>
+                <animate attributeName="opacity" values="1;0.45;1" dur="1.6s" repeatCount="indefinite" />
+              </circle>
+              <line x1={cx - 30 * k} y1={cy} x2={cx + 30 * k} y2={cy} stroke={p.flow} strokeWidth={k} opacity="0.5" />
+              <line x1={cx} y1={cy - 30 * k} x2={cx} y2={cy + 30 * k} stroke={p.flow} strokeWidth={k} opacity="0.5" />
+            </g>
+          );
+        })()}
+
         {/* Legenda — status dos ativos */}
-        {!isMobile && Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
+        {!isMobile && !pickMode && Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
           <g key={key} transform={`translate(${30 + i * 110}, 535)`}>
             <circle cx={8} cy={8} r={6} fill={cfg.fill} fillOpacity="0.85" />
             <text x={18} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{cfg.label}</text>

@@ -19,6 +19,10 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
   const confidenceColor =
     confidence >= 95 ? 'text-emerald-400' :
     confidence >= 85 ? 'text-amber-400' : 'text-red-400';
+  // Numa placa corrigida à mão, a confiança do OCR descreve a extração que
+  // originou os valores — não o que está na tela. Exibi-la como acurácia do
+  // modelo seria mentir sobre a origem do dado.
+  const isManual = nameplate.source === 'manual';
 
   if (compact) {
     return (
@@ -75,8 +79,17 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
           </div>
         </div>
         <div className="flex-shrink-0 text-right">
-          <p className={cn('text-lg font-bold tabular-nums', confidenceColor)}>{confidence}%</p>
-          <p className="text-[9px] text-muted uppercase tracking-wider">{t.ocr_confidence}</p>
+          {isManual ? (
+            <>
+              <p className="text-sm font-bold text-foreground-soft">{t.manual_badge}</p>
+              <p className="text-[9px] text-muted uppercase tracking-wider">{t.manual_hint}</p>
+            </>
+          ) : (
+            <>
+              <p className={cn('text-lg font-bold tabular-nums', confidenceColor)}>{confidence}%</p>
+              <p className="text-[9px] text-muted uppercase tracking-wider">{t.ocr_confidence}</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -98,9 +111,12 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
         <p className="text-[10px] text-muted">
           {t.registered_at} {new Date(nameplate.registeredAt).toLocaleDateString(locale)}
         </p>
-        <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-1.5">
+        <span className={cn(
+          'text-[9px] font-bold flex items-center gap-1.5',
+          isManual ? 'text-primary' : 'text-emerald-400',
+        )}>
           <CheckCircle2 size={11} />
-          {t.validated}
+          {isManual ? t.manual_validated : t.validated}
         </span>
       </div>
     </div>
