@@ -114,7 +114,7 @@ export const AlertsPage: React.FC = () => {
 
       {/* List */}
       {filteredAlerts.length > 0 ? (
-        <div className="space-y-3">
+        <div data-tour="alerts-list" className="space-y-3">
           {filteredAlerts.map(alert => (
             <AlertItem key={alert.id} alert={alert} onResolve={resolveAlert} />
           ))}

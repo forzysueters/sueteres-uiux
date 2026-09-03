@@ -40,7 +40,7 @@ export const AssistantPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 flex-1 min-h-0">
-        <div className="lg:col-span-2 h-[70vh] min-h-[440px] lg:h-full">
+        <div data-tour="ai-chat" className="lg:col-span-2 h-[70vh] min-h-[440px] lg:h-full">
           <AIAssistant />
         </div>
 

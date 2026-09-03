@@ -40,6 +40,7 @@ import { LoginPage } from './pages/LoginPage'
 import logoWhite from './assets/logo-forzy-branca.svg'
 import logoBlack from './assets/logo-forzy-preta.svg'
 import { cn } from './lib/utils'
+import { AssistantProvider } from './assistant'
 
 const AppContent = () => {
   const { darkMode, primaryColor, language } = useAppStore()
@@ -345,6 +346,9 @@ const AppContent = () => {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Assistente virtual — sobreposto em portal, não altera o layout. */}
+      <AssistantProvider />
     </div>
   )
 }

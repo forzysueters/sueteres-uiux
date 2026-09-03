@@ -276,7 +276,7 @@ export const AssetMonitorPage: React.FC = () => {
         </Suspense>
 
         {/* Overlay: placar de saúde (glassmorphism, flutuante) */}
-        <div className="absolute top-3 left-3 z-10 w-[150px] sm:top-4 sm:left-4 sm:w-[220px] rounded-2xl border border-border bg-white/70 dark:bg-slate-950/55 backdrop-blur-xl shadow-lg p-3 sm:p-4">
+        <div data-tour="health-index" className="absolute top-3 left-3 z-10 w-[150px] sm:top-4 sm:left-4 sm:w-[220px] rounded-2xl border border-border bg-white/70 dark:bg-slate-950/55 backdrop-blur-xl shadow-lg p-3 sm:p-4">
           <div className="flex flex-col items-center gap-3">
             <HealthGauge value={health} severity={severity} size={isMobile ? 104 : 150} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 w-full pt-3 border-t border-border">

@@ -261,7 +261,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   const labelClass = 'text-[10px] font-bold uppercase tracking-widest text-muted flex items-center gap-1.5';
 
   return (
-    <div className="saas-card overflow-hidden animate-fade-in">
+    <div data-tour="equipment-registration" className="saas-card overflow-hidden animate-fade-in">
       {/* Header / Stepper */}
       <div className="px-4 sm:px-6 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3 bg-card-hover">
         <div className="flex min-w-0 items-center gap-3">

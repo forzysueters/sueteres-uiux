@@ -5,7 +5,13 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "types": ["node"]
+    "types": ["node"],
+    // Sem isto o `tsc -b` do build emite um vite.config.js na raiz — e o Vite
+    // prefere .js a .ts, passando a carregar uma cópia CONGELADA da config
+    // (sem o proxy de TTS, sem qualquer plugin novo). `composite` exige
+    // declarações, então emitimos só o .d.ts, para dentro de node_modules/.tmp.
+    "emitDeclarationOnly": true,
+    "declarationDir": "./node_modules/.tmp/tsconfig-node"
   },
   "include": ["vite.config.ts"]
 }
