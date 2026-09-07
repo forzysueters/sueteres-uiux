@@ -1,11 +1,13 @@
+import { useRef } from 'react';
 import { Bot, Sparkles, MessageSquare, ShieldCheck, BarChart2 } from 'lucide-react';
-import { AIAssistant } from '../components/AIAssistant';
+import { AIAssistant, AIAssistantHandle } from '../components/AIAssistant';
 import { useAppStore } from '../store/appStore';
 import { translations } from '../translations';
 
 export const AssistantPage: React.FC = () => {
   const { language } = useAppStore();
   const t = translations[language].assistant;
+  const assistantRef = useRef<AIAssistantHandle>(null);
 
   const quickQuestions = [
     { icon: MessageSquare, text: t.sidebar_q1, color: 'text-amber-500' },
@@ -41,7 +43,7 @@ export const AssistantPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 flex-1 min-h-0">
         <div data-tour="ai-chat" className="lg:col-span-2 h-[70vh] min-h-[440px] lg:h-full">
-          <AIAssistant />
+          <AIAssistant ref={assistantRef} />
         </div>
 
         <div className="space-y-6 lg:space-y-8">
@@ -51,6 +53,7 @@ export const AssistantPage: React.FC = () => {
               {quickQuestions.map((q, i) => (
                 <button
                   key={i}
+                  onClick={() => assistantRef.current?.ask(q.text)}
                   className="w-full text-left p-4 rounded-xl border border-border bg-card-hover hover:bg-border/40 hover:border-primary/30 transition-all group"
                 >
                   <div className="flex items-start gap-3">
