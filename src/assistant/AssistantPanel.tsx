@@ -6,6 +6,7 @@ import {
   Check,
   CornerDownLeft,
   Loader2,
+  Maximize2,
   Mic,
   Pause,
   Play,
@@ -41,6 +42,8 @@ export interface AssistantPanelModel {
   anchor: 'bottom' | 'top';
   chatPending: boolean;
   chatQuestion: string | null;
+  /** Falso quando já se está na página do assistente. */
+  canExpand: boolean;
 }
 
 interface AssistantPanelProps extends AssistantPanelModel {
@@ -56,6 +59,7 @@ interface AssistantPanelProps extends AssistantPanelModel {
   onToggleMute: () => void;
   onAsk: (question: string) => void;
   onRestart: () => void;
+  onExpand: () => void;
 }
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -152,6 +156,18 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
             )}
           </div>
         </div>
+
+        {p.canExpand && (
+          <button
+            type="button"
+            onClick={p.onExpand}
+            aria-label={t(lang, 'expand')}
+            title={t(lang, 'expand')}
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-card hover:text-foreground"
+          >
+            <Maximize2 size={15} />
+          </button>
+        )}
 
         <button
           type="button"

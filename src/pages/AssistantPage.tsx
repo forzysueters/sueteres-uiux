@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Bot, Sparkles, MessageSquare, ShieldCheck, BarChart2 } from 'lucide-react';
+import { MessageSquare, ShieldCheck, BarChart2 } from 'lucide-react';
 import { AIAssistant, AIAssistantHandle } from '../components/AIAssistant';
 import { useAppStore } from '../store/appStore';
 import { translations } from '../translations';
@@ -24,22 +24,9 @@ export const AssistantPage: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col gap-8 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-3">
-            <Bot className="w-7 h-7 text-primary" />
-            {t.title}
-          </h1>
-          <p>
-            {t.subtitle}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/10 text-primary">
-          <Sparkles size={14} className="animate-pulse" />
-          <span className="text-[10px] font-bold uppercase tracking-widest">{t.context_badge}</span>
-        </div>
-      </div>
+      {/* Sem cabeçalho visível: quem chega aqui veio do Órion e já sabe onde
+          está. O título fica só para leitor de tela, que precisa dele. */}
+      <h1 className="sr-only">{t.title}</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 flex-1 min-h-0">
         <div data-tour="ai-chat" className="lg:col-span-2 h-[70vh] min-h-[440px] lg:h-full">

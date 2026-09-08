@@ -9,6 +9,8 @@ import { stripMarkdown } from './RichText';
 import type { AssistantPhase, AvatarState, TourContext } from './types';
 
 const SEEN_KEY = 'forzy.assistant.tour.v1';
+/** Página cheia do assistente — sem entrada no menu, só por "Expandir". */
+const ASSISTANT_ROUTE = '/assistente';
 
 const readSeen = () => {
   try {
@@ -172,6 +174,19 @@ export const useTourController = () => {
     setOpen(false);
   }, [speech, seen]);
 
+  /**
+   * Leva para a página do Assistente e fecha o balão.
+   *
+   * Ela saiu do menu: este botão é o caminho para ela. Encerra a narração
+   * porque o usuário está trocando de contexto, não pausando.
+   */
+  const expand = useCallback(() => {
+    speech.cancel();
+    setPhase('dormant');
+    setOpen(false);
+    navigate(ASSISTANT_ROUTE);
+  }, [speech, navigate]);
+
   const openPanel = useCallback(() => {
     setEngaged(true);
     setOpen(true);
@@ -258,6 +273,8 @@ export const useTourController = () => {
     chatPending,
     chatQuestion,
     preparing: speech.preparing,
+    /** Some quando já se está na página — botão que não faz nada é ruído. */
+    canExpand: location.pathname !== ASSISTANT_ROUTE,
     actions: {
       openPanel,
       start,
@@ -267,6 +284,7 @@ export const useTourController = () => {
       dismiss,
       close,
       restart,
+      expand,
       togglePause,
       toggleMuted: speech.toggleMuted,
       ask,

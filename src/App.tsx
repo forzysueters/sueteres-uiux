@@ -14,7 +14,6 @@ import {
   Factory,
   Bell,
   Cpu,
-  Bot,
   Clock,
   Settings,
   User,
@@ -95,7 +94,8 @@ const AppContent = () => {
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
-    { id: 'assistant', label: t.nav.assistant, path: '/assistente', icon: Bot },
+    // O Assistente saiu do menu: agora se chega nele pelo botão "Expandir" do
+    // Órion, no canto da tela. A rota /assistente continua valendo.
   ]
 
   return (

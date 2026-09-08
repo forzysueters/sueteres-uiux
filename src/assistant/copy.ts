@@ -8,6 +8,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     role: 'Assistente virtual',
     open: `Falar com o ${ASSISTANT_NAME}`,
     close: 'Fechar',
+    expand: 'Abrir em tela cheia',
     greeting_title: `Olá! Eu sou o ${ASSISTANT_NAME}.`,
     greeting_speech:
       `Olá! Eu sou o ${ASSISTANT_NAME}, seu assistente virtual aqui na plataforma. ` +
@@ -47,6 +48,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     role: 'Virtual assistant',
     open: `Talk to ${ASSISTANT_NAME}`,
     close: 'Close',
+    expand: 'Open full screen',
     greeting_title: `Hi! I'm ${ASSISTANT_NAME}.`,
     greeting_speech:
       `Hi! I'm ${ASSISTANT_NAME}, your virtual assistant on this platform. ` +
