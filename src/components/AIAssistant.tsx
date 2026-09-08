@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, ChevronRight, MessageSquarePlus, FileText } from 'lucide-react';
+import React, { forwardRef, useImperativeHandle, useState, useRef, useEffect } from 'react';
+import { Send, User, Sparkles, MessageSquarePlus, FileText } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { ChatMessage } from '../types';
 import { translations } from '../translations';
+import { AvatarFace } from '../assistant';
 
 /** Interpreta **negrito** sem markdown completo — evita dangerouslySetInnerHTML. */
 function renderContent(content: string): React.ReactNode {
@@ -24,13 +25,17 @@ function dedupeCitations(citations: ChatMessage['citations']) {
   return [...seen.values()];
 }
 
-export const AIAssistant: React.FC = () => {
+export interface AIAssistantHandle {
+  /** Envia uma pergunta como se o usuário tivesse digitado — usada pelos atalhos da página. */
+  ask: (question: string) => void;
+}
+
+export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
   const {
     selectedAssetId, chatMessages, addChatMessage, conversationId, setConversationId, clearChatMessages, language,
   } = useAppStore();
   const t = translations[language].assistant;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
-  const QUICK_QUESTIONS = [t.quick_q1, t.quick_q2, t.quick_q3, t.quick_q4];
   const GREETING: ChatMessage = {
     id: 'init',
     role: 'assistant',
@@ -105,17 +110,19 @@ export const AIAssistant: React.FC = () => {
     }
   };
 
+  useImperativeHandle(ref, () => ({ ask: handleSend }));
+
   return (
     <div className="flex flex-col h-full saas-card overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border bg-card-hover flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
-            <Bot size={18} className="text-white" />
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-border bg-card-hover flex items-center justify-between gap-2 flex-shrink-0">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex-shrink-0">
+            <AvatarFace size={36} state={isTyping ? 'thinking' : 'idle'} orbit={false} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm font-bold text-foreground">{t.header_title}</h3>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">{t.online}</span>
               {selectedAssetId && (
@@ -138,16 +145,20 @@ export const AIAssistant: React.FC = () => {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin bg-background">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 scrollbar-thin bg-background">
         {chatMessages.map((m) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
-            <div className={`flex gap-3 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 mt-1 border ${
-                m.role === 'user' ? 'bg-card-hover border-border text-muted' : 'bg-primary border-primary text-white'
-              }`}>
-                {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
-              </div>
-              <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-line ${
+            <div className={`flex min-w-0 gap-2.5 sm:gap-3 max-w-[88%] sm:max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              {m.role === 'user' ? (
+                <div className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0 mt-1 border bg-card-hover border-border text-muted">
+                  <User size={16} />
+                </div>
+              ) : (
+                <div className="flex-shrink-0 mt-1">
+                  <AvatarFace size={32} state="idle" orbit={false} />
+                </div>
+              )}
+              <div className={`min-w-0 break-words p-3 sm:p-4 rounded-xl text-sm leading-relaxed whitespace-pre-line ${
                 m.role === 'user'
                   ? 'bg-card-hover border border-border text-foreground rounded-tr-none'
                   : 'bg-card border border-border text-foreground rounded-tl-none'
@@ -183,9 +194,7 @@ export const AIAssistant: React.FC = () => {
         {isTyping && (
           <div className="flex justify-start animate-fade-in">
             <div className="flex gap-3">
-              <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white">
-                <Bot size={16} />
-              </div>
+              <AvatarFace size={32} state="thinking" orbit={false} />
               <div className="p-4 rounded-xl rounded-tl-none bg-card border border-border flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" />
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:0.2s]" />
@@ -196,25 +205,8 @@ export const AIAssistant: React.FC = () => {
         )}
       </div>
 
-      {/* Quick suggestions */}
-      <div className="px-4 pt-3 border-t border-border flex-shrink-0">
-        <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-2">
-          {QUICK_QUESTIONS.map((q, i) => (
-            <button
-              key={i}
-              onClick={() => handleSend(q)}
-              disabled={isTyping}
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-card-hover text-[10px] font-medium text-muted hover:text-foreground hover:border-primary/30 transition-all disabled:opacity-40"
-            >
-              <ChevronRight size={10} className="text-primary" />
-              {q.length > 35 ? q.substring(0, 35) + '…' : q}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Input */}
-      <div className="p-4 flex-shrink-0">
+      <div className="p-3 sm:p-4 flex-shrink-0">
         <div className="relative">
           <input
             type="text"
@@ -235,4 +227,4 @@ export const AIAssistant: React.FC = () => {
       </div>
     </div>
   );
-};
+});

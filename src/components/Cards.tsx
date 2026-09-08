@@ -7,11 +7,13 @@ import {
   Activity,
   Factory,
   Tag,
+  Trash2,
 } from 'lucide-react'
 import { Asset } from '../types'
 import { cn } from '../lib/utils'
 import { statusBadge, statusLabel } from '../utils/plantStatus'
 import { useAppStore } from '../store/appStore'
+import { translations } from '../translations'
 
 interface KPICardProps {
   title: string
@@ -66,7 +68,7 @@ export const KPICard: React.FC<KPICardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -2 }}
-      className="group relative saas-card-premium p-5 overflow-hidden"
+      className="group relative saas-card-premium p-4 sm:p-5 overflow-hidden"
     >
       {/* Decorative glow on hover */}
       <div
@@ -103,8 +105,8 @@ export const KPICard: React.FC<KPICardProps> = ({
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted mb-2">
         {title}
       </p>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-3xl font-bold text-foreground tabular-nums tracking-tight">
+      <div className="flex flex-wrap items-baseline gap-1.5">
+        <span className="text-2xl sm:text-3xl font-bold text-foreground tabular-nums tracking-tight break-all">
           {value}
         </span>
         {unit && <span className="text-sm font-medium text-muted-soft">{unit}</span>}
@@ -117,12 +119,15 @@ interface AssetTileProps {
   asset: Asset
   isSelected: boolean
   onClick: (id: string) => void
+  /** Quando presente, mostra a ação de remover no hover (admin/engenheiro). */
+  onRemove?: (asset: Asset) => void
 }
 
-export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick }) => {
+export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick, onRemove }) => {
   const { language } = useAppStore()
   const cfg = statusBadge(asset.status)
   const label = statusLabel(asset.status, language)
+  const removeLabel = translations[language].assetRemoval.action_remove
 
   return (
     <motion.div
@@ -130,7 +135,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
       transition={{ duration: 0.2 }}
       onClick={() => onClick(asset.id)}
       className={cn(
-        'group relative saas-card saas-card-hover cursor-pointer p-5 overflow-hidden',
+        'group relative saas-card saas-card-hover cursor-pointer p-4 sm:p-5 overflow-hidden',
         'before:content-[""] before:absolute before:left-0 before:top-3 before:bottom-3 before:w-[3px] before:rounded-r-full',
         cfg.before,
         isSelected && cn('ring-2', cfg.ring, cfg.glow),
@@ -153,9 +158,23 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
         >
           <Factory size={20} strokeWidth={2} />
         </div>
-        <div className="badge bg-card-hover border-border">
-          <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot, 'animate-pulse')} />
-          <span className={cfg.text}>{label}</span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="badge bg-card-hover border-border">
+            <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot, 'animate-pulse')} />
+            <span className={cfg.text}>{label}</span>
+          </div>
+          {onRemove && (
+            <button
+              // O card inteiro navega para o ativo; sem parar a propagação, o
+              // clique na lixeira abriria a página em vez do diálogo.
+              onClick={(e) => { e.stopPropagation(); onRemove(asset) }}
+              title={removeLabel}
+              aria-label={removeLabel}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted opacity-0 transition-all hover:bg-red-500/10 hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -172,7 +191,7 @@ export const AssetTile: React.FC<AssetTileProps> = ({ asset, isSelected, onClick
         {asset.location}
       </p>
 
-      <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-3 border-t border-border">
         <div>
           <span className="text-[9px] font-bold text-muted-soft uppercase tracking-wider">Uptime</span>
           <p className="text-sm font-bold text-foreground tabular-nums">{asset.uptime.toFixed(1)}%</p>

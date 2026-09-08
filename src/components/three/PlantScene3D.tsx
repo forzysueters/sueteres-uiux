@@ -8,6 +8,9 @@ import { translations } from '../../translations';
 import { statusConfig, statusLabel } from '../../utils/plantStatus';
 import { cn } from '../../lib/utils';
 import { AssetMarker } from './AssetMarker';
+import { EditOverlay } from './EditOverlay';
+import type { CellRect } from './plantGrid';
+import type { Placement } from '../../hooks/usePlantLayoutEditor';
 import { PlantFloor } from './PlantFloor';
 import {
   CAMERA_HOME, CAMERA_TARGET, CAMERA_FOV, plantToWorld, frameScope, orbitLimits,
@@ -32,6 +35,16 @@ interface PlantScene3DProps {
   onIsolateHall: (area: string) => void;
   onExitIsolation: () => void;
   focus: CameraFocus;
+  /** Modo de editar layout — desenha a malha e habilita o arraste. */
+  editMode?: boolean;
+  editor?: {
+    draft: Record<string, CellRect>;
+    placement: Map<string, Placement>;
+    dragId: string | null;
+    startDrag: (id: string) => void;
+    moveTo: (id: string, svgX: number, svgY: number) => void;
+    endDrag: (id: string) => void;
+  } | null;
 }
 
 /**
@@ -113,6 +126,8 @@ export function PlantScene3D({
   onIsolateHall,
   onExitIsolation,
   focus,
+  editMode = false,
+  editor = null,
 }: PlantScene3DProps) {
   const { darkMode, language } = useAppStore();
   const t = translations[language].plant;
@@ -195,7 +210,7 @@ export function PlantScene3D({
         dpr={[1, dpr]}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         camera={{ position: CAMERA_HOME, fov: CAMERA_FOV }}
-        onPointerMissed={guard(() => onSelectAsset(null))}
+        onPointerMissed={editMode ? undefined : guard(() => onSelectAsset(null))}
       >
         <PerformanceMonitor onDecline={() => setDpr(1)} />
         <AdaptiveDpr pixelated />
@@ -215,15 +230,35 @@ export function PlantScene3D({
           halls={halls}
           bounds={bounds}
           isolated={isolated}
-          onIsolateHall={guard(onIsolateHall)}
-          onExitIsolation={guard(onExitIsolation)}
+          // Em edição a laje do hall deixa de ser clicável: isolar um hall no
+          // meio de um arrasto tiraria da cena justamente os vizinhos contra os
+          // quais a colisão é validada.
+          onIsolateHall={editMode ? undefined : guard(onIsolateHall)}
+          onExitIsolation={editMode ? undefined : guard(onExitIsolation)}
+          editMode={editMode}
         />
+
+        {editMode && editor && (
+          <EditOverlay
+            assets={assets}
+            draft={editor.draft}
+            placement={editor.placement}
+            dragId={editor.dragId}
+            gridColor={palette.gridCenter}
+            okColor={palette.wall}
+            activeColor="#818cf8"
+            invalidColor="#ef4444"
+          />
+        )}
 
         {assets.map((asset) => (
           <AssetMarker
             key={asset.id}
             asset={asset}
             isSelected={selectedAssetId === asset.id}
+            hoveredId={hovered?.id ?? null}
+            focusedId={focusAsset?.id ?? null}
+            drag={editMode ? editor : null}
             onSelect={guard(onSelectAsset)}
             onHover={setHovered}
           />
@@ -238,6 +273,10 @@ export function PlantScene3D({
 
         <OrbitControls
           ref={controlsRef}
+          // Publica os controles em useThree(s => s.controls): é assim que cada
+          // AssetMarker desliga o orbit ao receber o ponteiro, sem precisar do
+          // ref descendo por props até lá.
+          makeDefault
           enablePan={false}
           enableDamping
           dampingFactor={0.08}
@@ -251,7 +290,7 @@ export function PlantScene3D({
       </Canvas>
 
       {/* Tooltip de hover — HTML, fora do canvas */}
-      {hovered && (
+      {hovered && !editMode && (
         <div
           className="pointer-events-none absolute z-20 min-w-[210px] rounded-xl border border-border bg-card px-4 py-3 shadow-panel"
           style={{

@@ -162,6 +162,9 @@ function LiveLabels({ assetId, setup }: MotorViewerProps & { setup: ViewerSetup 
   // de vibração (mede pressão, vazão, temperatura e potência). Uma label
   // ancorada num sensor inexistente só exibia um travessão flutuando sobre o
   // modelo — melhor não desenhá-la.
+  // `zIndexRange` abaixo do z-50 dos modais: o padrão do drei para Html é
+  // [16777271, 0], e essas etiquetas apareciam por cima de qualquer diálogo
+  // aberto sobre a página (o AssetMarker da planta já fazia isso).
   return (
     <>
       {/* `zIndexRange` é obrigatório aqui: o padrão do drei é 16777271, que

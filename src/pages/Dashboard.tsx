@@ -194,7 +194,8 @@ export const Dashboard: React.FC = () => {
       {/* KPI grid */}
       <motion.div
         variants={itemVariants}
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5"
+        data-tour="dashboard-kpis"
+        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5"
       >
         <KPICard
           title={t.uptime}
@@ -229,10 +230,10 @@ export const Dashboard: React.FC = () => {
       {/* Charts row */}
       <motion.div
         variants={itemVariants}
-        className="grid grid-cols-1 lg:grid-cols-5 gap-5"
+        className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-5"
       >
         {/* Pie */}
-        <div className="saas-card-premium p-6 lg:col-span-2">
+        <div className="saas-card-premium p-4 sm:p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-2">
             <span className="section-title !mb-0">{t.status_distribution}</span>
           </div>
@@ -279,7 +280,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Bar */}
-        <div className="saas-card-premium p-6 lg:col-span-3">
+        <div className="saas-card-premium p-4 sm:p-6 lg:col-span-3">
           <span className="section-title">{t.anomaly_index}</span>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={anomalyData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
@@ -305,7 +306,7 @@ export const Dashboard: React.FC = () => {
       </motion.div>
 
       {/* Trend area */}
-      <motion.div variants={itemVariants} className="saas-card-premium p-6">
+      <motion.div variants={itemVariants} className="saas-card-premium p-4 sm:p-6">
         <div className="flex items-center justify-between mb-2">
           <span className="section-title !mb-0">{t.performance_trend}</span>
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider">
@@ -357,7 +358,7 @@ export const Dashboard: React.FC = () => {
             {language === 'pt' ? 'Ver todos →' : 'View all →'}
           </button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           {assets.slice(0, 4).map((asset, i) => {
             const sc = statusBadge(asset.status)
 
@@ -375,16 +376,16 @@ export const Dashboard: React.FC = () => {
                 )}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-semibold text-sm text-foreground truncate">
+                  <h4 className="min-w-0 flex-1 font-semibold text-sm text-foreground truncate">
                     {asset.name}
                   </h4>
                   <span
                     className={cn(
-                      'flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider',
+                      'flex flex-shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider',
                       sc.text,
                     )}
                   >
-                    <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', sc.dot)} />
+                    <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0', sc.dot)} />
                     {statusLabel(asset.status, language)}
                   </span>
                 </div>

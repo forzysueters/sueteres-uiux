@@ -1,5 +1,5 @@
 import {
-  Asset, Alert, KPIMetrics, EquipmentRegistration,
+  Asset, Alert, KPIMetrics, Area, NewAssetInput, InactiveAsset,
   ChatMessage, Sensor, SensorHistorySeries, MotorNameplate,
   Technician, NewMaintenanceOrder,
 } from '../types';
@@ -14,7 +14,7 @@ import {
 } from './sensorLimits';
 import { assetStatusFromSensors } from '../utils/plantStatus';
 import { supabase, describeSupabaseError } from '../lib/supabase';
-import type { ViewRow } from '../types/database';
+import type { Json, ViewRow } from '../types/database';
 
 // Força o uso do mock mesmo com backend disponível (útil para demo offline)
 const FORCE_OCR_MOCK = import.meta.env.VITE_OCR_USE_MOCK === 'true';
@@ -23,6 +23,9 @@ const FORCE_ANOMALY_MOCK = import.meta.env.VITE_ANOMALY_USE_MOCK === 'true';
 function fail(error: unknown, message: string): never {
   throw new Error(describeSupabaseError(error, message));
 }
+
+/** Marca em `ocr_provider` uma placa cujos valores foram corrigidos à mão. */
+const MANUAL_PROVIDER = 'manual';
 
 /** Resultado de um envio de e-mail: sucesso traz os destinatários atendidos. */
 export type EmailDispatch =
@@ -147,6 +150,7 @@ type RawNameplate = {
   insulation_class: string | null;
   year_manufactured: number | null;
   image_url: string | null;
+  ocr_provider: string | null;
   ocr_confidence: number | null;
   confirmed_at: string | null;
   created_at: string;
@@ -174,6 +178,7 @@ function mapNameplate(raw: RawNameplate | null, tag: string): MotorNameplate | u
     imageUrl: raw.image_url ?? undefined,
     // O banco guarda 0-1; a UI exibe em porcentagem.
     ocrConfidence: raw.ocr_confidence != null ? Math.round(raw.ocr_confidence * 100) : undefined,
+    source: raw.ocr_provider === MANUAL_PROVIDER ? 'manual' : 'ocr',
   };
 }
 
@@ -198,6 +203,7 @@ function mapAsset(row: ViewRow<'v_assets_full'>): Asset {
     name: row.name as string,
     type: row.asset_type as Asset['type'],
     area: (row.area_name as string) ?? '',
+    areaId: (row.area_id as string) ?? null,
     location: row.location as string,
     status: row.status as Asset['status'],
     uptime: Number(row.uptime ?? 0),
@@ -603,74 +609,408 @@ export const apiService = {
     };
   },
 
-  async registerEquipment(
-    data: Omit<EquipmentRegistration, 'id' | 'registeredAt'>,
-  ): Promise<EquipmentRegistration> {
-    const { data: auth } = await supabase.auth.getUser();
+  /** Áreas da planta — alimenta o seletor de destino do wizard de OCR. */
+  async getAreas(): Promise<Area[]> {
+    const { data, error } = await supabase
+      .from('areas')
+      .select('id, code, name, plant_id')
+      .order('code');
 
-    const { data: row, error } = await supabase
-      .from('asset_nameplates')
+    if (error) fail(error, 'Não foi possível carregar as áreas da planta.');
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      plantId: row.plant_id,
+    }));
+  },
+
+  /**
+   * Cria um ativo a partir da placa lida pelo OCR.
+   *
+   * Sem sensores: a instrumentação é cadastrada à parte, e sem ela o ativo não
+   * tem telemetria, gauges nem alertas. A RLS de `assets` só aceita escrita de
+   * admin/engineer — mais restrita que `can_write()`, que vale para a placa.
+   */
+  async createAsset(input: NewAssetInput): Promise<string> {
+    const { data, error } = await supabase
+      .from('assets')
       .insert({
-        asset_id: data.assetId || null,
-        status: 'confirmed',
-        manufacturer: data.manufacturer || null,
-        model: data.model || null,
-        serial_number: data.serialNumber || null,
-        year_manufactured: data.yearManufactured || null,
-        power_kw: data.powerRating || null,
-        image_url: data.imageUrl || null,
-        registered_by: auth.user?.id ?? null,
-        confirmed_by: auth.user?.id ?? null,
-        confirmed_at: new Date().toISOString(),
+        plant_id: input.plantId,
+        area_id: input.areaId,
+        tag: input.tag,
+        name: input.name,
+        asset_type: input.type,
+        location: input.location,
+        criticality: input.criticality,
+        plant_x: input.plantX,
+        plant_y: input.plantY,
       })
-      .select('id, created_at')
+      .select('id')
       .single();
 
-    if (error) fail(error, 'Não foi possível registrar o equipamento.');
-    return { ...data, id: row.id, registeredAt: row.created_at };
+    if (error) {
+      const code = (error as { code?: string }).code;
+      // assets_tag_plant_key: a TAG é única por planta.
+      if (code === '23505') {
+        throw new Error(`Já existe um ativo com a TAG "${input.tag}" nesta planta.`);
+      }
+      // RLS recusa a escrita para technician/viewer.
+      if (code === '42501') {
+        throw new Error('Seu papel não permite criar ativos. Necessário administrador ou engenheiro.');
+      }
+      fail(error, 'Não foi possível criar o ativo.');
+    }
+
+    return data.id;
   },
 
   /**
    * Grava a placa lida pelo OCR, com a imagem original como evidência.
    * `assetId` nulo registra a placa sem vínculo, para associação posterior.
+   *
+   * `ocr_raw` guarda a resposta crua do modelo (campos com confiança
+   * individual, texto por zona, validação física, tempo de processamento) —
+   * é a evidência que sustenta o que foi cadastrado.
    */
   async registerNameplate(
     assetId: string | null,
     nameplate: Partial<MotorNameplate>,
     image?: { url: string; path: string } | null,
-    meta?: { provider?: string; confidence?: number },
-  ): Promise<void> {
+    meta?: {
+      provider?: string;
+      confidence?: number;
+      motorType?: string;
+      status?: 'draft' | 'confirmed';
+      raw?: Json;
+    },
+  ): Promise<string> {
     const { data: auth } = await supabase.auth.getUser();
     const confidence = meta?.confidence ?? nameplate.ocrConfidence;
+    const status = meta?.status ?? 'confirmed';
+    const confirmed = status === 'confirmed';
 
-    const { error } = await supabase.from('asset_nameplates').insert({
-      asset_id: assetId,
-      status: 'confirmed',
-      manufacturer: nameplate.manufacturer || null,
-      model: nameplate.model || null,
-      serial_number: nameplate.serialNumber || null,
-      year_manufactured: nameplate.yearManufactured || null,
-      power_kw: nameplate.power_kw ?? null,
-      power_hp: nameplate.power_cv ?? null,
-      voltage: nameplate.voltage || null,
-      current_a: nameplate.current_a ?? null,
-      rpm: nameplate.rpm ?? null,
-      poles: nameplate.poles ?? null,
-      connection_type: nameplate.connection || null,
-      frequency_hz: nameplate.frequency_hz ?? null,
-      ip_rating: nameplate.ip_class || null,
-      insulation_class: nameplate.insulation_class || null,
-      image_url: image?.url ?? null,
-      storage_path: image?.path ?? null,
-      ocr_provider: meta?.provider ?? 'easyocr',
-      // A UI trabalha em 0-100; o banco guarda 0-1.
-      ocr_confidence: confidence != null ? Math.min(Math.max(confidence / 100, 0), 1) : null,
-      registered_by: auth.user?.id ?? null,
-      confirmed_by: auth.user?.id ?? null,
-      confirmed_at: new Date().toISOString(),
-    });
+    const { data, error } = await supabase
+      .from('asset_nameplates')
+      .insert({
+        asset_id: assetId,
+        status,
+        manufacturer: nameplate.manufacturer || null,
+        model: nameplate.model || null,
+        serial_number: nameplate.serialNumber || null,
+        year_manufactured: nameplate.yearManufactured || null,
+        motor_type: meta?.motorType || null,
+        power_kw: nameplate.power_kw ?? null,
+        power_hp: nameplate.power_cv ?? null,
+        voltage: nameplate.voltage || null,
+        current_a: nameplate.current_a ?? null,
+        rpm: nameplate.rpm ?? null,
+        poles: nameplate.poles ?? null,
+        connection_type: nameplate.connection || null,
+        frequency_hz: nameplate.frequency_hz ?? null,
+        ip_rating: nameplate.ip_class || null,
+        insulation_class: nameplate.insulation_class || null,
+        image_url: image?.url ?? null,
+        storage_path: image?.path ?? null,
+        ocr_provider: meta?.provider ?? 'easyocr',
+        // A UI trabalha em 0-100; o banco guarda 0-1.
+        ocr_confidence: confidence != null ? Math.min(Math.max(confidence / 100, 0), 1) : null,
+        ocr_raw: meta?.raw ?? {},
+        registered_by: auth.user?.id ?? null,
+        confirmed_by: confirmed ? auth.user?.id ?? null : null,
+        confirmed_at: confirmed ? new Date().toISOString() : null,
+      })
+      .select('id')
+      .single();
 
     if (error) fail(error, 'Não foi possível registrar a placa.');
+    return data.id;
+  },
+
+  /**
+   * Promove a placa a `confirmed` e a vincula ao ativo.
+   *
+   * O cadastro grava a placa como `draft` sem vínculo antes de criar o ativo:
+   * se a criação falhar, o que sobra é um rascunho invisível — `v_assets_full`,
+   * o assistente, a lista de registros recentes e o índice único de série
+   * filtram todos por `confirmed`. Sem isso, uma falha no meio do caminho
+   * deixaria um ativo órfão que só um admin conseguiria apagar.
+   */
+  async confirmNameplate(nameplateId: string, assetId: string | null): Promise<void> {
+    const { data: auth } = await supabase.auth.getUser();
+
+    if (assetId) {
+      // A checagem de série vem ANTES de rebaixar a placa anterior: se o
+      // conflito só aparecesse no update final, o ativo já teria perdido a
+      // placa que tinha e ficaria sem nenhuma confirmada.
+      const { data: draft } = await supabase
+        .from('asset_nameplates')
+        .select('serial_number')
+        .eq('id', nameplateId)
+        .maybeSingle();
+
+      if (draft?.serial_number) {
+        const { data: clash } = await supabase
+          .from('asset_nameplates')
+          .select('id, assets(tag)')
+          .eq('serial_number', draft.serial_number)
+          .eq('status', 'confirmed')
+          .neq('asset_id', assetId)
+          .maybeSingle();
+
+        if (clash) {
+          const other = (Array.isArray(clash.assets) ? clash.assets[0] : clash.assets) as
+            | { tag: string } | null;
+          throw new Error(
+            `O número de série "${draft.serial_number}" já pertence a uma placa confirmada`
+            + `${other?.tag ? ` do ativo ${other.tag}` : ''}. Confira o campo antes de registrar.`,
+          );
+        }
+      }
+
+      // Reprocessar a placa de um ativo que já tem uma confirmada esbarraria em
+      // `nameplates_serial_key` (único parcial sobre serial_number onde status =
+      // 'confirmed'): a foto nova traz o mesmo número de série. A anterior é
+      // rebaixada primeiro — o enum não tem 'superseded', e 'rejected' é o mais
+      // próximo; a linha continua no banco com sua auditoria, nada se perde.
+      const { error: supersedeError } = await supabase
+        .from('asset_nameplates')
+        .update({ status: 'rejected' })
+        .eq('asset_id', assetId)
+        .eq('status', 'confirmed')
+        .neq('id', nameplateId);
+
+      if (supersedeError) fail(supersedeError, 'Não foi possível substituir a placa anterior.');
+    }
+
+    const { error } = await supabase
+      .from('asset_nameplates')
+      .update({
+        asset_id: assetId,
+        status: 'confirmed',
+        confirmed_by: auth.user?.id ?? null,
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq('id', nameplateId);
+
+    if (error) {
+      // O serial já pertence a uma placa confirmada de OUTRO ativo.
+      if ((error as { code?: string }).code === '23505') {
+        throw new Error(
+          'Já existe uma placa confirmada com este número de série em outro ativo. '
+          + 'Confira o campo "Número de Série" antes de registrar.',
+        );
+      }
+      fail(error, 'Não foi possível confirmar a placa.');
+    }
+  },
+
+  /**
+   * Salva uma correção manual da placa como uma NOVA versão confirmada.
+   *
+   * Não altera a linha existente: a leitura original do OCR fica preservada
+   * (com seu `ocr_raw`, confiança e autoria) e apenas deixa de ser a vigente —
+   * `confirmNameplate` rebaixa a anterior. A view sempre entrega a confirmada
+   * mais recente, então a tela passa a mostrar a corrigida.
+   *
+   * A imagem é herdada da versão anterior: a foto continua sendo a evidência
+   * de onde os valores vieram, mesmo depois de ajustados à mão.
+   */
+  async saveNameplateRevision(
+    assetId: string,
+    nameplate: Partial<MotorNameplate>,
+  ): Promise<void> {
+    const { data: previous } = await supabase
+      .from('asset_nameplates')
+      .select('id, image_url, storage_path, ocr_provider, ocr_confidence, motor_type')
+      .eq('asset_id', assetId)
+      .eq('status', 'confirmed')
+      .order('confirmed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const image = previous?.image_url
+      ? { url: previous.image_url, path: previous.storage_path ?? '' }
+      : null;
+
+    const nameplateId = await apiService.registerNameplate(null, nameplate, image, {
+      provider: MANUAL_PROVIDER,
+      // Confiança herdada: descreve a extração que originou esses valores, e o
+      // selo "editado manualmente" no card avisa que não valem como acurácia
+      // do modelo.
+      confidence: previous?.ocr_confidence != null ? previous.ocr_confidence * 100 : undefined,
+      motorType: previous?.motor_type ?? undefined,
+      status: 'draft',
+      raw: {
+        edited_from: previous?.id ?? null,
+        original_provider: previous?.ocr_provider ?? null,
+        edited_at: new Date().toISOString(),
+      },
+    });
+
+    await apiService.confirmNameplate(nameplateId, assetId);
+  },
+
+  /**
+   * O que existe pendurado no ativo — decide se a remoção pode ser definitiva.
+   *
+   * As 11 FKs que apontam para `assets` usam ON DELETE CASCADE, então apagar um
+   * ativo instrumentado levaria junto sensores, leituras, alertas e ordens de
+   * manutenção. A placa não entra na conta: ela é parte do ativo e cai com ele
+   * por definição.
+   */
+  async getAssetUsage(assetId: string): Promise<{
+    sensors: number;
+    readings: number;
+    alerts: number;
+    maintenanceOrders: number;
+    isEmpty: boolean;
+  }> {
+    const count = async (table: 'sensors' | 'sensor_readings' | 'alerts' | 'maintenance_orders') => {
+      const { count: n, error } = await supabase
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('asset_id', assetId);
+      if (error) fail(error, 'Não foi possível verificar os dados do ativo.');
+      return n ?? 0;
+    };
+
+    const [sensors, readings, alerts, maintenanceOrders] = await Promise.all([
+      count('sensors'), count('sensor_readings'), count('alerts'), count('maintenance_orders'),
+    ]);
+
+    return {
+      sensors, readings, alerts, maintenanceOrders,
+      isEmpty: sensors === 0 && readings === 0 && alerts === 0 && maintenanceOrders === 0,
+    };
+  },
+
+  /**
+   * Remoção padrão: tira o ativo de circulação sem destruir nada.
+   *
+   * `v_assets_full` filtra por `is_active`, então o ativo some da planta, do
+   * dashboard, do 3D e da lista que o assistente lê — mas a linha e todo o
+   * histórico continuam no banco, e a operação é reversível.
+   */
+  async deactivateAsset(assetId: string): Promise<void> {
+    const { error } = await supabase
+      .from('assets')
+      .update({ is_active: false })
+      .eq('id', assetId);
+
+    if (error) {
+      if ((error as { code?: string }).code === '42501') {
+        throw new Error('Seu papel não permite remover ativos. Necessário administrador ou engenheiro.');
+      }
+      fail(error, 'Não foi possível desativar o ativo.');
+    }
+  },
+
+  /**
+   * Move um ativo na planta: grava o centro da pegada e, quando ele mudou de
+   * hall, a área e a célula da vista em grade.
+   *
+   * `grid_x`/`grid_y` são de OUTRA coisa (a matriz da vista "Grade", que agrupa
+   * por área) e normalmente não se mexe neles. Mas ao trocar de área o ativo
+   * entra numa matriz onde a célula antiga pode já estar ocupada — e como
+   * aquela vista faz `.find()` por célula, um dos dois sumiria da tela. Por
+   * isso o chamador passa uma célula livre junto.
+   */
+  async updateAssetLayout(
+    assetId: string,
+    layout: {
+      plantX: number;
+      plantY: number;
+      areaId?: string;
+      gridX?: number;
+      gridY?: number;
+    },
+  ): Promise<void> {
+    const patch = {
+      plant_x: layout.plantX,
+      plant_y: layout.plantY,
+      ...(layout.areaId ? { area_id: layout.areaId } : {}),
+      ...(layout.gridX != null ? { grid_x: layout.gridX } : {}),
+      ...(layout.gridY != null ? { grid_y: layout.gridY } : {}),
+    };
+
+    // O `.select('id')` não é cosmético: a RLS de UPDATE em `assets` é
+    // has_role('admin','engineer') e uma escrita recusada NÃO devolve erro —
+    // devolve zero linhas. Sem conferir isso, o editor diria "salvo" para quem
+    // não tem permissão e descartaria o rascunho do usuário.
+    const { data, error } = await supabase
+      .from('assets')
+      .update(patch)
+      .eq('id', assetId)
+      .select('id');
+
+    if (error) {
+      if ((error as { code?: string }).code === '42501') {
+        throw new Error('Seu papel não permite reposicionar ativos. Necessário administrador ou engenheiro.');
+      }
+      fail(error, 'Não foi possível gravar a posição do ativo.');
+    }
+
+    if (!data?.length) {
+      throw new Error('Posição recusada pelo banco — permissão insuficiente ou ativo inexistente.');
+    }
+  },
+
+  /**
+   * Ativos desativados — a única leitura que NÃO passa por `v_assets_full`.
+   *
+   * A view filtra por `is_active`, o que torna o ativo desativado invisível em
+   * toda a aplicação. Sem esta consulta direta à tabela não haveria como
+   * chegar até ele para reativá-lo.
+   */
+  async getInactiveAssets(): Promise<InactiveAsset[]> {
+    const { data, error } = await supabase
+      .from('assets')
+      .select('id, tag, name, asset_type, location, updated_at, areas(name)')
+      .eq('is_active', false)
+      .order('updated_at', { ascending: false });
+
+    if (error) fail(error, 'Não foi possível carregar os ativos desativados.');
+
+    return (data ?? []).map((row) => {
+      const area = (Array.isArray(row.areas) ? row.areas[0] : row.areas) as { name: string } | null;
+      return {
+        id: row.id,
+        tag: row.tag,
+        name: row.name,
+        type: row.asset_type as Asset['type'],
+        location: row.location,
+        area: area?.name ?? '',
+        deactivatedAt: row.updated_at,
+      };
+    });
+  },
+
+  /** Reverte a desativação. */
+  async reactivateAsset(assetId: string): Promise<void> {
+    const { error } = await supabase
+      .from('assets')
+      .update({ is_active: true })
+      .eq('id', assetId);
+
+    if (error) fail(error, 'Não foi possível reativar o ativo.');
+  },
+
+  /**
+   * Apaga o ativo em definitivo. Só deve ser chamado quando `getAssetUsage`
+   * disser que não há nada pendurado — o cascade não avisa antes de levar
+   * telemetria junto. Requer admin ou engenheiro (migração 0015).
+   */
+  async deleteAsset(assetId: string): Promise<void> {
+    const { error } = await supabase.from('assets').delete().eq('id', assetId);
+
+    if (error) {
+      if ((error as { code?: string }).code === '42501') {
+        throw new Error('Seu papel não permite apagar ativos. Necessário administrador ou engenheiro.');
+      }
+      fail(error, 'Não foi possível apagar o ativo.');
+    }
   },
 
   /** Últimos equipamentos com placa confirmada — para a lista "Registros Recentes". */
@@ -786,9 +1126,7 @@ export const apiService = {
   },
 
   /** Envia a foto da placa para o bucket de equipamentos. */
-  async uploadEquipmentImage(
-    file: File,
-  ): Promise<{ url: string; path: string; extractedData: Partial<EquipmentRegistration> }> {
+  async uploadEquipmentImage(file: File): Promise<{ url: string; path: string }> {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const path = `nameplates/${crypto.randomUUID()}.${ext}`;
 
@@ -801,7 +1139,7 @@ export const apiService = {
     const { data } = supabase.storage.from('equipment-images').getPublicUrl(path);
 
     // A extração de campos é responsabilidade de `extractNameplate` (OCR).
-    return { url: data.publicUrl, path, extractedData: {} };
+    return { url: data.publicUrl, path };
   },
 };
 

@@ -2,6 +2,8 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
+import { canWriteAssets } from '../types/auth';
 import { translations } from '../translations';
 import { statusLabel } from '../utils/plantStatus';
 import { apiService } from '../services/api';
@@ -9,6 +11,8 @@ import { useAssetRealtime } from '../hooks/useAssetRealtime';
 import { useAlerts } from '../hooks/useAlerts';
 import { SensorGauge } from '../components/SensorGauge';
 import { NameplateCard } from '../components/NameplateCard';
+import { NameplateEditor } from '../components/NameplateEditor';
+import { AssetRemovalDialog } from '../components/AssetRemovalDialog';
 import { TimeSeriesChart } from '../components/TimeSeriesChart';
 import { KPICard } from '../components/Cards';
 import { HealthGauge } from '../components/HealthGauge';
@@ -22,9 +26,10 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Activity, Tag, AlertTriangle, CheckCircle2, TrendingUp,
   Sparkles, Zap, Shield, RefreshCw, Gauge, Bell, Download,
-  Thermometer, Clock, Box, Printer, Mail, Loader2, ChevronDown,
+  Thermometer, Clock, Box, Printer, Mail, Loader2, ChevronDown, Pencil, Trash2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 // Visualizador 3D carregado sob demanda — mantém o bundle three fora do
 // caminho crítico da renderização inicial da rota.
@@ -48,11 +53,18 @@ export const AssetMonitorPage: React.FC = () => {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
   const { assets, setAssets, darkMode, language } = useAppStore();
+  // Corrigir a placa à mão é privilégio de quem cadastra ativo (admin/engineer);
+  // o técnico registra placa nova pelo OCR, mas não reescreve os valores.
+  const mayEditNameplate = canWriteAssets(useAuthStore((s) => s.user)?.role);
   const t = translations[language].assetMonitor;
+  const tRemoval = translations[language].assetRemoval;
   const common = translations[language].common;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
+  const isMobile = useIsMobile();
 
   const [tab, setTab] = useState<Tab>('sensors');
+  const [editingNameplate, setEditingNameplate] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [historyRange, setHistoryRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
   const [history, setHistory] = useState<SensorHistorySeries[]>([]);
@@ -196,6 +208,13 @@ export const AssetMonitorPage: React.FC = () => {
         ? 'text-amber-700 dark:text-amber-200/80'
         : 'text-emerald-700 dark:text-emerald-200/80';
 
+  const handleRemoved = () => {
+    // O ativo removido não pode continuar no store: desativado ele sai da view,
+    // apagado ele deixa de existir. Volta para a planta, que relê a frota.
+    setAssets(assets.filter((a) => a.id !== asset.id));
+    navigate('/planta');
+  };
+
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'sensors',   label: t.tab_sensors,   icon: Activity },
     { id: 'history',   label: t.tab_history,   icon: TrendingUp },
@@ -211,9 +230,9 @@ export const AssetMonitorPage: React.FC = () => {
       className="space-y-8"
     >
       {/* ───────── Barra de ações fixa ───────── */}
-      <div className="sticky top-0 z-30 -mx-6 md:-mx-8 px-6 md:px-8 py-3 bg-background/80 backdrop-blur-xl border-b border-border">
+      <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-3 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             <button
               onClick={() => navigate('/planta')}
               className="flex items-center gap-1.5 text-muted hover:text-foreground transition-colors flex-shrink-0"
@@ -227,6 +246,15 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
           <div className="flex items-center gap-2">
+            {mayEditNameplate && (
+              <button
+                onClick={() => setRemoving(true)}
+                className="btn-ghost text-xs text-red-400 hover:text-red-300"
+              >
+                <Trash2 size={14} />
+                {tRemoval.action_remove}
+              </button>
+            )}
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button className="btn-ghost text-xs" title={t.export_hint} disabled={sendingReport}>
@@ -293,7 +321,7 @@ export const AssetMonitorPage: React.FC = () => {
             </span>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight truncate">{asset.name}</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground tracking-tight break-words">{asset.name}</h1>
             <p className="text-sm text-muted">{asset.location}</p>
           </div>
         </div>
@@ -306,7 +334,7 @@ export const AssetMonitorPage: React.FC = () => {
       {/* ───────── Gêmeo Digital 3D (protagonista, full-width) ───────── */}
       <motion.div
         variants={itemVariants}
-        className="relative -mx-6 md:-mx-8 h-[50vh] min-h-[420px] overflow-hidden border-y border-border bg-background/40"
+        className="relative -mx-4 sm:-mx-6 md:-mx-8 h-[50vh] min-h-[320px] sm:min-h-[420px] overflow-hidden border-y border-border bg-background/40"
       >
         {/* Atmosfera reativa ao status */}
         <div
@@ -337,10 +365,10 @@ export const AssetMonitorPage: React.FC = () => {
         </Suspense>
 
         {/* Overlay: placar de saúde (glassmorphism, flutuante) */}
-        <div className="absolute top-4 left-4 z-10 w-[220px] rounded-2xl border border-border bg-white/70 dark:bg-slate-950/55 backdrop-blur-xl shadow-lg p-4">
+        <div data-tour="health-index" className="absolute top-3 left-3 z-10 w-[150px] sm:top-4 sm:left-4 sm:w-[220px] rounded-2xl border border-border bg-white/70 dark:bg-slate-950/55 backdrop-blur-xl shadow-lg p-3 sm:p-4">
           <div className="flex flex-col items-center gap-3">
-            <HealthGauge value={health} severity={severity} size={150} />
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 w-full pt-3 border-t border-border">
+            <HealthGauge value={health} severity={severity} size={isMobile ? 104 : 150} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 w-full pt-3 border-t border-border">
               <div>
                 <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
                   <Clock size={10} className="text-primary" />
@@ -356,7 +384,7 @@ export const AssetMonitorPage: React.FC = () => {
                 <p className="text-sm font-bold text-foreground tabular-nums">{health}/100</p>
               </div>
               {asset.thermalResidual != null && (
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <p className="text-[9px] text-muted uppercase tracking-widest flex items-center gap-1">
                     <Thermometer size={10} className="text-primary" />
                     {t.thermal_residual}
@@ -406,13 +434,13 @@ export const AssetMonitorPage: React.FC = () => {
 
       {/* ───────── Abas ───────── */}
       <motion.div variants={itemVariants}>
-        <div className="flex items-center gap-1 border-b border-border overflow-x-auto scrollbar-thin">
+        <div className="flex flex-wrap items-center gap-x-1 border-b border-border">
           {tabs.map(({ id, label, icon: Icon, badge }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
               className={cn(
-                'group relative flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors flex-shrink-0 whitespace-nowrap',
+                'group relative flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-semibold transition-colors flex-shrink-0 whitespace-nowrap',
                 tab === id ? 'text-foreground' : 'text-muted hover:text-foreground-soft',
               )}
             >
@@ -441,22 +469,37 @@ export const AssetMonitorPage: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="section-title !mb-0">{t.realtime_telemetry}</span>
-                <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
-                  <span className="live-dot" />
-                  {t.live} · 2s
-                </span>
+                {asset.sensors.length > 0 && (
+                  <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
+                    <span className="live-dot" />
+                    {t.live} · 2s
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {asset.sensors.map((sensor) => (
-                  <SensorGauge key={sensor.id} sensor={sensor} />
-                ))}
-              </div>
+              {asset.sensors.length === 0 ? (
+                // Ativo cadastrado pela placa nasce sem instrumentação. Sem este
+                // aviso o grid renderia vazio, em silêncio, com uptime 100% e
+                // score 0 — indistinguível de um equipamento saudável.
+                <div className="saas-card p-8 flex flex-col items-center justify-center gap-2 text-center">
+                  <div className="w-10 h-10 rounded-lg bg-card-hover border border-border flex items-center justify-center text-muted">
+                    <Gauge size={18} />
+                  </div>
+                  <p className="font-bold text-sm text-foreground">{t.no_sensors_title}</p>
+                  <p className="text-xs text-muted max-w-sm leading-relaxed">{t.no_sensors_desc}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {asset.sensors.map((sensor) => (
+                    <SensorGauge key={sensor.id} sensor={sensor} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* HISTÓRICO */}
           {tab === 'history' && (
-            <div className="saas-card-premium p-6 space-y-4">
+            <div className="saas-card-premium p-4 sm:p-6 space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <span className="section-title !mb-0">{t.sensor_history}</span>
                 <div className="flex gap-1">
@@ -515,9 +558,31 @@ export const AssetMonitorPage: React.FC = () => {
 
           {/* PLACA */}
           {tab === 'nameplate' && (
-            <div>
-              {asset.nameplate ? (
-                <NameplateCard nameplate={asset.nameplate} />
+            <div className="space-y-3">
+              {asset.nameplate && editingNameplate ? (
+                <NameplateEditor
+                  assetId={asset.id}
+                  nameplate={asset.nameplate}
+                  onCancel={() => setEditingNameplate(false)}
+                  onSaved={() => {
+                    setEditingNameplate(false);
+                    // A revisão vira a placa vigente na view; relê a frota para
+                    // a tela (e o assistente) passarem a ver os novos valores.
+                    apiService.getAssets().then(setAssets).catch(() => {});
+                  }}
+                />
+              ) : asset.nameplate ? (
+                <>
+                  {mayEditNameplate && (
+                    <div className="flex justify-end">
+                      <button onClick={() => setEditingNameplate(true)} className="btn-ghost text-xs">
+                        <Pencil size={14} />
+                        {t.edit_nameplate}
+                      </button>
+                    </div>
+                  )}
+                  <NameplateCard nameplate={asset.nameplate} />
+                </>
               ) : (
                 <div className="saas-card flex flex-col items-center justify-center text-center py-16 px-6">
                   <div className="w-14 h-14 rounded-2xl bg-card-hover border border-border flex items-center justify-center mb-4">
@@ -619,6 +684,13 @@ export const AssetMonitorPage: React.FC = () => {
         onOpenChange={setSchedulerOpen}
         asset={asset}
         language={language}
+      />
+
+      <AssetRemovalDialog
+        asset={asset}
+        open={removing}
+        onOpenChange={setRemoving}
+        onRemoved={handleRemoved}
       />
     </motion.div>
   );

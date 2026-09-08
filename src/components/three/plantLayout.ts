@@ -14,7 +14,7 @@ export const SVG_D = 562;
  * Calibrado contra o tamanho das máquinas (~2,5 unidades): com o piso largo
  * demais os equipamentos viram pontinhos e a triagem morre.
  */
-const UNITS_PER_WORLD = 36;
+export const UNITS_PER_WORLD = 36;
 
 export const FLOOR_W = SVG_W / UNITS_PER_WORLD; // ~27.8
 export const FLOOR_D = SVG_D / UNITS_PER_WORLD; // ~15.6
@@ -38,6 +38,15 @@ export interface Hall {
    * `'Cobertura'` nunca acharia `'COBERTURA / ÁREA TÉCNICA'`.
    */
   area: string;
+  /**
+   * Retângulo original no viewBox (1000x562).
+   *
+   * Era argumento descartado do factory abaixo. Guardá-lo torna este arquivo a
+   * ÚNICA fonte da geometria dos halls: o PlantFloorMap desenha os `<rect>` a
+   * partir daqui (antes eram hardcoded lá também, com um comentário pedindo
+   * sincronia manual) e a malha do editor de layout recorta as células por ele.
+   */
+  svg: { x: number; y: number; w: number; h: number };
   /** Centro em world-space. */
   center: [number, number];
   /** Largura (X) e profundidade (Z) em world-space. */
@@ -55,18 +64,36 @@ function hall(
     id,
     label,
     area,
+    svg: { x, y, w, h },
     center: svgToWorld(x + w / 2, y + h / 2),
     size: [w / UNITS_PER_WORLD, h / UNITS_PER_WORLD],
     open,
   };
 }
 
-/** Espelha os <rect> hardcoded de PlantFloorMap.tsx (L85-98). */
+/**
+ * Fonte única dos halls — o PlantFloorMap desenha a partir daqui.
+ *
+ * Os quatro têm o MESMO tamanho (450x240 = 15x8 células) e todas as bordas em
+ * múltiplos de CELL_SVG. Isso importa por dois motivos:
+ *
+ * - antes eram desiguais (a Cobertura tinha 128 células contra 84 do Hall B),
+ *   o que não fazia diferença quando o ativo era um ponto, mas passou a fazer
+ *   quando cada máquina ocupa células contadas;
+ * - com a borda caindo numa célula inteira, a malha do editor encosta na
+ *   parede. Fora do múltiplo, `cellsForHall` descarta a célula incompleta e
+ *   sobrava uma faixa morta de até 20 unidades entre a última célula e o muro.
+ *
+ * Corredores de 30 entre os quadrantes. As margens externas ficam levemente
+ * desiguais (30 à esquerda contra 40 à direita, 30 acima contra 22 abaixo)
+ * porque a alternativa seria desalinhar as bordas da malha — e a folga do muro
+ * é mais visível do que 10 unidades de margem na borda do desenho.
+ */
 export const HALLS: Hall[] = [
-  hall('hall-a', 'HALL A', 'Hall A', 30, 30, 420, 260),
-  hall('hall-b', 'HALL B', 'Hall B', 30, 320, 420, 210),
-  hall('hall-c', 'HALL C', 'Hall C', 480, 320, 490, 210),
-  hall('cobertura', 'COBERTURA / ÁREA TÉCNICA', 'Cobertura', 480, 30, 490, 260, true),
+  hall('hall-a', 'HALL A', 'Hall A', 30, 30, 450, 240),
+  hall('hall-b', 'HALL B', 'Hall B', 30, 300, 450, 240),
+  hall('hall-c', 'HALL C', 'Hall C', 510, 300, 450, 240),
+  hall('cobertura', 'COBERTURA / ÁREA TÉCNICA', 'Cobertura', 510, 30, 450, 240, true),
 ];
 
 /**

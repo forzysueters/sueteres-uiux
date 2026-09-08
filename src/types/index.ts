@@ -42,6 +42,12 @@ export interface MotorNameplate {
   registeredAt: string;
   imageUrl?: string;
   ocrConfidence?: number; // 0-100% — taxa de acerto do OCR
+  /**
+   * Origem dos valores. 'manual' quando alguém corrigiu a placa à mão: aí a
+   * confiança do OCR deixa de descrever o que está na tela e não deve ser
+   * exibida como se fosse a acurácia do modelo.
+   */
+  source?: 'ocr' | 'manual';
 }
 
 // ─── Asset ─────────────────────────────────────────────────────────────────
@@ -51,6 +57,8 @@ export interface Asset {
   name: string;
   type: 'motor' | 'pump' | 'compressor' | 'fan';
   area: string;           // ex: "Hall A"
+  /** FK da área. Necessária para mover o ativo de hall sem casar nome por string. */
+  areaId: string | null;
   location: string;       // ex: "Hall A — Posto 1"
   status: 'normal' | 'warning' | 'critical' | 'offline';
   uptime: number;
@@ -110,18 +118,51 @@ export interface NewMaintenanceOrder {
   assignedTo: string;     // profiles.id
 }
 
-// ─── Equipment Registration ─────────────────────────────────────────────────
-export interface EquipmentRegistration {
+// ─── Cadastro de ativo (wizard de OCR) ──────────────────────────────────────
+
+/**
+ * Ativo desativado (`is_active = false`).
+ *
+ * Não vem de `v_assets_full` — a view filtra por `is_active`, então ativo
+ * desativado é invisível para todo o resto da aplicação. Esta forma reduzida é
+ * lida direto de `assets` só para a tela de reativação.
+ */
+export interface InactiveAsset {
   id: string;
-  assetId: string;
   tag: string;
-  serialNumber: string;
-  manufacturer: string;
-  model: string;
-  yearManufactured: number;
-  powerRating: number;
-  imageUrl?: string;
-  registeredAt: string;
+  name: string;
+  type: Asset['type'];
+  location: string;
+  area: string;
+  deactivatedAt: string;
+}
+
+/** Área da planta — alimenta o seletor do passo "Destino". */
+export interface Area {
+  id: string;
+  code: string;      // HALL-A
+  name: string;      // Hall A
+  plantId: string;
+}
+
+/**
+ * Ativo criado a partir da placa lida pelo OCR.
+ *
+ * Nasce sem sensores: telemetria, alertas e score de anomalia só existem para
+ * ativos instrumentados, e alertas derivam de leituras — nunca são escritos à
+ * mão. A UI avisa disso no cadastro e na página do ativo.
+ */
+export interface NewAssetInput {
+  tag: string;
+  name: string;
+  type: Asset['type'];
+  areaId: string;
+  plantId: string;
+  location: string;
+  criticality: 'low' | 'medium' | 'high' | 'critical';
+  /** Posição % no mapa da planta (0-100), escolhida no mini-mapa. */
+  plantX: number;
+  plantY: number;
 }
 
 // ─── Chat ──────────────────────────────────────────────────────────────────

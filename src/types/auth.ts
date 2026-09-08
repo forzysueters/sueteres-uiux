@@ -40,3 +40,14 @@ export const WRITE_ROLES: UserRole[] = ['admin', 'engineer', 'technician'];
 export function canWrite(role: UserRole | undefined | null): boolean {
   return !!role && WRITE_ROLES.includes(role);
 }
+
+/**
+ * Papéis que cadastram ativos — espelha a policy de insert de `public.assets`,
+ * mais restrita que `can_write()`: o técnico registra a placa, mas não cria o
+ * ativo. Checar aqui evita expor um erro cru de RLS ao usuário.
+ */
+export const ASSET_WRITE_ROLES: UserRole[] = ['admin', 'engineer'];
+
+export function canWriteAssets(role: UserRole | undefined | null): boolean {
+  return !!role && ASSET_WRITE_ROLES.includes(role);
+}

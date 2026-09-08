@@ -19,6 +19,10 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
   const confidenceColor =
     confidence >= 95 ? 'text-emerald-400' :
     confidence >= 85 ? 'text-amber-400' : 'text-red-400';
+  // Numa placa corrigida à mão, a confiança do OCR descreve a extração que
+  // originou os valores — não o que está na tela. Exibi-la como acurácia do
+  // modelo seria mentir sobre a origem do dado.
+  const isManual = nameplate.source === 'manual';
 
   if (compact) {
     return (
@@ -64,24 +68,33 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
   return (
     <div className="saas-card overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-border bg-card-hover flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 flex items-center justify-center">
+      <div className="px-4 sm:px-5 py-4 border-b border-border bg-card-hover flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="w-8 h-8 flex-shrink-0 rounded bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Tag size={16} className="text-primary" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-bold text-foreground">{t.title}</p>
             <p className="text-[10px] text-muted">{t.subtitle}</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className={cn('text-lg font-bold tabular-nums', confidenceColor)}>{confidence}%</p>
-          <p className="text-[9px] text-muted uppercase tracking-wider">{t.ocr_confidence}</p>
+        <div className="flex-shrink-0 text-right">
+          {isManual ? (
+            <>
+              <p className="text-sm font-bold text-foreground-soft">{t.manual_badge}</p>
+              <p className="text-[9px] text-muted uppercase tracking-wider">{t.manual_hint}</p>
+            </>
+          ) : (
+            <>
+              <p className={cn('text-lg font-bold tabular-nums', confidenceColor)}>{confidence}%</p>
+              <p className="text-[9px] text-muted uppercase tracking-wider">{t.ocr_confidence}</p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Fields grid */}
-      <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
         {fields.map(({ icon: Icon, label, value }) => (
           <div key={label} className="flex items-start gap-3 p-3 rounded-lg bg-card-hover border border-border">
             <Icon size={14} className="text-muted mt-0.5 flex-shrink-0" />
@@ -94,13 +107,16 @@ export const NameplateCard: React.FC<NameplateCardProps> = ({ nameplate, compact
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-border bg-card-hover flex items-center justify-between">
+      <div className="px-4 sm:px-5 py-3 border-t border-border bg-card-hover flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] text-muted">
           {t.registered_at} {new Date(nameplate.registeredAt).toLocaleDateString(locale)}
         </p>
-        <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-1.5">
+        <span className={cn(
+          'text-[9px] font-bold flex items-center gap-1.5',
+          isManual ? 'text-primary' : 'text-emerald-400',
+        )}>
           <CheckCircle2 size={11} />
-          {t.validated}
+          {isManual ? t.manual_validated : t.validated}
         </span>
       </div>
     </div>

@@ -45,7 +45,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   const gradId = `ts-gradient-${dataKey}`;
 
   return (
-    <div className="saas-card p-4">
+    <div className="saas-card p-3 sm:p-4">
       <div className="flex items-center gap-2 mb-4">
         <div
           className="w-2 h-2 rounded-full"
@@ -77,7 +77,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
             axisLine={false}
             tickLine={false}
             unit={` ${unit}`}
-            width={60}
+            width={52}
           />
           <Tooltip
             contentStyle={tooltipStyle}
