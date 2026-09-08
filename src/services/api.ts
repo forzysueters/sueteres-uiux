@@ -979,16 +979,20 @@ export const apiService = {
    * `GEMINI_API_KEY`, ou offline), cai para o motor determinístico local
    * (`assistantEngine`), no mesmo padrão de fallback já usado para OCR e
    * anomalia: a demo nunca quebra, só perde a redação em linguagem natural.
+   *
+   * O histórico não vai no corpo da requisição — a Edge Function reconstrói os
+   * últimos turnos a partir do que já está gravado no banco, pela
+   * `conversationId`. Confiar num histórico vindo do cliente permitiria
+   * forjar turnos falsos do próprio modelo para manipular respostas futuras.
    */
   async getChatResponse(
     message: string,
     assetContext: string | undefined,
-    history: Pick<ChatMessage, 'role' | 'content'>[],
     conversationId: string | null,
   ): Promise<ChatMessage & { conversationId: string | null }> {
     try {
       const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: { question: message, assetContext: assetContext ?? null, conversationId, history },
+        body: { question: message, assetContext: assetContext ?? null, conversationId },
       });
       if (error) throw error;
       if (!data?.content) throw new Error('empty_response');
@@ -1017,6 +1021,43 @@ export const apiService = {
         conversationId,
       };
     }
+  },
+
+  /**
+   * Retoma a conversa mais recente do usuário com o assistente, se houver.
+   *
+   * A memória já é gravada no banco a cada turno (`chat_conversations` /
+   * `chat_messages`, RLS restrita a `user_id = auth.uid()`) — isto só lê o que
+   * já está lá, para a conversa sobreviver a um recarregamento de página em
+   * vez de começar do zero a cada visita.
+   */
+  async getLatestConversation(): Promise<{ conversationId: string; messages: ChatMessage[] } | null> {
+    const { data: conversation } = await supabase
+      .from('chat_conversations')
+      .select('id')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!conversation) return null;
+
+    const { data: rows } = await supabase
+      .from('chat_messages')
+      .select('id, role, content, asset_context, citations, created_at')
+      .eq('conversation_id', conversation.id)
+      .in('role', ['user', 'assistant'])
+      .order('created_at', { ascending: true });
+    if (!rows || rows.length === 0) return null;
+
+    const messages: ChatMessage[] = rows.map((r) => ({
+      id: r.id,
+      role: r.role as 'user' | 'assistant',
+      content: r.content,
+      timestamp: r.created_at,
+      assetContext: r.asset_context ?? undefined,
+      citations: (r.citations as unknown as ChatMessage['citations']) ?? undefined,
+    }));
+
+    return { conversationId: conversation.id, messages };
   },
 
   /** Envia a foto da placa para o bucket de equipamentos. */

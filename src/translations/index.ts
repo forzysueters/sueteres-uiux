@@ -420,6 +420,11 @@ export const translations = {
       offline_mode: 'modo offline',
       placeholder_with_asset: 'Pergunta sobre o ativo selecionado…',
       placeholder_generic: 'Pergunte sobre seus ativos…',
+      listen: 'Ouvir resposta',
+      pause_speech: 'Parar narração',
+      ask_by_voice: 'Perguntar por voz',
+      stop_listening: 'Parar de ouvir',
+      listening_placeholder: 'Ouvindo…',
     },
   },
   en: {
@@ -843,6 +848,11 @@ export const translations = {
       offline_mode: 'offline mode',
       placeholder_with_asset: 'Ask about the selected asset…',
       placeholder_generic: 'Ask about your assets…',
+      listen: 'Listen to answer',
+      pause_speech: 'Stop narration',
+      ask_by_voice: 'Ask by voice',
+      stop_listening: 'Stop listening',
+      listening_placeholder: 'Listening…',
     },
   },
 };

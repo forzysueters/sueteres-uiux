@@ -18,7 +18,8 @@
  *   AssistantPanel    — estado expandido (balão + controles)
  *   TourSpotlight     — holofote e traço de indicação
  *   useTourController — máquina de estados (fase, etapa, narração, conversa)
- *   useSpeech         — camada de voz
+ *   useSpeech         — camada de voz (texto → fala)
+ *   useSpeechToText   — entrada por voz (fala → texto)
  *   createSpeechEngine — troque aqui para usar um TTS de nuvem
  */
 export { AssistantProvider } from './AssistantProvider';
@@ -29,6 +30,7 @@ export { TourSpotlight } from './TourSpotlight';
 export { RichText, stripMarkdown } from './RichText';
 export { useTourController } from './useTourController';
 export { useSpeech } from './useSpeech';
+export { useSpeechToText } from './useSpeechToText';
 export { createSpeechEngine } from './speech';
 export { TOUR_STEPS } from './tour';
 export { TOUR_COPY, UI_COPY, ASSISTANT_NAME } from './copy';

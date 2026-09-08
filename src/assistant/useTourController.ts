@@ -203,7 +203,6 @@ export const useTourController = () => {
         const reply = await apiService.getChatResponse(
           question,
           selectedAssetId ?? undefined,
-          [],
           conversationId.current,
         );
         conversationId.current = reply.conversationId ?? conversationId.current;
