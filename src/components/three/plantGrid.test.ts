@@ -53,10 +53,28 @@ describe('células dos halls', () => {
   it('cobre só as células que cabem inteiras', () => {
     const byId = Object.fromEntries(HALLS.map((h) => [h.id, cellsForHall(h)]));
 
-    expect(byId['hall-a']).toEqual({ col: 1, row: 1, w: 14, h: 8 });
-    expect(byId['hall-b']).toEqual({ col: 1, row: 11, w: 14, h: 6 });
-    expect(byId['hall-c']).toEqual({ col: 16, row: 11, w: 16, h: 6 });
-    expect(byId['cobertura']).toEqual({ col: 16, row: 1, w: 16, h: 8 });
+    // Os quatro têm o mesmo tamanho: 15x8 = 120 células cada.
+    expect(byId['hall-a']).toEqual({ col: 1, row: 1, w: 15, h: 8 });
+    expect(byId['hall-b']).toEqual({ col: 1, row: 10, w: 15, h: 8 });
+    expect(byId['hall-c']).toEqual({ col: 17, row: 10, w: 15, h: 8 });
+    expect(byId['cobertura']).toEqual({ col: 17, row: 1, w: 15, h: 8 });
+  });
+
+  // A folga entre a última célula e a parede é justamente o que reaparece se
+  // alguém mexer num retângulo sem manter a borda em múltiplo de CELL_SVG.
+  it('a malha encosta na parede — nenhuma faixa morta', () => {
+    for (const hall of HALLS) {
+      const r = cellsForHall(hall);
+      expect(r.col * CELL_SVG, `${hall.id} à esquerda`).toBe(hall.svg.x);
+      expect(r.row * CELL_SVG, `${hall.id} acima`).toBe(hall.svg.y);
+      expect((r.col + r.w) * CELL_SVG, `${hall.id} à direita`).toBe(hall.svg.x + hall.svg.w);
+      expect((r.row + r.h) * CELL_SVG, `${hall.id} abaixo`).toBe(hall.svg.y + hall.svg.h);
+    }
+  });
+
+  it('os quatro halls têm o mesmo tamanho', () => {
+    const sizes = HALLS.map(cellsForHall).map((r) => `${r.w}x${r.h}`);
+    expect(new Set(sizes).size, `tamanhos: ${sizes.join(', ')}`).toBe(1);
   });
 
   it('nenhuma célula de hall escapa do retângulo do hall no SVG', () => {

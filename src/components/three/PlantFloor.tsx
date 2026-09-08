@@ -15,11 +15,14 @@ function HallVolume({
   hall,
   palette,
   onIsolate,
+  editMode = false,
 }: {
   hall: Hall;
   palette: FloorPalette;
   /** Ausente quando o hall já está isolado — não há para onde entrar. */
   onIsolate?: (area: string) => void;
+  /** Na edição a laje é o ÚNICO piso desenhado (ver PlantFloor). */
+  editMode?: boolean;
 }) {
   const [cx, cz] = hall.center;
   const [w, d] = hall.size;
@@ -64,7 +67,10 @@ function HallVolume({
           roughness={0.95}
           metalness={0}
           transparent
-          opacity={hall.open ? 0.45 : 0.9}
+          // A laje conta com o piso geral atrás para ler — a Cobertura chega a
+          // 0,45. Na edição esse piso não é desenhado, então ela precisa ser
+          // opaca, senão o hall aberto praticamente desaparece.
+          opacity={editMode ? 1 : hall.open ? 0.45 : 0.9}
         />
       </mesh>
 
@@ -133,11 +139,21 @@ export function PlantFloor({
   isolated,
   onIsolateHall,
   onExitIsolation,
+  editMode = false,
 }: {
   palette: FloorPalette;
   halls: Hall[];
   bounds: ViewBounds;
   isolated: boolean;
+  /**
+   * Na edição o piso geral e sua grade somem, restando só as lajes dos halls.
+   *
+   * A grade do piso tem célula de 2 unidades de mundo; a malha do editor tem
+   * 0,833. Sobrepostas, as duas viram um moiré em que não dá para distinguir
+   * qual linha é a que o ativo vai encaixar — e o piso ainda transborda os
+   * halls por 14%, sugerindo espaço posicionável onde não há.
+   */
+  editMode?: boolean;
   /** Ausentes no modo de editar layout: a laje deixa de ser clicável. */
   onIsolateHall?: (area: string) => void;
   onExitIsolation?: () => void;
@@ -168,6 +184,7 @@ export function PlantFloor({
     <group>
       {/* Piso base. Com um hall isolado, é o alvo de "clicar fora para sair" —
           a contrapartida de clicar na laje para entrar. */}
+      {!editMode && (
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[cx, 0, cz]}
@@ -200,12 +217,15 @@ export function PlantFloor({
         <planeGeometry args={[floorW, floorD]} />
         <meshStandardMaterial color={palette.floor} roughness={1} metalness={0} />
       </mesh>
+      )}
 
-      <primitive
-        object={grid}
-        position={[cx, 0.004, cz]}
-        scale={[1, 1, floorD / floorW]}
-      />
+      {!editMode && (
+        <primitive
+          object={grid}
+          position={[cx, 0.004, cz]}
+          scale={[1, 1, floorD / floorW]}
+        />
+      )}
 
       {halls.map((hall) => (
         <HallVolume
@@ -213,6 +233,7 @@ export function PlantFloor({
           hall={hall}
           palette={palette}
           onIsolate={isolated ? undefined : onIsolateHall}
+          editMode={editMode}
         />
       ))}
     </group>

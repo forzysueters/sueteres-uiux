@@ -9,6 +9,9 @@ import { useAppStore } from '../store/appStore';
 import { useAuthStore } from '../store/authStore';
 import { canWriteAssets } from '../types/auth';
 import { PlantFloorMap } from './PlantFloorMap';
+import { footprintCells, footprintOf, rectToPlant } from './three/plantGrid';
+import type { CellRect } from './three/plantGrid';
+import { hallForArea } from './three/plantLayout';
 import { translations } from '../translations';
 
 type Extraction = NameplateResult;
@@ -51,7 +54,10 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   const [target, setTarget] = useState<Target>(mayCreateAsset ? 'new' : 'existing');
   const [areas, setAreas] = useState<Area[]>([]);
   const [linkAssetId, setLinkAssetId] = useState(assetId ?? '');
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  // Célula, não ponto livre: o ativo nasce alinhado à mesma malha que o editor
+  // de layout usa, em vez de numa coordenada arbitrária que teria de ser
+  // realinhada depois.
+  const [cell, setCell] = useState<CellRect | null>(null);
   const [assetForm, setAssetForm] = useState({
     tag: '',
     name: '',
@@ -80,6 +86,20 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   }, [step, areas.length]);
 
   const isMock = extraction?.modelUsed === 'mock';
+
+  // ─── Posicionamento por célula ────────────────────────────────────────────
+  // O hall sai da ÁREA escolhida no formulário: assim o ativo não pode nascer
+  // com área "Hall A" e desenhado dentro do Hall C — a incoerência que o editor
+  // de layout existe para impedir.
+  const pickHall = hallForArea(areas.find((a) => a.id === assetForm.areaId)?.name ?? '');
+  const pickFootprint = footprintOf(assetForm.type);
+  const occupiedRects = assets.map(footprintCells);
+
+  // Trocar o tipo muda o tamanho da pegada, e trocar a área muda o hall: a
+  // célula escolhida antes pode não valer mais, então volta a ser nenhuma.
+  useEffect(() => {
+    setCell(null);
+  }, [assetForm.type, assetForm.areaId]);
 
   const processFile = async (picked: File) => {
     releasePreview();
@@ -125,7 +145,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
     if (!mayCreateAsset) return t.role_denied;
     if (!assetForm.tag.trim() || !assetForm.name.trim()) return t.err_required_fields;
     if (!assetForm.areaId) return t.err_pick_area;
-    if (!position) return t.err_pick_position;
+    if (!cell) return t.err_pick_position;
     return null;
   };
 
@@ -188,8 +208,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
           plantId: area.plantId,
           location: assetForm.location.trim() || area.name,
           criticality: assetForm.criticality,
-          plantX: position!.x,
-          plantY: position!.y,
+          ...rectToPlant(cell!),
         });
         label = assetForm.tag.trim().toUpperCase();
       } else {
@@ -227,7 +246,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
     setOcrError(null);
     setSaveError(null);
     setResult(null);
-    setPosition(null);
+    setCell(null);
     setLinkAssetId(assetId ?? '');
     setAssetForm({
       tag: '', name: '', type: 'motor', areaId: '', location: '', criticality: 'medium',
@@ -631,26 +650,41 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
                   </div>
                 </div>
 
-                {/* Posição na planta */}
+                {/* Posição na planta — por célula, como no editor de layout */}
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className={labelClass}><MapPin size={10} />{t.field_position} *</label>
                     <span className="text-[10px] font-mono text-muted">
-                      {position
-                        ? `X ${position.x.toFixed(1)}% · Y ${position.y.toFixed(1)}%`
-                        : t.position_hint}
+                      {!pickHall
+                        ? t.position_pick_area_first
+                        : cell
+                          ? `${pickFootprint[0]}×${pickFootprint[1]} · ${t.position_cell} ${cell.col},${cell.row}`
+                          : t.position_hint}
                     </span>
                   </div>
-                  <div className={`rounded-xl border overflow-hidden transition-all ${position ? 'border-primary/40' : 'border-border'}`}>
-                    <PlantFloorMap
-                      assets={assets}
-                      selectedAssetId={null}
-                      onSelectAsset={() => {}}
-                      pickMode
-                      pendingPosition={position}
-                      onPickPosition={(x, y) => { setPosition({ x, y }); setSaveError(null); }}
-                    />
-                  </div>
+                  {pickHall ? (
+                    <div className={`rounded-xl border overflow-hidden transition-all ${cell ? 'border-primary/40' : 'border-border'}`}>
+                      <PlantFloorMap
+                        assets={assets}
+                        selectedAssetId={null}
+                        onSelectAsset={() => {}}
+                        pickMode
+                        pickFootprint={pickFootprint}
+                        pickHall={pickHall}
+                        pendingCell={cell}
+                        occupiedRects={occupiedRects}
+                        onPickCell={(rect) => { setCell(rect); setSaveError(null); }}
+                      />
+                    </div>
+                  ) : (
+                    // Sem área não há hall, e sem hall não há onde validar a
+                    // célula. Pedir a área antes evita oferecer a planta inteira
+                    // e depois recusar quase tudo.
+                    <div className="rounded-xl border border-dashed border-border bg-card-hover px-6 py-10 text-center">
+                      <MapPin size={20} className="mx-auto mb-2 text-muted" />
+                      <p className="text-xs font-medium text-muted">{t.position_pick_area_first}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* O ativo nasce sem instrumentação */}

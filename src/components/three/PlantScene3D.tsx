@@ -235,6 +235,7 @@ export function PlantScene3D({
           // quais a colisão é validada.
           onIsolateHall={editMode ? undefined : guard(onIsolateHall)}
           onExitIsolation={editMode ? undefined : guard(onExitIsolation)}
+          editMode={editMode}
         />
 
         {editMode && editor && (

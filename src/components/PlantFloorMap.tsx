@@ -10,8 +10,9 @@ import { useIsMobile } from '../hooks/useMediaQuery';
 // Geometria dos halls e malha de células — os mesmos módulos que a cena 3D usa,
 // para que as duas vistas nunca discordem sobre onde um hall começa.
 import { HALLS } from './three/plantLayout';
-import { CELL_SVG, cellsForHall } from './three/plantGrid';
+import { CELL_SVG, cellsForHall, collides, isInsideHall, snapToCell } from './three/plantGrid';
 import type { CellRect } from './three/plantGrid';
+import type { Hall } from './three/plantLayout';
 import type { Placement } from '../hooks/usePlantLayoutEditor';
 
 // Sequência de inspeção: ordem recomendada por área (Hall A → Hall B → Hall C → Cobertura)
@@ -26,9 +27,24 @@ interface PlantFloorMapProps {
    * coordenada em % em vez de selecionar um ativo. Os ativos existentes
    * continuam desenhados, como referência de onde não colidir.
    */
+  /**
+   * Cadastro de ativo: escolher onde a máquina vai. Acompanhado de
+   * `pickFootprint`, é a escolha por célula descrita abaixo.
+   */
   pickMode?: boolean;
-  pendingPosition?: { x: number; y: number } | null;
-  onPickPosition?: (x: number, y: number) => void;
+  /**
+   * Escolha por CÉLULA (cadastro de ativo). Com a pegada presente, o mapa
+   * desenha a malha e um fantasma do tamanho da máquina seguindo o cursor, em
+   * vez de aceitar um ponto livre — o ativo nasce alinhado, como o editor de
+   * layout o manteria.
+   */
+  pickFootprint?: [number, number] | null;
+  /** Hall da área escolhida no formulário: fora dele, a célula é recusada. */
+  pickHall?: Hall | null;
+  pendingCell?: CellRect | null;
+  /** Pegadas já ocupadas — o cadastro não pode nascer em cima de outro ativo. */
+  occupiedRects?: CellRect[];
+  onPickCell?: (rect: CellRect) => void;
   /** Modo de editar layout: desenha a malha e habilita o arraste com snap. */
   editMode?: boolean;
   draftRects?: Record<string, CellRect>;
@@ -68,7 +84,9 @@ const ASSET_ICONS: Record<string, string> = {
 
 export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
   assets, selectedAssetId, onSelectAsset,
-  pickMode = false, pendingPosition = null, onPickPosition,
+  pickMode = false,
+  pickFootprint = null, pickHall = null, pendingCell = null,
+  occupiedRects, onPickCell,
   editMode = false, draftRects, placement, dragId = null,
   onDragStart, onDragMove, onDragEnd,
 }) => {
@@ -83,6 +101,22 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
   const isMobile = useIsMobile();
   const k = isMobile ? 2.7 : 1;
   const [tooltip, setTooltip] = useState<{ asset: Asset; x: number; y: number; boxW: number } | null>(null);
+  /** Célula sob o cursor no cadastro por célula — o fantasma que segue o mouse. */
+  const [hoverCell, setHoverCell] = useState<CellRect | null>(null);
+
+  /** Escolha por célula ativa: pegada definida e hall da área resolvido. */
+  const cellPicking = pickMode && pickFootprint !== null;
+
+  /**
+   * Uma célula só vale se a pegada INTEIRA couber no hall da área escolhida e
+   * não encostar em ativo nenhum. É a mesma regra do editor de layout — o
+   * cadastro não pode criar o que o editor recusaria.
+   */
+  const cellIsValid = (rect: CellRect | null): boolean => {
+    if (!rect || !pickHall) return false;
+    if (!isInsideHall(rect, pickHall)) return false;
+    return !(occupiedRects ?? []).some((o) => collides(rect, o));
+  };
 
   // Mapeia TAG → coordenadas SVG para desenhar o fluxo de inspeção
   const assetCoords = Object.fromEntries(
@@ -100,30 +134,16 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
   /**
    * Ponto do evento → coordenada do viewBox, exata sob qualquer escala.
    *
-   * O `handlePick` abaixo usa proporção do getBoundingClientRect, que ignora o
-   * preserveAspectRatio — o viewBox é 1000/562 = 1,7794 contra um contêiner
-   * 16/9 = 1,7778, e sobra ~0,1% de letterbox. Irrelevante para escolher um
-   * ponto; não para decidir em que célula a máquina cai.
+   * Proporção do getBoundingClientRect não serve aqui: ela ignora o
+   * preserveAspectRatio, e o viewBox é 1000/562 = 1,7794 contra um contêiner
+   * 16/9 = 1,7778 — sobra ~0,1% de letterbox, o bastante para errar a célula
+   * junto às bordas.
    */
   const toViewBox = (svg: SVGSVGElement, e: React.PointerEvent): [number, number] | null => {
     const m = svg.getScreenCTM();
     if (!m) return null;
     const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
     return [pt.x, pt.y];
-  };
-
-  // Clique → % do viewBox. Usa o retângulo renderizado do SVG, então o valor
-  // independe da escala em que o mapa está sendo exibido.
-  const handlePick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!pickMode || !onPickPosition) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    const clamp = (n: number) => Math.min(Math.max(n, 0), 100);
-    onPickPosition(
-      parseFloat(clamp(x).toFixed(2)),
-      parseFloat(clamp(y).toFixed(2)),
-    );
   };
 
   return (
@@ -135,17 +155,33 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
         style={
           editMode
             ? { cursor: dragId ? 'grabbing' : 'default', touchAction: 'none' }
-            : pickMode ? { cursor: 'crosshair' } : undefined
+            : cellPicking
+              ? { cursor: cellIsValid(hoverCell) ? 'pointer' : 'not-allowed', touchAction: 'none' }
+              : undefined
         }
-        onClick={editMode ? undefined : handlePick}
         // Os handlers de movimento ficam no <svg> raiz, não no <g> do ativo: o
         // <g> some de baixo do cursor assim que a peça pula de célula, e o
         // arrasto morreria no primeiro salto.
         onPointerMove={(e) => {
+          if (cellPicking) {
+            const pt = toViewBox(e.currentTarget, e);
+            setHoverCell(pt ? snapToCell(pt[0], pt[1], pickFootprint!) : null);
+            return;
+          }
           if (!editMode || !dragId || !onDragMove) return;
           const pt = toViewBox(e.currentTarget, e);
           if (pt) onDragMove(dragId, pt[0], pt[1]);
         }}
+        onPointerLeave={() => { if (cellPicking) setHoverCell(null); }}
+        onPointerDown={cellPicking ? (e) => {
+          if (e.button !== 0) return;
+          const pt = toViewBox(e.currentTarget, e);
+          if (!pt) return;
+          const rect = snapToCell(pt[0], pt[1], pickFootprint!);
+          // Célula inválida simplesmente não fixa: o fantasma vermelho já disse
+          // por quê, e aceitar aqui criaria um ativo que o editor recusaria.
+          if (cellIsValid(rect)) onPickCell?.(rect);
+        } : undefined}
         onPointerUp={() => { if (editMode && dragId) onDragEnd?.(dragId); }}
         onPointerCancel={() => { if (editMode && dragId) onDragEnd?.(dragId); }}
         xmlns="http://www.w3.org/2000/svg"
@@ -153,13 +189,19 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
         {/* Fundo da fábrica */}
         <rect width="1000" height="562" fill={p.bg} />
 
-        {/* Grade de piso */}
-        {Array.from({ length: 20 }, (_, i) => (
-          <line key={`gv-${i}`} x1={i * 50} y1={0} x2={i * 50} y2={562} stroke={p.grid} strokeWidth="1" />
-        ))}
-        {Array.from({ length: 12 }, (_, i) => (
-          <line key={`gh-${i}`} x1={0} y1={i * 50} x2={1000} y2={i * 50} stroke={p.grid} strokeWidth="1" />
-        ))}
+        {/* Grade de piso. Sai na edição: o passo dela é 50 e o da malha do
+            editor é 30 — sobrepostas, não dá para saber qual linha é a que o
+            ativo encaixa. Ela também atravessa os halls, que são translúcidos. */}
+        {!editMode && !cellPicking && (
+          <g>
+            {Array.from({ length: 20 }, (_, i) => (
+              <line key={`gv-${i}`} x1={i * 50} y1={0} x2={i * 50} y2={562} stroke={p.grid} strokeWidth="1" />
+            ))}
+            {Array.from({ length: 12 }, (_, i) => (
+              <line key={`gh-${i}`} x1={0} y1={i * 50} x2={1000} y2={i * 50} stroke={p.grid} strokeWidth="1" />
+            ))}
+          </g>
+        )}
 
         {/* Halls — desenhados a partir de HALLS (plantLayout), a mesma fonte que
             a cena 3D e a malha do editor usam. Antes eram quatro <rect> fixos
@@ -168,7 +210,10 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
           <g key={hall.id}>
             <rect
               x={hall.svg.x} y={hall.svg.y} width={hall.svg.w} height={hall.svg.h} rx="8"
-              fill={p.hallFill} fillOpacity={hall.open ? 0.4 : 0.6}
+              fill={p.hallFill}
+              // Opaco na edição: o hall passa a ser o único chão desenhado, e
+              // a 0,4 a Cobertura quase desaparece contra o fundo.
+              fillOpacity={editMode || cellPicking ? 1 : hall.open ? 0.4 : 0.6}
               stroke={p.hallStroke} strokeWidth="1.5"
               strokeDasharray={hall.open ? '6 3' : undefined}
             />
@@ -202,6 +247,68 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
                   stroke={p.hallStroke} strokeWidth="0.7" />
               ))}
             </g>
+          );
+        })}
+
+        {/* ─── Cadastro por célula ─── malha só do hall da área escolhida */}
+        {cellPicking && pickHall && (() => {
+          const r = cellsForHall(pickHall);
+          const x0 = r.col * CELL_SVG;
+          const y0 = r.row * CELL_SVG;
+          return (
+            <g style={{ pointerEvents: 'none' }}>
+              {/* Escurece o resto da planta: só este hall aceita o ativo. */}
+              <rect x="0" y="0" width="1000" height="562" fill={p.bg} fillOpacity="0.55" />
+              <rect
+                x={pickHall.svg.x} y={pickHall.svg.y}
+                width={pickHall.svg.w} height={pickHall.svg.h} rx="8"
+                fill={p.hallFill} stroke={p.flow} strokeWidth="2"
+              />
+              <g opacity={0.6}>
+                {Array.from({ length: r.w + 1 }, (_, i) => (
+                  <line key={`pv${i}`} x1={x0 + i * CELL_SVG} y1={y0}
+                    x2={x0 + i * CELL_SVG} y2={y0 + r.h * CELL_SVG}
+                    stroke={p.hallStroke} strokeWidth="0.7" />
+                ))}
+                {Array.from({ length: r.h + 1 }, (_, i) => (
+                  <line key={`ph${i}`} x1={x0} y1={y0 + i * CELL_SVG}
+                    x2={x0 + r.w * CELL_SVG} y2={y0 + i * CELL_SVG}
+                    stroke={p.hallStroke} strokeWidth="0.7" />
+                ))}
+              </g>
+            </g>
+          );
+        })()}
+
+        {/* Pegadas já ocupadas — onde a máquina nova não cabe */}
+        {cellPicking && (occupiedRects ?? []).map((r, i) => (
+          <rect
+            key={`occ-${i}`} style={{ pointerEvents: 'none' }}
+            x={r.col * CELL_SVG} y={r.row * CELL_SVG}
+            width={r.w * CELL_SVG} height={r.h * CELL_SVG} rx="3"
+            fill={p.hallStroke} fillOpacity="0.35"
+            stroke={p.hallStroke} strokeWidth="1.2"
+          />
+        ))}
+
+        {/* Fantasma: a pegada do tipo escolhido seguindo o cursor, e a célula
+            já fixada. Verde onde cabe, vermelho onde colide ou sai do hall. */}
+        {cellPicking && [
+          { rect: pendingCell, fixed: true },
+          { rect: hoverCell && !(pendingCell && hoverCell.col === pendingCell.col && hoverCell.row === pendingCell.row) ? hoverCell : null, fixed: false },
+        ].map(({ rect, fixed }, i) => {
+          if (!rect) return null;
+          const valid = cellIsValid(rect);
+          const color = valid ? (fixed ? p.flow : '#10b981') : STATUS_COLORS.critical.fill;
+          return (
+            <rect
+              key={`ghost-${i}`} style={{ pointerEvents: 'none' }}
+              x={rect.col * CELL_SVG} y={rect.row * CELL_SVG}
+              width={rect.w * CELL_SVG} height={rect.h * CELL_SVG} rx="3"
+              fill={color} fillOpacity={fixed ? 0.3 : 0.18}
+              stroke={color} strokeWidth="2"
+              strokeDasharray={fixed ? undefined : '6 4'}
+            />
           );
         })}
 
@@ -261,11 +368,15 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
           );
         })}
 
-        {/* Tubulações decorativas */}
-        <line x1="30" y1="295" x2="450" y2="295" stroke={p.pipe} strokeWidth="4" />
-        <line x1="450" y1="295" x2="450" y2="320" stroke={p.pipe} strokeWidth="4" />
-        <line x1="450" y1="295" x2="480" y2="295" stroke={p.pipe} strokeWidth="4" />
-        <line x1="480" y1="295" x2="480" y2="320" stroke={p.pipe} strokeWidth="4" />
+        {/* Tubulações decorativas — some na edição junto com o resto do piso. */}
+        {!editMode && (
+          <g>
+            <line x1="30" y1="295" x2="450" y2="295" stroke={p.pipe} strokeWidth="4" />
+            <line x1="450" y1="295" x2="450" y2="320" stroke={p.pipe} strokeWidth="4" />
+            <line x1="450" y1="295" x2="480" y2="295" stroke={p.pipe} strokeWidth="4" />
+            <line x1="480" y1="295" x2="480" y2="320" stroke={p.pipe} strokeWidth="4" />
+          </g>
+        )}
 
         {/* Hotspots dos ativos */}
         {assets.map((asset) => {
@@ -357,22 +468,6 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
             </g>
           );
         })}
-
-        {/* Marcador fantasma — posição escolhida para o ativo em cadastro */}
-        {pickMode && pendingPosition && (() => {
-          const cx = (pendingPosition.x / 100) * 1000;
-          const cy = (pendingPosition.y / 100) * 562;
-          return (
-            <g style={{ pointerEvents: 'none' }}>
-              <circle cx={cx} cy={cy} r={20 * k} fill={p.flow} fillOpacity="0.2"
-                stroke={p.flow} strokeWidth={2 * k} strokeDasharray={`${5 * k} ${3 * k}`}>
-                <animate attributeName="opacity" values="1;0.45;1" dur="1.6s" repeatCount="indefinite" />
-              </circle>
-              <line x1={cx - 30 * k} y1={cy} x2={cx + 30 * k} y2={cy} stroke={p.flow} strokeWidth={k} opacity="0.5" />
-              <line x1={cx} y1={cy - 30 * k} x2={cx} y2={cy + 30 * k} stroke={p.flow} strokeWidth={k} opacity="0.5" />
-            </g>
-          );
-        })()}
 
         {/* Legenda — status dos ativos */}
         {!isMobile && !pickMode && !editMode && Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
