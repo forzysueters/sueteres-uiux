@@ -6,6 +6,7 @@ import {
   Check,
   CornerDownLeft,
   Loader2,
+  Mic,
   Pause,
   Play,
   Sparkles,
@@ -16,6 +17,7 @@ import {
 import { AvatarFace } from './AvatarFace';
 import { RichText } from './RichText';
 import { ASSISTANT_NAME, t } from './copy';
+import { useSpeechToText } from './useSpeechToText';
 import { cn } from '../lib/utils';
 import type { AssistantPhase, AvatarState, Language } from './types';
 
@@ -65,6 +67,8 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const isTour = p.phase === 'tour';
   const lastStep = p.stepIndex === p.stepCount - 1;
+  const stt = useSpeechToText(lang);
+  const startListening = () => stt.start((text) => setDraft((d) => (d ? `${d} ${text}` : text)));
 
   useEffect(() => {
     if (asking) inputRef.current?.focus();
@@ -331,10 +335,28 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && submit()}
-                  placeholder={t(lang, 'ask_placeholder')}
+                  placeholder={stt.listening ? t(lang, 'listening') : t(lang, 'ask_placeholder')}
                   disabled={p.chatPending}
-                  className="h-10 w-full rounded-xl border border-border bg-card-hover pl-3 pr-10 text-xs font-medium text-foreground transition-colors placeholder:text-muted-soft focus:border-primary/50 focus:outline-none disabled:opacity-50"
+                  className={cn(
+                    'h-10 w-full rounded-xl border border-border bg-card-hover pl-3 text-xs font-medium text-foreground transition-colors placeholder:text-muted-soft focus:border-primary/50 focus:outline-none disabled:opacity-50',
+                    stt.supported ? 'pr-16' : 'pr-10',
+                  )}
                 />
+                {stt.supported && (
+                  <button
+                    type="button"
+                    onClick={() => (stt.listening ? stt.stop() : startListening())}
+                    disabled={p.chatPending}
+                    aria-label={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}
+                    title={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}
+                    className={cn(
+                      'absolute right-9 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg transition-colors disabled:opacity-30',
+                      stt.listening ? 'text-primary bg-primary/10 animate-pulse' : 'text-muted hover:text-primary hover:bg-primary/10',
+                    )}
+                  >
+                    <Mic size={14} />
+                  </button>
+                )}
                 <button
                   onClick={submit}
                   disabled={!draft.trim() || p.chatPending}

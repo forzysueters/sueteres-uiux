@@ -1,10 +1,11 @@
 import React, { forwardRef, useImperativeHandle, useState, useRef, useEffect } from 'react';
-import { Send, User, Sparkles, MessageSquarePlus, FileText } from 'lucide-react';
+import { Send, User, Sparkles, MessageSquarePlus, FileText, Volume2, Square, Mic } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { ChatMessage } from '../types';
 import { translations } from '../translations';
-import { AvatarFace } from '../assistant';
+import { AvatarFace, useSpeech, useSpeechToText, stripMarkdown } from '../assistant';
+import { cn } from '../lib/utils';
 
 /** Interpreta **negrito** sem markdown completo — evita dangerouslySetInnerHTML. */
 function renderContent(content: string): React.ReactNode {
@@ -45,14 +46,44 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const speech = useSpeech();
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const stt = useSpeechToText(language);
+  const startListening = () => stt.start((text) => setInput((v) => (v ? `${v} ${text}` : text)));
 
-  // Saudação inicial. Lê o estado direto da store (não o valor fechado no
-  // render) para não duplicar a mensagem quando o StrictMode roda o efeito
-  // duas vezes em desenvolvimento.
-  useEffect(() => {
-    if (useAppStore.getState().chatMessages.length === 0) {
-      addChatMessage(GREETING);
+  /** Ouvir/parar uma resposta pontualmente — nunca fala sozinho, só quando pedido. */
+  const toggleSpeak = (m: ChatMessage) => {
+    if (speakingId === m.id) {
+      speech.cancel();
+      setSpeakingId(null);
+      return;
     }
+    setSpeakingId(m.id);
+    speech.speak(stripMarkdown(m.content), language, () => setSpeakingId(null));
+  };
+
+  // Retoma a conversa salva no banco (sobrevive a um recarregamento de
+  // página); sem nenhuma, cai na saudação. Lê o estado direto da store (não o
+  // valor fechado no render) para não duplicar quando o StrictMode roda o
+  // efeito duas vezes em desenvolvimento.
+  useEffect(() => {
+    if (useAppStore.getState().chatMessages.length > 0) return;
+    let cancelled = false;
+    apiService
+      .getLatestConversation()
+      .catch(() => null)
+      .then((saved) => {
+        if (cancelled || useAppStore.getState().chatMessages.length > 0) return;
+        if (saved) {
+          saved.messages.forEach(addChatMessage);
+          setConversationId(saved.conversationId);
+        } else {
+          addChatMessage(GREETING);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -63,6 +94,8 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
 
   const handleNewConversation = () => {
     if (isTyping) return;
+    speech.cancel();
+    setSpeakingId(null);
     clearChatMessages();
     addChatMessage({ ...GREETING, id: `init-${Date.now()}`, timestamp: new Date().toISOString() });
   };
@@ -79,12 +112,6 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
       assetContext: selectedAssetId ?? undefined,
     };
 
-    // Histórico enviado ao agente: exclui a saudação, mantém as últimas trocas.
-    const history = [...chatMessages, userMsg]
-      .filter((m) => !m.id.startsWith('init'))
-      .slice(-10)
-      .map((m) => ({ role: m.role, content: m.content }));
-
     addChatMessage(userMsg);
     setInput('');
     setIsTyping(true);
@@ -93,7 +120,6 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
       const response = await apiService.getChatResponse(
         message,
         selectedAssetId ?? undefined,
-        history,
         conversationId,
       );
       setConversationId(response.conversationId);
@@ -179,12 +205,29 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
                   </div>
                 )}
 
-                <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-muted opacity-50">
-                  {new Date(m.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
-                  {m.offline && (
-                    <span className="text-amber-500 opacity-100 font-sans font-semibold uppercase tracking-wide">
-                      · {t.offline_mode}
-                    </span>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-[10px] font-mono text-muted opacity-50">
+                    {new Date(m.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
+                    {m.offline && (
+                      <span className="text-amber-500 opacity-100 font-sans font-semibold uppercase tracking-wide">
+                        · {t.offline_mode}
+                      </span>
+                    )}
+                  </span>
+                  {m.role === 'assistant' && speech.supported && (
+                    <button
+                      type="button"
+                      onClick={() => toggleSpeak(m)}
+                      aria-label={speakingId === m.id ? t.pause_speech : t.listen}
+                      title={speakingId === m.id ? t.pause_speech : t.listen}
+                      className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors ${
+                        speakingId === m.id
+                          ? 'text-primary bg-primary/10'
+                          : 'text-muted hover:text-primary hover:bg-primary/10'
+                      }`}
+                    >
+                      {speakingId === m.id ? <Square size={11} /> : <Volume2 size={12} />}
+                    </button>
                   )}
                 </div>
               </div>
@@ -213,9 +256,26 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={selectedAssetId ? t.placeholder_with_asset : t.placeholder_generic}
-            className="w-full h-12 pl-4 pr-12 rounded-lg bg-card-hover border border-border text-foreground placeholder:text-muted-soft focus:outline-none focus:border-primary/50 transition-all text-sm font-medium"
+            placeholder={stt.listening ? t.listening_placeholder : selectedAssetId ? t.placeholder_with_asset : t.placeholder_generic}
+            className={cn(
+              'w-full h-12 pl-4 rounded-lg bg-card-hover border border-border text-foreground placeholder:text-muted-soft focus:outline-none focus:border-primary/50 transition-all text-sm font-medium',
+              stt.supported ? 'pr-20' : 'pr-12',
+            )}
           />
+          {stt.supported && (
+            <button
+              type="button"
+              onClick={() => (stt.listening ? stt.stop() : startListening())}
+              disabled={isTyping}
+              title={stt.listening ? t.stop_listening : t.ask_by_voice}
+              className={cn(
+                'absolute right-11 top-1/2 -translate-y-1/2 w-9 h-9 rounded-md transition-all disabled:opacity-30 flex items-center justify-center',
+                stt.listening ? 'text-primary bg-primary/10 animate-pulse' : 'text-muted hover:text-primary hover:bg-primary/10',
+              )}
+            >
+              <Mic size={16} />
+            </button>
+          )}
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || isTyping}
