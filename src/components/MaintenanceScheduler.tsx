@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Send, CalendarDays, Clock, User as UserIcon, Check, RotateCcw, Loader2 } from 'lucide-react';
-import { Dialog } from './Dialog';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Send, CalendarDays, Clock, User as UserIcon, Check, RotateCcw, Loader2, X } from 'lucide-react';
+import { AvatarFace } from '../assistant/AvatarFace';
+import { ASSISTANT_NAME } from '../assistant/copy';
 import { apiService } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { translations } from '../translations';
 import {
   Asset, Technician, MaintenanceType, MaintenancePriority,
 } from '../types';
+import type { AvatarState } from '../assistant/types';
 import { cn } from '../lib/utils';
 
 interface Props {
@@ -36,6 +40,29 @@ const TYPES: MaintenanceType[] = ['preventive', 'corrective'];
 const PRIORITIES: MaintenancePriority[] = ['low', 'medium', 'high', 'critical'];
 const SLOTS = ['08:00', '10:00', '13:00', '15:00', '17:00'];
 
+/** Etapas que contam para a barra de progresso (a de conclusão não é pergunta). */
+const FLOW: Step[] = ['type', 'priority', 'date', 'time', 'technician', 'description', 'confirm'];
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+/**
+ * Botão de resposta da conversa.
+ *
+ * Precisa viver FORA do componente: declarado dentro, viraria um tipo novo a
+ * cada render, e o React desmontaria e remontaria o botão. A página do ativo
+ * re-renderiza sozinha com a telemetria em tempo real — um update entre o
+ * mousedown e o mouseup destruía o elemento no meio do gesto e o clique nunca
+ * chegava a disparar.
+ */
+const Option: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
+  <button
+    onClick={onClick}
+    className="rounded-lg border border-border bg-card-hover px-3 py-1.5 text-xs font-medium text-foreground-soft transition-colors hover:border-primary/40 hover:text-foreground"
+  >
+    {children}
+  </button>
+);
+
 const toISODate = (d: Date) => {
   // Fatiar o toISOString() daria o dia em UTC, o que troca a data à noite no
   // fuso do Brasil. Aqui o dia é montado a partir dos campos locais.
@@ -46,7 +73,12 @@ const toISODate = (d: Date) => {
 /**
  * Agendamento de manutenção em formato de conversa: o bot pergunta, o usuário
  * responde por botões fixos (ou digita a descrição). Grava uma OM real em
- * public.maintenance_orders ao confirmar.
+ * public.maintenance_orders ao confirmar e dispara os e-mails de confirmação.
+ *
+ * Veste a mesma casca do painel do Órion (assistant/AssistantPanel): é o mesmo
+ * assistente falando, então aparecer como outro tipo de janela quebraria a
+ * leitura. Vai ao body por portal porque `position: fixed` deixa de valer se
+ * qualquer ancestral tiver transform — e a página do ativo é toda animada.
  */
 export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asset, language }) => {
   const t = translations[language].scheduler;
@@ -81,6 +113,14 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
       .then((list) => { setTechnicians(list); setTechError(false); })
       .catch(() => setTechError(true));
   }, [open]);
+
+  // Sem foco preso como num modal, Esc é a única saída de teclado do painel.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onOpenChange(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onOpenChange]);
 
   const step: Step = useMemo(() => {
     if (orderNumber) return 'done';
@@ -188,184 +228,252 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
     bubbles.push({ from: 'bot', text: EMAIL_TEXT[emailState] });
   }
 
-  const Option: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
-    <button
-      onClick={onClick}
-      className="px-3 py-1.5 rounded-lg border border-border bg-card-hover text-xs font-medium text-foreground-soft hover:border-primary/40 hover:text-foreground transition-colors"
-    >
-      {children}
-    </button>
-  );
+  const stepIndex = step === 'done' ? FLOW.length : FLOW.indexOf(step);
+  const busy = saving || emailState === 'sending';
+  const avatarState: AvatarState = busy ? 'thinking' : step === 'done' ? 'idle' : 'listening';
+  const statusLabel = saving
+    ? t.status_saving
+    : emailState === 'sending'
+      ? t.status_sending
+      : step === 'done'
+        ? t.status_done
+        : t.status_waiting;
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={t.title}
-      description={`${asset.tag} · ${asset.name}`}
-      className="max-w-lg"
-    >
-      {!canWrite ? (
-        <p className="text-sm text-muted py-6 text-center">{t.no_permission}</p>
-      ) : (
-        <>
-          {/* Transcrição */}
-          <div ref={scrollRef} className="max-h-[46vh] overflow-y-auto scrollbar-thin space-y-2 pr-1">
-            {bubbles.map((b, i) => (
-              <div key={i} className={cn('flex gap-2', b.from === 'user' && 'justify-end')}>
-                {b.from === 'bot' && (
-                  <div className="flex-shrink-0 w-6 h-6 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center mt-0.5">
-                    <Bot size={12} className="text-primary" />
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.97 }}
+          transition={{ duration: 0.32, ease: EASE }}
+          className={cn(
+            'fixed z-[70] flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-panel',
+            'inset-x-3 bottom-3 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[382px]',
+            'max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)]',
+          )}
+          role="dialog"
+          aria-label={`${ASSISTANT_NAME} — ${t.title}`}
+        >
+          {/* ── Cabeçalho ──────────────────────────────────────────────── */}
+          <div className="flex items-center gap-3 border-b border-border bg-card-hover px-4 py-3">
+            <div className="flex-shrink-0">
+              <AvatarFace size={44} state={avatarState} orbit={false} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-foreground">{t.title}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                  {statusLabel}
+                </span>
+                <span className="truncate text-[10px] font-medium text-muted-soft">
+                  · {asset.tag}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              aria-label={t.close}
+              title={t.close}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-card hover:text-foreground"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {canWrite && (
+            <div className="flex gap-1 px-4 pt-3">
+              {FLOW.map((s, i) => (
+                <span
+                  key={s}
+                  className={cn(
+                    'h-1 flex-1 rounded-full transition-colors duration-300',
+                    i < stepIndex ? 'bg-primary/45' : i === stepIndex ? 'bg-primary' : 'bg-border',
+                  )}
+                />
+              ))}
+            </div>
+          )}
+
+          {!canWrite ? (
+            <p className="px-4 py-8 text-center text-sm text-muted">{t.no_permission}</p>
+          ) : (
+            <>
+              {/* ── Transcrição ────────────────────────────────────────── */}
+              <div
+                ref={scrollRef}
+                className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin px-4 py-3.5"
+              >
+                {bubbles.map((b, i) => (
+                  <div key={i} className={cn('flex', b.from === 'user' && 'justify-end')}>
+                    <p
+                      className={cn(
+                        'max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed',
+                        b.from === 'bot'
+                          ? 'rounded-bl-sm bg-card-hover text-foreground-soft'
+                          : 'rounded-br-sm border border-primary/25 bg-primary/12 text-foreground',
+                      )}
+                    >
+                      {b.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Controles — mudam conforme a etapa ─────────────────── */}
+              <div className="border-t border-border px-4 py-3">
+                {step === 'type' && (
+                  <div className="flex flex-wrap gap-2">
+                    {TYPES.map((v) => (
+                      <Option key={v} onClick={() => setDraft((d) => ({ ...d, type: v }))}>{t.types[v]}</Option>
+                    ))}
                   </div>
                 )}
-                <p
-                  className={cn(
-                    'text-xs leading-relaxed rounded-xl px-3 py-2 max-w-[80%]',
-                    b.from === 'bot'
-                      ? 'bg-card-hover border border-border text-foreground-soft'
-                      : 'bg-primary/12 border border-primary/25 text-foreground',
-                  )}
-                >
-                  {b.text}
-                </p>
-              </div>
-            ))}
-          </div>
 
-          {/* Área de resposta — muda conforme a etapa */}
-          <div className="mt-4 pt-4 border-t border-border">
-            {step === 'type' && (
-              <div className="flex flex-wrap gap-2">
-                {TYPES.map((v) => (
-                  <Option key={v} onClick={() => setDraft((d) => ({ ...d, type: v }))}>{t.types[v]}</Option>
-                ))}
-              </div>
-            )}
+                {step === 'priority' && (
+                  <div className="flex flex-wrap gap-2">
+                    {PRIORITIES.map((v) => (
+                      <Option key={v} onClick={() => setDraft((d) => ({ ...d, priority: v }))}>{t.priorities[v]}</Option>
+                    ))}
+                  </div>
+                )}
 
-            {step === 'priority' && (
-              <div className="flex flex-wrap gap-2">
-                {PRIORITIES.map((v) => (
-                  <Option key={v} onClick={() => setDraft((d) => ({ ...d, priority: v }))}>{t.priorities[v]}</Option>
-                ))}
-              </div>
-            )}
+                {step === 'date' && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {dateOptions.map((o) => (
+                        <Option key={o.value} onClick={() => setDraft((d) => ({ ...d, date: o.value }))}>
+                          <CalendarDays size={12} className="-mt-0.5 mr-1.5 inline" />
+                          {o.label}
+                        </Option>
+                      ))}
+                    </div>
+                    <label className="flex items-center gap-2 text-[11px] text-muted">
+                      {t.other_date}
+                      <input
+                        type="date"
+                        min={toISODate(new Date())}
+                        onChange={(e) => e.target.value && setDraft((d) => ({ ...d, date: e.target.value }))}
+                        className="rounded-lg border border-border bg-card-hover px-2 py-1 text-xs text-foreground"
+                      />
+                    </label>
+                  </div>
+                )}
 
-            {step === 'date' && (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {dateOptions.map((o) => (
-                    <Option key={o.value} onClick={() => setDraft((d) => ({ ...d, date: o.value }))}>
-                      <CalendarDays size={12} className="inline mr-1.5 -mt-0.5" />
-                      {o.label}
-                    </Option>
-                  ))}
-                </div>
-                <label className="flex items-center gap-2 text-[11px] text-muted">
-                  {t.other_date}
-                  <input
-                    type="date"
-                    min={toISODate(new Date())}
-                    onChange={(e) => e.target.value && setDraft((d) => ({ ...d, date: e.target.value }))}
-                    className="bg-card-hover border border-border rounded-lg px-2 py-1 text-xs text-foreground"
-                  />
-                </label>
-              </div>
-            )}
+                {step === 'time' && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {SLOTS.map((v) => (
+                        <Option key={v} onClick={() => setDraft((d) => ({ ...d, time: v }))}>
+                          <Clock size={12} className="-mt-0.5 mr-1.5 inline" />
+                          {v}
+                        </Option>
+                      ))}
+                    </div>
+                    <label className="flex items-center gap-2 text-[11px] text-muted">
+                      {t.other_time}
+                      <input
+                        type="time"
+                        onChange={(e) => e.target.value && setDraft((d) => ({ ...d, time: e.target.value }))}
+                        className="rounded-lg border border-border bg-card-hover px-2 py-1 text-xs text-foreground"
+                      />
+                    </label>
+                  </div>
+                )}
 
-            {step === 'time' && (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {SLOTS.map((v) => (
-                    <Option key={v} onClick={() => setDraft((d) => ({ ...d, time: v }))}>
-                      <Clock size={12} className="inline mr-1.5 -mt-0.5" />
-                      {v}
-                    </Option>
-                  ))}
-                </div>
-                <label className="flex items-center gap-2 text-[11px] text-muted">
-                  {t.other_time}
-                  <input
-                    type="time"
-                    onChange={(e) => e.target.value && setDraft((d) => ({ ...d, time: e.target.value }))}
-                    className="bg-card-hover border border-border rounded-lg px-2 py-1 text-xs text-foreground"
-                  />
-                </label>
-              </div>
-            )}
+                {step === 'technician' && (
+                  <div className="flex flex-wrap gap-2">
+                    {technicians.length === 0 ? (
+                      <p className="text-xs text-muted">{techError ? t.tech_error : t.no_technicians}</p>
+                    ) : (
+                      technicians.map((tech) => (
+                        <Option key={tech.id} onClick={() => setDraft((d) => ({ ...d, technician: tech }))}>
+                          <UserIcon size={12} className="-mt-0.5 mr-1.5 inline" />
+                          {tech.name}
+                          <span className="ml-1 text-muted">· {tech.jobTitle ?? t.roles[tech.role]}</span>
+                        </Option>
+                      ))
+                    )}
+                  </div>
+                )}
 
-            {step === 'technician' && (
-              <div className="flex flex-wrap gap-2">
-                {technicians.length === 0 ? (
-                  <p className="text-xs text-muted">{techError ? t.tech_error : t.no_technicians}</p>
-                ) : (
-                  technicians.map((tech) => (
-                    <Option key={tech.id} onClick={() => setDraft((d) => ({ ...d, technician: tech }))}>
-                      <UserIcon size={12} className="inline mr-1.5 -mt-0.5" />
-                      {tech.name}
-                      <span className="text-muted ml-1">· {tech.jobTitle ?? t.roles[tech.role]}</span>
-                    </Option>
-                  ))
+                {step === 'description' && (
+                  <div className="space-y-2">
+                    <textarea
+                      value={descInput}
+                      onChange={(e) => setDescInput(e.target.value)}
+                      rows={3}
+                      placeholder={t.description_placeholder}
+                      className="w-full resize-none rounded-lg border border-border bg-card-hover px-3 py-2 text-xs text-foreground placeholder:text-muted-soft focus:border-primary/40 focus:outline-none"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setDraft((d) => ({ ...d, description: '' }))}
+                        className="btn-ghost !py-2 !text-xs"
+                      >
+                        {t.skip}
+                      </button>
+                      <button
+                        onClick={() => setDraft((d) => ({ ...d, description: descInput.trim() }))}
+                        className="btn-primary !py-2 !text-xs"
+                      >
+                        <Send size={13} />
+                        {t.send}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {step === 'confirm' && (
+                  <div className="space-y-2.5">
+                    {saveError && <p className="text-xs text-red-500">{saveError}</p>}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={reset}
+                        className="btn-ghost !px-2.5 !py-2 !text-xs disabled:opacity-35"
+                        disabled={saving}
+                        aria-label={t.restart}
+                        title={t.restart}
+                      >
+                        <RotateCcw size={14} />
+                      </button>
+                      <button
+                        onClick={handleConfirm}
+                        className="btn-primary !py-2.5 !text-xs flex-1"
+                        disabled={saving}
+                      >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        {saving ? t.saving : t.confirm}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {step === 'done' && (
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      onClick={reset}
+                      className="text-[11px] font-semibold text-muted transition-colors hover:text-primary"
+                    >
+                      {t.schedule_another}
+                    </button>
+                    <button
+                      onClick={() => onOpenChange(false)}
+                      className="text-[11px] font-semibold text-muted transition-colors hover:text-foreground"
+                    >
+                      {t.close}
+                    </button>
+                  </div>
                 )}
               </div>
-            )}
-
-            {step === 'description' && (
-              <div className="space-y-2">
-                <textarea
-                  value={descInput}
-                  onChange={(e) => setDescInput(e.target.value)}
-                  rows={3}
-                  placeholder={t.description_placeholder}
-                  className="w-full bg-card-hover border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-soft resize-none focus:outline-none focus:border-primary/40"
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setDraft((d) => ({ ...d, description: '' }))}
-                    className="btn-ghost text-xs"
-                  >
-                    {t.skip}
-                  </button>
-                  <button
-                    onClick={() => setDraft((d) => ({ ...d, description: descInput.trim() }))}
-                    className="btn-primary text-xs"
-                  >
-                    <Send size={13} />
-                    {t.send}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {step === 'confirm' && (
-              <div className="space-y-3">
-                {saveError && <p className="text-xs text-red-500">{saveError}</p>}
-                <div className="flex justify-end gap-2">
-                  <button onClick={reset} className="btn-ghost text-xs" disabled={saving}>
-                    <RotateCcw size={13} />
-                    {t.restart}
-                  </button>
-                  <button onClick={handleConfirm} className="btn-primary text-xs" disabled={saving}>
-                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                    {saving ? t.saving : t.confirm}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {step === 'done' && (
-              <div className="flex justify-end gap-2">
-                <button onClick={reset} className="btn-ghost text-xs">
-                  <RotateCcw size={13} />
-                  {t.schedule_another}
-                </button>
-                <button onClick={() => onOpenChange(false)} className="btn-primary text-xs">
-                  {t.close}
-                </button>
-              </div>
-            )}
-          </div>
-        </>
+            </>
+          )}
+        </motion.div>
       )}
-    </Dialog>
+    </AnimatePresence>,
+    document.body,
   );
 };
