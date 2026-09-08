@@ -116,6 +116,7 @@ export const AssistantProvider: React.FC = () => {
             anchor={anchor}
             chatPending={c.chatPending}
             chatQuestion={c.chatQuestion}
+            canExpand={c.canExpand}
             onStart={c.actions.start}
             onDismiss={c.actions.dismiss}
             onClose={c.actions.close}
@@ -126,6 +127,7 @@ export const AssistantProvider: React.FC = () => {
             onToggleMute={c.actions.toggleMuted}
             onAsk={c.actions.ask}
             onRestart={c.actions.restart}
+            onExpand={c.actions.expand}
           />
         )}
       </AnimatePresence>

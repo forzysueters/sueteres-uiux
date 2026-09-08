@@ -42,7 +42,8 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: 'documentation',
     route: '/assistente',
-    targets: ['[data-tour="ai-chat"]', 'nav a[href="/assistente"]'],
+    // Sem alternativa de menu: o Assistente não está mais na navbar.
+    targets: ['[data-tour="ai-chat"]'],
     padding: 8,
   },
   {

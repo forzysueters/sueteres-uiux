@@ -6,6 +6,8 @@ import {
   Check,
   CornerDownLeft,
   Loader2,
+  Maximize2,
+  Mic,
   Pause,
   Play,
   Sparkles,
@@ -16,6 +18,7 @@ import {
 import { AvatarFace } from './AvatarFace';
 import { RichText } from './RichText';
 import { ASSISTANT_NAME, t } from './copy';
+import { useSpeechToText } from './useSpeechToText';
 import { cn } from '../lib/utils';
 import type { AssistantPhase, AvatarState, Language } from './types';
 
@@ -39,6 +42,8 @@ export interface AssistantPanelModel {
   anchor: 'bottom' | 'top';
   chatPending: boolean;
   chatQuestion: string | null;
+  /** Falso quando já se está na página do assistente. */
+  canExpand: boolean;
 }
 
 interface AssistantPanelProps extends AssistantPanelModel {
@@ -54,6 +59,7 @@ interface AssistantPanelProps extends AssistantPanelModel {
   onToggleMute: () => void;
   onAsk: (question: string) => void;
   onRestart: () => void;
+  onExpand: () => void;
 }
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -65,6 +71,8 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const isTour = p.phase === 'tour';
   const lastStep = p.stepIndex === p.stepCount - 1;
+  const stt = useSpeechToText(lang);
+  const startListening = () => stt.start((text) => setDraft((d) => (d ? `${d} ${text}` : text)));
 
   useEffect(() => {
     if (asking) inputRef.current?.focus();
@@ -148,6 +156,18 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
             )}
           </div>
         </div>
+
+        {p.canExpand && (
+          <button
+            type="button"
+            onClick={p.onExpand}
+            aria-label={t(lang, 'expand')}
+            title={t(lang, 'expand')}
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-card hover:text-foreground"
+          >
+            <Maximize2 size={15} />
+          </button>
+        )}
 
         <button
           type="button"
@@ -331,10 +351,28 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && submit()}
-                  placeholder={t(lang, 'ask_placeholder')}
+                  placeholder={stt.listening ? t(lang, 'listening') : t(lang, 'ask_placeholder')}
                   disabled={p.chatPending}
-                  className="h-10 w-full rounded-xl border border-border bg-card-hover pl-3 pr-10 text-xs font-medium text-foreground transition-colors placeholder:text-muted-soft focus:border-primary/50 focus:outline-none disabled:opacity-50"
+                  className={cn(
+                    'h-10 w-full rounded-xl border border-border bg-card-hover pl-3 text-xs font-medium text-foreground transition-colors placeholder:text-muted-soft focus:border-primary/50 focus:outline-none disabled:opacity-50',
+                    stt.supported ? 'pr-16' : 'pr-10',
+                  )}
                 />
+                {stt.supported && (
+                  <button
+                    type="button"
+                    onClick={() => (stt.listening ? stt.stop() : startListening())}
+                    disabled={p.chatPending}
+                    aria-label={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}
+                    title={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}
+                    className={cn(
+                      'absolute right-9 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg transition-colors disabled:opacity-30',
+                      stt.listening ? 'text-primary bg-primary/10 animate-pulse' : 'text-muted hover:text-primary hover:bg-primary/10',
+                    )}
+                  >
+                    <Mic size={14} />
+                  </button>
+                )}
                 <button
                   onClick={submit}
                   disabled={!draft.trim() || p.chatPending}

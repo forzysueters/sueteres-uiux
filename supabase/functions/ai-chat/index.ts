@@ -41,24 +41,30 @@ const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-application-name',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
+// Lista de origens do front-end que podem chamar esta function a partir do
+// navegador — configurável via secret `ALLOWED_ORIGINS` (separadas por
+// vírgula) sem precisar de novo deploy. `*` continua sendo o padrão até o
+// secret ser definido, para não quebrar ambientes ainda não configurados.
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '*')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean)
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-  })
+function corsHeadersFor(origin: string | null) {
+  const allowOrigin =
+    ALLOWED_ORIGINS.includes('*') ? '*' : origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-application-name',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
 }
 
 interface RequestBody {
   question: string
   assetContext?: string | null
   conversationId?: string | null
-  history?: ChatTurn[]
 }
 
 /**
@@ -81,7 +87,14 @@ async function fetchNameplate(supabase: any, assetId: string): Promise<Nameplate
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
+  // Calculado por requisição (nunca num `let` de módulo) — sob concorrência,
+  // um estado compartilhado misturaria a origem de uma requisição na resposta
+  // de outra.
+  const cors = corsHeadersFor(req.headers.get('Origin'))
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
+
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 
   const authHeader = req.headers.get('Authorization')
@@ -100,7 +113,6 @@ Deno.serve(async (req) => {
 
   const question = (body.question ?? '').trim()
   if (!question) return json({ error: 'empty_question' }, 400)
-  const history = Array.isArray(body.history) ? body.history.slice(-12) : []
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -130,6 +142,23 @@ Deno.serve(async (req) => {
       .single()
     if (createError || !created) return json({ error: 'conversation_failed' }, 500)
     conversationId = created.id
+  }
+
+  // ─── Histórico: reconstruído a partir do que está persistido, nunca do que o
+  //     cliente manda no corpo da requisição — um `history` forjado poderia
+  //     plantar turnos falsos do próprio modelo ("model") para manipular
+  //     respostas futuras (conversation poisoning). Conversa nova não tem o
+  //     que buscar. Cap de 24 linhas (~12 turnos) mantém o prompt enxuto. ───
+  let history: ChatTurn[] = []
+  if (conversationId === body.conversationId) {
+    const { data: pastMessages } = await supabase
+      .from('chat_messages')
+      .select('role, content')
+      .eq('conversation_id', conversationId)
+      .in('role', ['user', 'assistant'])
+      .order('created_at', { ascending: false })
+      .limit(24)
+    history = ((pastMessages ?? []) as ChatTurn[]).reverse()
   }
 
   // ─── Ativo(s) em foco: menção(ões) na pergunta > seleção na UI > último turno

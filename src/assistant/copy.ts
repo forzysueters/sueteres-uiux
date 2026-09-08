@@ -8,6 +8,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     role: 'Assistente virtual',
     open: `Falar com o ${ASSISTANT_NAME}`,
     close: 'Fechar',
+    expand: 'Abrir em tela cheia',
     greeting_title: `Olá! Eu sou o ${ASSISTANT_NAME}.`,
     greeting_speech:
       `Olá! Eu sou o ${ASSISTANT_NAME}, seu assistente virtual aqui na plataforma. ` +
@@ -39,11 +40,15 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
       'Não consegui responder agora. Tente novamente em instantes — ou use o Assistente IA no menu.',
     chat_intro: 'Pode perguntar sobre a plataforma, seus equipamentos ou a documentação técnica.',
     farewell_title: 'Tour concluído',
+    ask_by_voice: 'Perguntar por voz',
+    stop_listening: 'Parar de ouvir',
+    voice_unavailable: 'Este navegador não reconhece voz',
   },
   en: {
     role: 'Virtual assistant',
     open: `Talk to ${ASSISTANT_NAME}`,
     close: 'Close',
+    expand: 'Open full screen',
     greeting_title: `Hi! I'm ${ASSISTANT_NAME}.`,
     greeting_speech:
       `Hi! I'm ${ASSISTANT_NAME}, your virtual assistant on this platform. ` +
@@ -75,6 +80,9 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
       "I couldn't answer right now. Try again shortly — or use the AI Assistant in the menu.",
     chat_intro: 'Ask about the platform, your equipment or the technical documentation.',
     farewell_title: 'Tour complete',
+    ask_by_voice: 'Ask by voice',
+    stop_listening: 'Stop listening',
+    voice_unavailable: 'This browser has no speech recognition',
   },
 };
 
