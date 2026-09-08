@@ -713,7 +713,7 @@ export const apiService = {
         insulation_class: nameplate.insulation_class || null,
         image_url: image?.url ?? null,
         storage_path: image?.path ?? null,
-        ocr_provider: meta?.provider ?? 'easyocr',
+        ocr_provider: meta?.provider ?? 'gemini',
         // A UI trabalha em 0-100; o banco guarda 0-1.
         ocr_confidence: confidence != null ? Math.min(Math.max(confidence / 100, 0), 1) : null,
         ocr_raw: meta?.raw ?? {},

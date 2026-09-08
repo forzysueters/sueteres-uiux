@@ -47,7 +47,9 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [form, setForm] = useState<Partial<MotorNameplate>>({});
   const [ocrError, setOcrError] = useState<string | null>(null);
-  const [mode, setMode] = useState<OcrMode>('easyocr');
+  // Motor fixo: a escolha deixou de ser oferecida na interface, e o backend
+  // segue aceitando o parâmetro.
+  const mode: OcrMode = 'gemini';
 
   // ─── Passo 4 — destino do cadastro ────────────────────────────────────────
   const mayCreateAsset = canWriteAssets(user?.role);
@@ -253,13 +255,10 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
     });
   };
 
-  const MODEL_LABELS: Record<string, string> = {
-    easyocr: 'EasyOCR',
-    gemini: 'Gemini Vision',
-    mock: t.simulated,
-    paddleocr: 'PaddleOCR',
-    trocr: 'TrOCR',
-  };
+  // A interface não expõe qual motor leu a placa: para quem cadastra, o que
+  // importa é se a leitura foi real ou simulada. Só `mock` precisa se anunciar,
+  // porque muda a confiança no dado.
+  const modelLabel = (model: string) => (model === 'mock' ? t.simulated : t.trace_model_auto);
 
   const fields: { label: string; key: keyof MotorNameplate; icon: React.ElementType; type?: string }[] = [
     { label: t.field_manufacturer, key: 'manufacturer', icon: FileText },
@@ -318,28 +317,6 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
         {/* STEP 1 — Upload */}
         {step === 1 && (
           <div className="space-y-6">
-            {/* Seletor de motor de OCR */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <span className="text-[10px] font-bold text-muted uppercase tracking-wider">{t.ocr_engine}</span>
-              <div className="inline-flex rounded-lg bg-card-hover border border-border p-0.5">
-                {([
-                  { id: 'easyocr', label: 'EasyOCR' },
-                  { id: 'gemini', label: 'Gemini Vision' },
-                ] as const).map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setMode(id)}
-                    className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${
-                      mode === id ? 'bg-primary text-white' : 'text-muted hover:text-foreground'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-xl p-6 sm:p-12 text-center flex flex-col items-center justify-center transition-all cursor-pointer ${
@@ -363,17 +340,14 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
 
             <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/5 border border-amber-500/10 text-amber-500/80">
               <AlertCircle size={16} className="flex-shrink-0" />
-              <p className="text-xs font-medium">
-                {mode === 'gemini' ? t.gemini_hint : t.easyocr_hint}
-              </p>
+              <p className="text-xs font-medium">{t.capture_hint}</p>
             </div>
 
             {/* Pipeline visual */}
             <div className="p-4 rounded-xl bg-card-hover border border-border">
               <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-3">{t.pipeline_vision_title}</p>
               <div className="flex items-center gap-2 flex-wrap">
-                {(mode === 'gemini' ? t.pipeline_stages_gemini : t.pipeline_stages_easyocr
-                ).map((stage, i, arr) => (
+                {t.pipeline_stages.map((stage, i, arr) => (
                   <React.Fragment key={stage}>
                     <span className="px-2 py-1 rounded bg-card-hover border border-border text-[9px] font-bold text-muted uppercase">{stage}</span>
                     {i < arr.length - 1 && <span className="text-border-strong text-xs">→</span>}
@@ -400,8 +374,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
             </div>
             <h3 className="text-foreground">{t.pipeline_running}</h3>
             <div className="mt-4 space-y-1.5 text-left">
-              {(mode === 'gemini' ? t.processing_gemini : t.processing_easyocr
-              ).map((msg, i) => (
+              {t.processing_stages.map((msg, i) => (
                 <div key={i} className={`flex items-center gap-2 text-xs ${i <= 2 ? 'text-emerald-400' : 'text-muted animate-pulse'}`}>
                   {i <= 2 ? <CheckCircle2 size={12} /> : <Loader2 size={12} className="animate-spin" />}
                   {msg}
@@ -435,7 +408,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card-hover border border-border text-[10px] font-bold text-foreground-soft">
                 <Cpu size={11} className="text-primary" />
-                {MODEL_LABELS[extraction.modelUsed] ?? extraction.modelUsed}
+                {modelLabel(extraction.modelUsed)}
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card-hover border border-border text-[10px] font-bold text-foreground-soft capitalize">
                 <Bot size={11} className="text-primary" />
@@ -741,7 +714,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
               <div className="space-y-1 text-xs text-muted">
                 {result?.label && <p>{t.trace_asset} {result.label}</p>}
                 <p>{result?.imageUploaded ? t.trace_image : t.trace_image_failed}</p>
-                <p>{t.trace_model} {extraction ? (MODEL_LABELS[extraction.modelUsed] ?? extraction.modelUsed) : 'EasyOCR'}</p>
+                <p>{t.trace_model} {modelLabel(extraction?.modelUsed ?? '')}</p>
                 <p>{t.trace_confidence} {form.ocrConfidence ?? '?'}%</p>
                 <p>{t.trace_registration} {new Date().toLocaleString(locale)}</p>
               </div>
