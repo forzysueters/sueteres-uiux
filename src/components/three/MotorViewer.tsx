@@ -164,8 +164,11 @@ function LiveLabels({ assetId, setup }: MotorViewerProps & { setup: ViewerSetup 
   // modelo — melhor não desenhá-la.
   return (
     <>
+      {/* `zIndexRange` é obrigatório aqui: o padrão do drei é 16777271, que
+          passa por cima de qualquer modal (o Dialog usa z-50). Mesma faixa do
+          AssetMarker, para as duas camadas 3D empilharem de forma coerente. */}
       {temp != null && (
-        <Html position={setup.tempAnchor} center occlude>
+        <Html position={setup.tempAnchor} center occlude zIndexRange={[20, 0]}>
           <InstrumentLabel
             caption={setup.tempCaption}
             value={temp.toFixed(1)}
@@ -175,7 +178,7 @@ function LiveLabels({ assetId, setup }: MotorViewerProps & { setup: ViewerSetup 
         </Html>
       )}
       {vib != null && (
-        <Html position={setup.vibAnchor} center occlude>
+        <Html position={setup.vibAnchor} center occlude zIndexRange={[20, 0]}>
           <InstrumentLabel
             caption={setup.vibCaption}
             value={vib.toFixed(1)}

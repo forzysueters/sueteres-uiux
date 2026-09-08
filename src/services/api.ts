@@ -24,6 +24,38 @@ function fail(error: unknown, message: string): never {
   throw new Error(describeSupabaseError(error, message));
 }
 
+/** Resultado de um envio de e-mail: sucesso traz os destinatários atendidos. */
+export type EmailDispatch =
+  | { ok: true; sent: string[] }
+  | { ok: false; reason: 'not_configured' | 'failed' };
+
+/**
+ * Chama uma Edge Function de e-mail sem lançar.
+ *
+ * O `reason` separa os dois casos que a interface trata de forma diferente:
+ * `not_configured` é ambiente sem `BREVO_API_KEY` (a demo segue, só não manda
+ * e-mail), enquanto `failed` é erro real de envio, que merece aviso.
+ */
+async function invokeEmail(fn: string, body: Record<string, unknown>): Promise<EmailDispatch> {
+  try {
+    const { data, error } = await supabase.functions.invoke(fn, { body });
+
+    if (error) {
+      // O corpo da resposta de erro carrega o código; `context` é o Response cru.
+      const detail = await (error as { context?: Response }).context
+        ?.json()
+        .catch(() => null);
+      const code = detail?.error as string | undefined;
+      return { ok: false, reason: code === 'email_not_configured' ? 'not_configured' : 'failed' };
+    }
+
+    return { ok: true, sent: (data?.sent as string[]) ?? [] };
+  } catch (err) {
+    console.warn(`[${fn}] envio indisponível:`, (err as Error).message);
+    return { ok: false, reason: 'failed' };
+  }
+}
+
 const seededRandom = (seed: number) => {
   const x = Math.sin(seed + 1) * 10000;
   return x - Math.floor(x);
@@ -506,7 +538,9 @@ export const apiService = {
   },
 
   /** Abre uma OM agendada para o ativo. `scheduledFor` já vem em ISO/UTC. */
-  async createMaintenanceOrder(input: NewMaintenanceOrder): Promise<{ orderNumber: string }> {
+  async createMaintenanceOrder(
+    input: NewMaintenanceOrder,
+  ): Promise<{ id: string; orderNumber: string }> {
     const { data: auth } = await supabase.auth.getUser();
 
     const { data, error } = await supabase
@@ -522,12 +556,37 @@ export const apiService = {
         created_by: auth?.user?.id ?? null,
         status: 'scheduled',
       })
-      .select('order_number')
+      .select('id, order_number')
       .single();
 
     if (error) fail(error, 'Não foi possível agendar a manutenção.');
 
-    return { orderNumber: data.order_number as string };
+    return { id: data.id as string, orderNumber: data.order_number as string };
+  },
+
+  /**
+   * Dispara a confirmação de agendamento por e-mail (quem agendou + técnico).
+   *
+   * Não lança: a OM já está gravada quando isto roda, e desfazer um agendamento
+   * real porque o e-mail caiu seria pior do que avisar que o e-mail caiu. Os
+   * destinatários são resolvidos dentro da Edge Function, a partir de
+   * `profiles` — o cliente manda só o id da ordem.
+   */
+  async sendMaintenanceEmail(orderId: string, language: 'pt' | 'en'): Promise<EmailDispatch> {
+    return invokeEmail('send-maintenance-email', { orderId, language });
+  },
+
+  /**
+   * Envia o relatório do ativo para o e-mail do próprio usuário autenticado.
+   * O corpo é montado no servidor a partir do banco; `pdfBase64` é apenas o
+   * anexo opcional gerado pelo navegador.
+   */
+  async sendAssetReportEmail(
+    assetId: string,
+    language: 'pt' | 'en',
+    pdfBase64?: string,
+  ): Promise<EmailDispatch> {
+    return invokeEmail('send-asset-report', { assetId, language, pdfBase64: pdfBase64 ?? null });
   },
 
   async getKPIMetrics(): Promise<KPIMetrics> {

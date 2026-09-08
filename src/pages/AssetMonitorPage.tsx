@@ -14,12 +14,15 @@ import { KPICard } from '../components/Cards';
 import { HealthGauge } from '../components/HealthGauge';
 import { PageLoader } from '../components/SkeletonLoaders';
 import { AssetReport } from '../components/AssetReport';
+import { generateAssetReportPdf } from '../utils/reportPdf';
 import { MaintenanceScheduler } from '../components/MaintenanceScheduler';
 import { SensorHistorySeries } from '../types';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { toast } from 'sonner';
 import {
   ArrowLeft, Activity, Tag, AlertTriangle, CheckCircle2, TrendingUp,
   Sparkles, Zap, Shield, RefreshCw, Gauge, Bell, Download,
-  Thermometer, Clock, Box,
+  Thermometer, Clock, Box, Printer, Mail, Loader2, ChevronDown,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -58,6 +61,7 @@ export const AssetMonitorPage: React.FC = () => {
   // faixa que o usuário escolhe no gráfico — a "média 2h" mudaria de sentido.
   const [history2h, setHistory2h] = useState<SensorHistorySeries[]>([]);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
 
   const { alerts, resolveAlert } = useAlerts(assetId);
   const [assetsLoading, setAssetsLoading] = useState(assets.length === 0);
@@ -142,7 +146,7 @@ export const AssetMonitorPage: React.FC = () => {
   // O navegador usa o document.title como nome sugerido do PDF; sem trocar,
   // todo relatório sairia salvo como "IDT Platform…". Restaura no afterprint
   // porque o Safari retoma a execução antes de a caixa de impressão fechar.
-  const handleExport = () => {
+  const handlePrint = () => {
     const previousTitle = document.title;
     document.title = `${asset.tag} — ${translations[language].report.title}`;
     const restore = () => {
@@ -151,6 +155,30 @@ export const AssetMonitorPage: React.FC = () => {
     };
     window.addEventListener('afterprint', restore);
     window.print();
+  };
+
+  /**
+   * Manda o mesmo relatório por e-mail. O corpo é montado no servidor a partir
+   * do banco; aqui só se produz o PDF anexo — e, se a rasterização falhar, o
+   * e-mail sai mesmo assim, sem anexo.
+   */
+  const handleEmailReport = async () => {
+    setSendingReport(true);
+    const pending = toast.loading(t.report_sending);
+    try {
+      const pdf = await generateAssetReportPdf();
+      const result = await apiService.sendAssetReportEmail(asset.id, language, pdf ?? undefined);
+
+      if (result.ok) {
+        toast.success(t.report_sent.replace('{email}', result.sent[0] ?? ''), { id: pending });
+      } else {
+        toast.error(result.reason === 'not_configured' ? t.report_not_configured : t.report_failed, {
+          id: pending,
+        });
+      }
+    } finally {
+      setSendingReport(false);
+    }
   };
 
   const activeAlerts = alerts.filter((a) => !a.resolved);
@@ -199,10 +227,43 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-ghost text-xs" onClick={handleExport} title={t.export_hint}>
-              <Download size={14} />
-              {t.export}
-            </button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button className="btn-ghost text-xs" title={t.export_hint} disabled={sendingReport}>
+                  {sendingReport ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {t.export}
+                  <ChevronDown size={12} className="opacity-60" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  sideOffset={6}
+                  className="z-50 min-w-[15rem] rounded-xl border border-border bg-card p-1 shadow-xl"
+                >
+                  <DropdownMenu.Item
+                    onSelect={handlePrint}
+                    className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 outline-none data-[highlighted]:bg-card-hover"
+                  >
+                    <Printer size={14} className="mt-0.5 flex-shrink-0 text-muted" />
+                    <span>
+                      <span className="block text-xs font-medium text-foreground">{t.export_print}</span>
+                      <span className="block text-[11px] text-muted">{t.export_print_hint}</span>
+                    </span>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onSelect={handleEmailReport}
+                    className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 outline-none data-[highlighted]:bg-card-hover"
+                  >
+                    <Mail size={14} className="mt-0.5 flex-shrink-0 text-muted" />
+                    <span>
+                      <span className="block text-xs font-medium text-foreground">{t.export_email}</span>
+                      <span className="block text-[11px] text-muted">{t.export_email_hint}</span>
+                    </span>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
             <button className="btn-primary text-xs" onClick={() => setSchedulerOpen(true)}>
               <Shield size={14} />
               {t.schedule_maintenance}

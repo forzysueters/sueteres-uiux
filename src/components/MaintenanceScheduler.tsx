@@ -18,6 +18,9 @@ interface Props {
 
 type Step = 'type' | 'priority' | 'date' | 'time' | 'technician' | 'description' | 'confirm' | 'done';
 
+/** Estado do e-mail de confirmação, mostrado como última bolha da conversa. */
+type EmailState = 'idle' | 'sending' | 'sent' | 'failed' | 'not_configured';
+
 interface Draft {
   type?: MaintenanceType;
   priority?: MaintenancePriority;
@@ -27,7 +30,9 @@ interface Draft {
   description?: string;
 }
 
-const TYPES: MaintenanceType[] = ['preventive', 'corrective', 'predictive', 'inspection', 'calibration'];
+// O enum do banco aceita cinco tipos, mas a operação só abre OM destes dois —
+// os outros continuam válidos para ordens vindas de outra origem.
+const TYPES: MaintenanceType[] = ['preventive', 'corrective'];
 const PRIORITIES: MaintenancePriority[] = ['low', 'medium', 'high', 'critical'];
 const SLOTS = ['08:00', '10:00', '13:00', '15:00', '17:00'];
 
@@ -58,6 +63,7 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [emailState, setEmailState] = useState<EmailState>('idle');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const reset = () => {
@@ -65,6 +71,7 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
     setDescInput('');
     setSaveError(null);
     setOrderNumber(null);
+    setEmailState('idle');
   };
 
   useEffect(() => {
@@ -91,7 +98,7 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
   useEffect(() => {
     const el = scrollRef.current;
     el?.scrollTo?.({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [step]);
+  }, [step, emailState]);
 
   const dateOptions = useMemo(() => {
     const today = new Date();
@@ -114,7 +121,7 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
     setSaveError(null);
     try {
       const scheduledFor = new Date(`${draft.date}T${draft.time}:00`).toISOString();
-      const { orderNumber: num } = await apiService.createMaintenanceOrder({
+      const { id, orderNumber: num } = await apiService.createMaintenanceOrder({
         assetId: asset.id,
         type: draft.type,
         priority: draft.priority,
@@ -124,6 +131,14 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
         assignedTo: draft.technician.id,
       });
       setOrderNumber(num);
+
+      // A OM já está gravada: o e-mail é um passo à parte, e falhar aqui não
+      // desfaz o agendamento — só muda a última bolha da conversa.
+      setEmailState('sending');
+      const dispatch = await apiService.sendMaintenanceEmail(id, language);
+      setEmailState(
+        dispatch.ok ? 'sent' : dispatch.reason === 'not_configured' ? 'not_configured' : 'failed',
+      );
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : t.save_error);
     } finally {
@@ -162,6 +177,15 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
   }
   if (orderNumber) {
     bubbles.push({ from: 'bot', text: t.done.replace('{order}', orderNumber) });
+  }
+  if (orderNumber && emailState !== 'idle') {
+    const EMAIL_TEXT: Record<Exclude<EmailState, 'idle'>, string> = {
+      sending: t.email_sending,
+      sent: t.email_sent.replace('{technician}', draft.technician?.name ?? ''),
+      failed: t.email_failed,
+      not_configured: t.email_not_configured,
+    };
+    bubbles.push({ from: 'bot', text: EMAIL_TEXT[emailState] });
   }
 
   const Option: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
