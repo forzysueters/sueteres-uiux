@@ -1,0 +1,4 @@
+# SPA: React Router resolve as rotas no cliente, entao qualquer caminho
+# desconhecido tem que devolver o index.html (200, nao 404). Sem isto, abrir
+# /planta direto ou dar F5 em /dashboard retorna 404 no Cloudflare Pages.
+/*    /index.html   200

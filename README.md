@@ -386,31 +386,47 @@ uvicorn src.api.main:app --port 8000     # http://localhost:8000  (docs em /docs
 > OCR no ar, a tela de Equipamentos passa a usar o modelo real; sem ele, usa o
 > fallback simulado. Detalhes em [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
 
-### 4. Voz do assistente (opcional)
+### 4. Voz do assistente
 
-Sem configurar nada, o Órion fala pela **Web Speech API** do navegador: não custa
-nada, funciona offline, e soa robótico. Para a voz de nuvem (ElevenLabs):
+O Órion fala pela Edge Function `tts`, que guarda a chave da ElevenLabs no
+projeto Supabase — do mesmo jeito que o `ai-chat` guarda a do Gemini. **Nenhum
+desenvolvedor precisa da chave na própria máquina**, e nada de segredo entra no
+bundle do browser.
 
-```bash
-cp .env.example .env.local     # preencha ELEVENLABS_API_KEY
-npm run dev                    # o proxy /api/tts sobe junto com o Vite
-```
-
-A chave fica **no processo do Node**, nunca no bundle — é por isso que ela não
-tem o prefixo `VITE_`. Em desenvolvimento quem atende `/api/tts` é um middleware
-do `vite.config.ts`; em produção, a Edge Function:
+Publicar a função (uma vez, por quem tem acesso ao projeto). A CLI não precisa
+ser instalada — o `npx` baixa na hora:
 
 ```bash
-supabase secrets set ELEVENLABS_API_KEY=sk_...
-supabase functions deploy tts
-# e aponte o front para ela:
-# VITE_TTS_ENDPOINT=https://<project-ref>.supabase.co/functions/v1/tts
+npx supabase login
+npx supabase secrets set ELEVENLABS_API_KEY=sk_... --project-ref <project-ref>
+npx supabase functions deploy tts --project-ref <project-ref> --use-api
 ```
 
-Ajustes sem mexer em código: `VITE_TTS_PROVIDER` (`elevenlabs` ou vazio, para a
-voz do navegador), `ELEVENLABS_VOICE_ID` e `ELEVENLABS_MODEL_ID`. Se a nuvem
-falhar — rede, cota, chave inválida — o assistente cai na voz do navegador
-sozinho: o tour nunca fica mudo.
+O `--use-api` empacota a função no servidor do Supabase. Sem ele a CLI tenta
+usar Docker local, que nem todo mundo da equipe tem instalado.
+
+Confira se publicou — o retorno deve sair de `404` para `401` (existe, e exige
+login, que é o correto):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<project-ref>.supabase.co/functions/v1/tts
+```
+
+Feito isso, qualquer máquina que rode `npm run dev` — e qualquer deploy do
+front — já ouve a voz de nuvem, sem configurar nada.
+
+**Enquanto a função não estiver publicada**, o assistente cai sozinho na
+**Web Speech API** do navegador: não custa nada, funciona offline, e soa
+robótico. É esse o sintoma de "a voz só funciona numa máquina".
+
+Ajustes sem mexer em código: `VITE_TTS_PROVIDER` (`elevenlabs` ou vazio, para
+forçar a voz do navegador) no `.env`, e os secrets `ELEVENLABS_VOICE_ID` /
+`ELEVENLABS_MODEL_ID` no Supabase. Se a nuvem falhar — rede, cota, chave
+inválida — o assistente cai na voz do navegador sozinho: o tour nunca fica mudo.
+
+> Para mexer na integração offline, existe um proxy local: ponha
+> `ELEVENLABS_API_KEY` no `.env.local` e `VITE_TTS_ENDPOINT=/api/tts` para o
+> front usar o middleware do `vite.config.ts` em vez da Edge Function.
 
 ### 5. Qualidade e build
 

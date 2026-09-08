@@ -1,3 +1,4 @@
+import { supabase } from '../lib/supabase';
 import type { Language, SpeakOptions, SpeechEngine } from './types';
 
 const LOCALE = { pt: 'pt-BR', en: 'en-US' } as const;
@@ -103,6 +104,10 @@ interface CloudClip {
  * desenvolvimento). Tudo que é `VITE_*` é embutido no bundle e fica legível
  * para qualquer visitante — uma chave de TTS exposta é cota queimada.
  *
+ * Por padrão fala com a Edge Function `tts` do Supabase — a mesma via do
+ * `ai-chat`. É o que faz a voz funcionar em QUALQUER máquina: a chave mora no
+ * projeto Supabase, não no `.env.local` de quem clonou o repositório.
+ *
  * O endpoint devolve o áudio junto com o instante de início de cada caractere.
  * É daí que sai o `onProgress`: em vez de estimar, sabemos exatamente qual
  * caractere está sendo pronunciado — a iluminação do texto e a boca do avatar
@@ -117,7 +122,8 @@ class ElevenLabsEngine implements SpeechEngine {
   private frame = 0;
   private fallback = createWebSpeech();
 
-  constructor(private endpoint: string) {
+  /** `null` = Edge Function; string = proxy próprio (ex.: `/api/tts` no dev). */
+  constructor(private endpoint: string | null) {
     this.audio.preload = 'auto';
   }
 
@@ -139,14 +145,9 @@ class ElevenLabsEngine implements SpeechEngine {
 
     const request = (async () => {
       try {
-        const response = await fetch(this.endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, lang }),
-        });
-        if (!response.ok) throw new Error(`http_${response.status}`);
-
-        const data = await response.json();
+        const data = this.endpoint
+          ? await this.viaProxy(text, lang)
+          : await this.viaEdgeFunction(text, lang);
         if (!data?.audio) throw new Error('empty_audio');
 
         // base64 → Blob local: o mesmo clipe pode tocar várias vezes sem
@@ -169,6 +170,29 @@ class ElevenLabsEngine implements SpeechEngine {
 
     this.inflight.set(key, request);
     return request;
+  }
+
+  /**
+   * Edge Function. `invoke` anexa a sessão do usuário sozinho — a função roda
+   * com a JWT de quem está logado, então a cota não fica aberta ao mundo.
+   */
+  private async viaEdgeFunction(text: string, lang: Language) {
+    const { data, error } = await supabase.functions.invoke('tts', {
+      body: { text, lang },
+    });
+    if (error) throw error;
+    return data as { audio?: string; mimeType?: string; alignment?: { startTimes: number[] } };
+  }
+
+  /** Proxy local (middleware do Vite), para quem tem a chave na máquina. */
+  private async viaProxy(text: string, lang: Language) {
+    const response = await fetch(this.endpoint as string, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang }),
+    });
+    if (!response.ok) throw new Error(`http_${response.status}`);
+    return response.json();
   }
 
   prefetch(text: string, lang: Language) {
@@ -275,19 +299,20 @@ let singleton: SpeechEngine | null = null;
  *   VITE_TTS_PROVIDER=elevenlabs   → voz de nuvem, via proxy
  *   (ausente ou qualquer outro)    → voz do navegador, sem custo
  *
- * O endpoint padrão `/api/tts` é servido pelo middleware do Vite em
- * desenvolvimento; em produção, aponte `VITE_TTS_ENDPOINT` para a Edge
- * Function publicada.
+ * Por padrão a voz vem da Edge Function `tts` do Supabase, que funciona em
+ * qualquer máquina sem ninguém ter a chave localmente. Para usar o proxy do
+ * Vite (offline, ou mexendo na integração), aponte `VITE_TTS_ENDPOINT` para um
+ * caminho relativo — `/api/tts`.
  */
 export const createSpeechEngine = (): SpeechEngine => {
   if (singleton) return singleton;
 
   const provider = import.meta.env.VITE_TTS_PROVIDER;
-  const endpoint = import.meta.env.VITE_TTS_ENDPOINT || '/api/tts';
+  const override = import.meta.env.VITE_TTS_ENDPOINT;
 
   singleton =
     provider === 'elevenlabs' && typeof window !== 'undefined'
-      ? new ElevenLabsEngine(endpoint)
+      ? new ElevenLabsEngine(override || null)
       : createWebSpeech();
 
   return singleton;
