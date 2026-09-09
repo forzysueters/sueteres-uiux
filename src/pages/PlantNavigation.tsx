@@ -5,7 +5,6 @@ import { useAppStore } from '../store/appStore';
 import { usePermissions } from '../hooks/usePermissions';
 import { translations } from '../translations';
 import { apiService } from '../services/api';
-import { AssetTile } from '../components/Cards';
 import { PlantLayoutToolbar } from '../components/PlantLayoutToolbar';
 import { HallChangeDialog } from '../components/HallChangeDialog';
 import { Dialog } from '../components/Dialog';
@@ -14,7 +13,7 @@ import { PlantFloorMap } from '../components/PlantFloorMap';
 import { PlantAlertRail } from '../components/PlantAlertRail';
 import { STATUS_COLORS, statusLabel } from '../utils/plantStatus';
 import {
-  Map, LayoutGrid, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, Box, Maximize2, Factory, AlertOctagon, Move,
+  Map, AlertTriangle, CheckCircle2, WifiOff, Filter, Tag, Box, Maximize2, Factory, AlertOctagon, Move,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { CameraFocus } from '../components/three/PlantScene3D';
@@ -28,7 +27,7 @@ import { PageLoader } from '../components/SkeletonLoaders';
 // A cena arrasta three.js junto — só carrega quando o modo 3D é usado.
 const PlantScene3D = lazy(() => import('../components/three/PlantScene3D'));
 
-type ViewMode = '3d' | 'map' | 'grid';
+type ViewMode = '3d' | 'map';
 
 export const PlantNavigation: React.FC = () => {
   const { assets, setAssets, selectedAssetId, setSelectedAsset, language } = useAppStore();
@@ -44,13 +43,11 @@ export const PlantNavigation: React.FC = () => {
   const VIEW_TABS: { id: ViewMode; label: string; icon: typeof Map }[] = [
     { id: '3d', label: t.view_3d, icon: Box },
     { id: 'map', label: t.view_map, icon: Map },
-    { id: 'grid', label: t.view_grid, icon: LayoutGrid },
   ];
 
   // WebGL ausente (VM, driver bloqueado, GPU em lista negra) → 2D direto.
   const webgl = useMemo(() => hasWebGL(), []);
-  // A grade posicional (linhas x colunas da planta) nao cabe em 375px: no
-  // celular ela vira uma lista de uma coluna so, sem as celulas vazias.
+  // O editor de layout é desktop: arrastar máquina em 375px de largura não dá.
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>(webgl ? '3d' : 'map');
   const [areaFilter, setAreaFilter] = useState<string>('all');
@@ -106,7 +103,6 @@ export const PlantNavigation: React.FC = () => {
   const enterEditMode = () => {
     setAreaFilter('all');
     setFocus(f => ({ kind: 'scope', assetId: null, nonce: f.nonce + 1 }));
-    if (viewMode === 'grid') setViewMode(webgl ? '3d' : 'map');
     setEditMode(true);
   };
 
@@ -127,9 +123,6 @@ export const PlantNavigation: React.FC = () => {
   const totalOnline = assets.filter(a => a.status !== 'offline').length;
   const criticalCount = assets.filter(a => a.status === 'critical').length;
   const warningCount = assets.filter(a => a.status === 'warning').length;
-
-  const maxX = Math.max(...filteredAssets.map(a => a.x), 3);
-  const maxY = Math.max(...filteredAssets.map(a => a.y), 3);
 
   // Clicar em um ativo define o contexto (usado pelo Assistente e Equipamentos)
   // e abre a tela dedicada de monitoramento. `null` = limpar seleção (clique no
@@ -241,9 +234,7 @@ export const PlantNavigation: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-card border border-border">
           {VIEW_TABS.map(tab => {
             const Icon = tab.icon;
-            // A vista Grade é outra coisa (matriz por área, não geometria):
-            // não há o que arrastar nela.
-            const disabled = (tab.id === '3d' && !webgl) || (editMode && tab.id === 'grid');
+            const disabled = tab.id === '3d' && !webgl;
             return (
               <button
                 key={tab.id}
@@ -404,59 +395,10 @@ export const PlantNavigation: React.FC = () => {
         </div>
       )}
 
-      {viewMode === 'grid' && (
-        <div className="saas-card p-3 sm:p-6 lg:p-8 bg-card-hover">
-          {/* Em telas pequenas a matriz posicional passaria de 1200px de
-              largura e obrigaria a arrastar para o lado — vira lista. */}
-          {isMobile ? (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredAssets.map((asset) => (
-                <AssetTile
-                  key={asset.id}
-                  asset={asset}
-                  isSelected={selectedAssetId === asset.id}
-                  onClick={handleAssetSelect}
-                />
-              ))}
-            </div>
-          ) : (
-            <div
-              className="grid w-full gap-4 relative lg:gap-6"
-              style={{
-                gridTemplateColumns: `repeat(${maxX}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${maxY}, auto)`,
-              }}
-            >
-              {Array.from({ length: maxX }).map((_, x) =>
-                Array.from({ length: maxY }).map((_, y) => {
-                  const asset = filteredAssets.find(a => a.x === x + 1 && a.y === y + 1);
-                  if (!asset) {
-                    return (
-                      <div key={`empty-${x}-${y}`} className="min-h-[150px] rounded-xl flex flex-col items-center justify-center border border-border bg-card-hover/50">
-                        <span className="text-[10px] font-mono text-muted-soft">{x + 1},{y + 1}</span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={asset.id} className="h-full min-h-[150px]">
-                      <AssetTile
-                        asset={asset}
-                        isSelected={selectedAssetId === asset.id}
-                        onClick={handleAssetSelect}
-                      />
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Resumo por área — só nos modos 2D. No 3D estes cards seriam ruído:
-          o filtro de área que eles fazem já existe na toolbar acima, e o
+      {/* Resumo por área — só no mapa 2D. No 3D estes cards seriam ruído: o
+          filtro de área que eles fazem já existe na toolbar acima, e o
           detalhamento de status já está na régua de triagem ao lado da cena. */}
-      {viewMode !== '3d' && (
+      {viewMode === 'map' && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {areas.filter(a => a !== 'all').map(area => {
           const areaAssets = assets.filter(a => a.area === area);
