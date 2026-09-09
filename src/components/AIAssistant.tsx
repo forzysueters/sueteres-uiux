@@ -282,7 +282,7 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
                   style={{ background: 'rgba(var(--primary-rgb), 0.4)' }}
                   initial={{ scale: 1, opacity: 0.5 }}
                   animate={{ scale: 1.35, opacity: 0 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'easeOut' }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
                 />
               )}
               <Mic size={16} className="relative" />
