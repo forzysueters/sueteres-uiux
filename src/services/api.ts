@@ -21,6 +21,19 @@ import type { UserRole } from '../types/auth';
 const FORCE_OCR_MOCK = import.meta.env.VITE_OCR_USE_MOCK === 'true';
 const FORCE_ANOMALY_MOCK = import.meta.env.VITE_ANOMALY_USE_MOCK === 'true';
 
+/**
+ * Disjuntor do serviço de anomalia.
+ *
+ * `scoreAnomaly` roda por ativo, a cada ciclo de atualização, e não guardava
+ * que o backend acabou de recusar conexão: com a porta 8001 fora do ar, oito
+ * ativos a cada cinco segundos passavam de mil requisições recusadas em quinze
+ * minutos, cada uma com um erro no console. Depois de uma falha de rede, a
+ * frota inteira vai direto ao mock por esta janela; a primeira chamada depois
+ * dela sonda o serviço de novo, e um sucesso rearma o disjuntor na hora.
+ */
+const ANOMALY_RETRY_COOLDOWN_MS = 60_000;
+let anomalyOfflineUntil = 0;
+
 function fail(error: unknown, message: string): never {
   throw new Error(describeSupabaseError(error, message));
 }
@@ -434,13 +447,24 @@ export const apiService = {
    * Cai para mock determinístico apenas quando o backend está inacessível.
    */
   async scoreAnomaly(asset: Asset): Promise<ScoreResult> {
-    if (!FORCE_ANOMALY_MOCK) {
+    if (!FORCE_ANOMALY_MOCK && Date.now() >= anomalyOfflineUntil) {
       try {
         const resp = await anomalyAPI.score(buildReadings(asset));
+        anomalyOfflineUntil = 0;
         return { ...resp, modelUsed: 'anomaly' };
       } catch (err) {
         if (!(err instanceof AnomalyNetworkError)) throw err;
-        console.warn('[anomaly] backend offline — usando mock:', (err as Error).message);
+        // A frota é pontuada em paralelo, então os oito ativos já estão em voo
+        // quando o primeiro recusa: sem este guarda seriam oito avisos idênticos
+        // por sondagem. Loga quem abriu o disjuntor; os outros seguem calados.
+        const jaEstavaAberto = anomalyOfflineUntil > Date.now();
+        anomalyOfflineUntil = Date.now() + ANOMALY_RETRY_COOLDOWN_MS;
+        if (!jaEstavaAberto) {
+          console.warn(
+            `[anomaly] backend offline — usando mock e só tentando de novo em ${ANOMALY_RETRY_COOLDOWN_MS / 1000}s:`,
+            (err as Error).message,
+          );
+        }
       }
     }
     return mockScoreAnomaly(asset);

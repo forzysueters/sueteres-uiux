@@ -218,8 +218,12 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
               strokeDasharray={hall.open ? '6 3' : undefined}
             />
             {!isMobile && (
+              // ACIMA do retângulo, não dentro dele. Enquanto o rótulo ficava no
+              // canto interno (y + 25), um ativo posicionado ali em cima o
+              // cobria — do "HALL A" sobrava o "A". Os ativos vivem dentro do
+              // hall, então a faixa logo acima da parede nunca disputa espaço.
               <text
-                x={hall.svg.x + 20} y={hall.svg.y + 25}
+                x={hall.svg.x} y={hall.svg.y - 8}
                 fill={hall.open ? p.coberturaLabel : p.hallLabel}
                 fontSize="13" fontWeight="700" fontFamily="monospace" letterSpacing="2"
               >

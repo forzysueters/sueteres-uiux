@@ -11,6 +11,12 @@ export const translations = {
       account: 'Conta',
       logout: 'Sair',
     },
+    notFound: {
+      title: 'Página não encontrada',
+      description:
+        'Este endereço não corresponde a nenhuma tela da plataforma. Ele pode ter mudado de lugar, ou o link que trouxe você até aqui está desatualizado.',
+      back_to_plant: 'Voltar para a Planta',
+    },
     common: {
       online: 'Online',
       offline: 'Offline',
@@ -601,6 +607,12 @@ export const translations = {
       users: 'Users',
       account: 'Account',
       logout: 'Logout',
+    },
+    notFound: {
+      title: 'Page not found',
+      description:
+        'This address does not match any screen on the platform. It may have moved, or the link that brought you here is out of date.',
+      back_to_plant: 'Back to the Plant',
     },
     common: {
       online: 'Online',
