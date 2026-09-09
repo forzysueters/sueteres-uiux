@@ -60,19 +60,19 @@ interface PlantFloorMapProps {
 interface MapPalette {
   bg: string; grid: string; hallFill: string; hallStroke: string;
   hallLabel: string; coberturaLabel: string; pipe: string; flow: string;
-  badgeFill: string; tagBg: string; legendText: string; selectionRing: string;
+  badgeFill: string; tagBg: string; selectionRing: string;
 }
 
 const DARK_PALETTE: MapPalette = {
   bg: '#0d1117', grid: '#1e293b', hallFill: '#1e293b', hallStroke: '#334155',
   hallLabel: '#64748b', coberturaLabel: '#475569', pipe: '#334155', flow: '#818cf8',
-  badgeFill: '#1e1b4b', tagBg: '#0d1117', legendText: '#94a3b8', selectionRing: '#ffffff',
+  badgeFill: '#1e1b4b', tagBg: '#0d1117', selectionRing: '#ffffff',
 };
 
 const LIGHT_PALETTE: MapPalette = {
   bg: '#f8fafc', grid: '#e2e8f0', hallFill: '#e2e8f0', hallStroke: '#cbd5e1',
   hallLabel: '#64748b', coberturaLabel: '#94a3b8', pipe: '#cbd5e1', flow: '#6366f1',
-  badgeFill: '#e0e7ff', tagBg: '#ffffff', legendText: '#475569', selectionRing: '#0f172a',
+  badgeFill: '#e0e7ff', tagBg: '#ffffff', selectionRing: '#0f172a',
 };
 
 const ASSET_ICONS: Record<string, string> = {
@@ -468,38 +468,39 @@ export const PlantFloorMap: React.FC<PlantFloorMapProps> = ({
             </g>
           );
         })}
-
-        {/* Legenda — status dos ativos */}
-        {!isMobile && !pickMode && !editMode && Object.entries(STATUS_COLORS).map(([key, cfg], i) => (
-          <g key={key} transform={`translate(${30 + i * 110}, 535)`}>
-            <circle cx={8} cy={8} r={6} fill={cfg.fill} fillOpacity="0.85" />
-            <text x={18} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{cfg.label}</text>
-          </g>
-        ))}
-
-        {/* Legenda — fluxo de inspeção */}
-        <g transform="translate(510, 530)" style={{ display: isMobile ? 'none' : undefined }}>
-          <line x1={0} y1={8} x2={22} y2={8} stroke={p.flow} strokeWidth="1.5" strokeDasharray="5 3" markerEnd="url(#inspection-arrow)" />
-          <text x={28} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{t.flow_label}</text>
-          <circle cx={140} cy={8} r={7} fill={p.badgeFill} stroke={p.flow} strokeWidth="1.5" />
-          <text x={140} y={12} textAnchor="middle" dominantBaseline="middle" fill={p.flow} fontSize="7" fontWeight="800" fontFamily="monospace">N</text>
-          <text x={152} y={12} fill={p.legendText} fontSize="10" fontFamily="sans-serif">{t.order_label}</text>
-        </g>
       </svg>
       </div>
 
-      {/* No celular as legendas saem do SVG (ficariam com ~3px) e viram
-          etiquetas HTML logo abaixo do mapa. */}
-      {isMobile && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      {/* A legenda vive FORA do SVG, em qualquer largura. Dentro dela ficava
+          ancorada no rodapé do viewBox (y=530) e qualquer ativo posicionado na
+          faixa de baixo da planta — posição que o editor de layout permite —
+          desenhava a TAG por cima dela. Aqui embaixo não há o que colidir, e no
+          celular ela deixa de encolher para ~3px junto com o resto do desenho. */}
+      {!pickMode && !editMode && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           {Object.entries(STATUS_COLORS).map(([key, cfg]) => (
             <span key={key} className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cfg.fill }} />
               <span className="text-[10px] font-semibold text-muted">{statusLabel(key, language)}</span>
             </span>
           ))}
-          <span className="text-[10px] font-semibold text-muted">· {t.flow_label}</span>
-          <span className="text-[10px] font-semibold text-muted">· {t.order_label}</span>
+          <span className="flex items-center gap-1.5">
+            {/* Seta própria: o marker `inspection-arrow` é do outro SVG. */}
+            <svg width="26" height="8" viewBox="0 0 26 8" aria-hidden className="flex-shrink-0">
+              <line x1="0" y1="4" x2="18" y2="4" stroke={p.flow} strokeWidth="1.5" strokeDasharray="5 3" />
+              <path d="M18,1 L18,7 L25,4 z" fill={p.flow} opacity="0.9" />
+            </svg>
+            <span className="text-[10px] font-semibold text-muted">{t.flow_label}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="flex h-4 w-4 items-center justify-center rounded-full border font-mono text-[8px] font-extrabold"
+              style={{ backgroundColor: p.badgeFill, borderColor: p.flow, color: p.flow }}
+            >
+              N
+            </span>
+            <span className="text-[10px] font-semibold text-muted">{t.order_label}</span>
+          </span>
         </div>
       )}
 
