@@ -107,11 +107,20 @@ export const AssetMonitorPage: React.FC = () => {
   useEffect(() => {
     if (!assetId) return;
     setHistoryLoading(true);
-    apiService.getSensorHistory(assetId, historyRange).then((data) => {
-      setHistory(data);
-      if (!selectedSensor && data.length > 0) setSelectedSensor(data[0].sensorName);
-      setHistoryLoading(false);
-    });
+    apiService
+      .getSensorHistory(assetId, historyRange)
+      .then((data) => {
+        setHistory(data);
+        // A janela nova pode não ter leitura do sensor que estava aberto. Manter
+        // a seleção antiga deixaria a aba pedindo "selecione um sensor acima"
+        // com o sensor já marcado nos chips — escolhe o primeiro disponível.
+        setSelectedSensor((prev) =>
+          prev && data.some((d) => d.sensorName === prev) ? prev : (data[0]?.sensorName ?? null),
+        );
+      })
+      // Sem o catch a promise rejeitada deixava o spinner girando para sempre.
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
   }, [assetId, historyRange]);
 
   useEffect(() => {
@@ -519,26 +528,50 @@ export const AssetMonitorPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
-                {history.map((h) => (
-                  <button
-                    key={h.sensorName}
-                    onClick={() => setSelectedSensor(h.sensorName)}
-                    className={cn(
-                      'px-2.5 py-1 rounded-md text-[11px] font-bold transition-all border',
-                      selectedSensor === h.sensorName ? 'border-current' : 'border-transparent bg-card-hover text-muted hover:text-foreground',
-                    )}
-                    style={selectedSensor === h.sensorName ? { color: h.color, borderColor: h.color, background: `${h.color}15` } : {}}
-                  >
-                    {h.sensorName}
-                  </button>
-                ))}
-              </div>
+              {/* Os chips só aparecem quando há série. Vazios, a linha virava um
+                  espaço em branco e o "selecione um sensor acima" apontava para
+                  lugar nenhum. O rótulo diz o que a linha é. */}
+              {history.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+                    {t.sensor_picker_label}
+                  </span>
+                  {history.map((h) => (
+                    <button
+                      key={h.sensorName}
+                      aria-pressed={selectedSensor === h.sensorName}
+                      onClick={() => setSelectedSensor(h.sensorName)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-md text-[11px] font-bold transition-all border',
+                        selectedSensor === h.sensorName ? 'border-current' : 'border-transparent bg-card-hover text-muted hover:text-foreground',
+                      )}
+                      style={selectedSensor === h.sensorName ? { color: h.color, borderColor: h.color, background: `${h.color}15` } : {}}
+                    >
+                      {h.sensorName}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {historyLoading ? (
                 <div className="h-56 flex items-center justify-center text-muted text-sm">
                   <RefreshCw size={16} className="animate-spin mr-2" />
                   {t.loading_history}
+                </div>
+              ) : asset.sensors.length === 0 ? (
+                // Ativo sem instrumentação nunca terá histórico — a causa é outra,
+                // e é a mesma que a aba de sensores explica.
+                <div className="h-56 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                  <Gauge size={18} className="text-muted" />
+                  <p className="text-sm font-bold text-foreground">{t.no_sensors_title}</p>
+                  <p className="max-w-sm text-xs leading-relaxed text-muted">{t.no_sensors_desc}</p>
+                </div>
+              ) : history.length === 0 ? (
+                // Tem sensor, mas nenhuma leitura caiu na janela escolhida.
+                <div className="h-56 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                  <TrendingUp size={18} className="text-muted" />
+                  <p className="text-sm font-bold text-foreground">{t.no_history_title}</p>
+                  <p className="max-w-sm text-xs leading-relaxed text-muted">{t.no_history_desc}</p>
                 </div>
               ) : currentHistory ? (
                 <TimeSeriesChart
