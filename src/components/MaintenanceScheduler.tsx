@@ -6,6 +6,7 @@ import { AvatarFace } from '../assistant/AvatarFace';
 import { ASSISTANT_NAME } from '../assistant/copy';
 import { apiService } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { usePermissions } from '../hooks/usePermissions';
 import { translations } from '../translations';
 import {
   Asset, Technician, MaintenanceType, MaintenancePriority,
@@ -42,6 +43,8 @@ const SLOTS = ['08:00', '10:00', '13:00', '15:00', '17:00'];
 
 /** Etapas que contam para a barra de progresso (a de conclusão não é pergunta). */
 const FLOW: Step[] = ['type', 'priority', 'date', 'time', 'technician', 'description', 'confirm'];
+/** Sem o passo de responsável: o técnico abre ordem, mas só para si mesmo. */
+const FLOW_SELF: Step[] = FLOW.filter((s) => s !== 'technician');
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -84,11 +87,28 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
   const t = translations[language].scheduler;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
   const user = useAuthStore((s) => s.user);
-  // can_write() no banco cobre admin/engineer/technician; avisar antes evita o
-  // usuário preencher a conversa inteira e só então tomar erro de permissão.
-  const canWrite = !!user && user.role !== 'viewer';
+  // Abrir ordem é faixa 1; ATRIBUIR a outra pessoa é faixa 2. Sem a segunda, o
+  // passo de responsável some e a ordem nasce no nome de quem a abriu — que é
+  // exatamente o que o trigger `guard_maintenance_assignment` exige no banco.
+  const { can } = usePermissions();
+  const canWrite = can('maintenance:create');
+  const mayAssign = can('maintenance:assign');
 
   const [draft, setDraft] = useState<Draft>({});
+
+  // Quem não pode atribuir já entra atribuído a si mesmo.
+  useEffect(() => {
+    if (mayAssign || !user) return;
+    setDraft((d) => (d.technician ? d : {
+      ...d,
+      technician: {
+        id: user.id,
+        name: user.name,
+        role: user.role === 'engineer' ? 'engineer' : 'technician',
+        jobTitle: user.jobTitle ?? null,
+      },
+    }));
+  }, [mayAssign, user]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [techError, setTechError] = useState(false);
   const [descInput, setDescInput] = useState('');
@@ -228,7 +248,8 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
     bubbles.push({ from: 'bot', text: EMAIL_TEXT[emailState] });
   }
 
-  const stepIndex = step === 'done' ? FLOW.length : FLOW.indexOf(step);
+  const flow = mayAssign ? FLOW : FLOW_SELF;
+  const stepIndex = step === 'done' ? flow.length : flow.indexOf(step);
   const busy = saving || emailState === 'sending';
   const avatarState: AvatarState = busy ? 'thinking' : step === 'done' ? 'idle' : 'listening';
   const statusLabel = saving
@@ -286,7 +307,7 @@ export const MaintenanceScheduler: React.FC<Props> = ({ open, onOpenChange, asse
 
           {canWrite && (
             <div className="flex gap-1 px-4 pt-3">
-              {FLOW.map((s, i) => (
+              {flow.map((s, i) => (
                 <span
                   key={s}
                   className={cn(

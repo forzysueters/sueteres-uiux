@@ -165,6 +165,27 @@ export interface NewAssetInput {
   plantY: number;
 }
 
+// ─── Administração de usuários ──────────────────────────────────────────────
+
+/** Linha da tela de usuários. Vem de `v_admin_users`. */
+export interface PlatformUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'engineer' | 'technician';
+  isActive: boolean;
+  jobTitle: string | null;
+  department: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  /**
+   * `profiles.role` (que autoriza) diverge de `app_metadata.role` (que
+   * provisiona). Não abre furo — nenhuma policy lê o JWT —, mas morde se o
+   * perfil for recriado, então a tela sinaliza.
+   */
+  roleOutOfSync: boolean;
+}
+
 // ─── Chat ──────────────────────────────────────────────────────────────────
 export interface ChatCitation {
   chunk_id: string;

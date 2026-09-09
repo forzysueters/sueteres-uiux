@@ -2,8 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
-import { useAuthStore } from '../store/authStore';
-import { canWriteAssets } from '../types/auth';
+import { usePermissions } from '../hooks/usePermissions';
 import { translations } from '../translations';
 import { statusLabel } from '../utils/plantStatus';
 import { apiService } from '../services/api';
@@ -53,9 +52,11 @@ export const AssetMonitorPage: React.FC = () => {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
   const { assets, setAssets, darkMode, language } = useAppStore();
-  // Corrigir a placa à mão é privilégio de quem cadastra ativo (admin/engineer);
-  // o técnico registra placa nova pelo OCR, mas não reescreve os valores.
-  const mayEditNameplate = canWriteAssets(useAuthStore((s) => s.user)?.role);
+  // Corrigir a placa à mão é faixa 2: o técnico registra placa nova pelo OCR,
+  // mas não reescreve os valores de uma já cadastrada.
+  const { can } = usePermissions();
+  const mayEditNameplate = can('nameplate:edit');
+  const mayRemoveAsset = can('asset:deactivate');
   const t = translations[language].assetMonitor;
   const tRemoval = translations[language].assetRemoval;
   const common = translations[language].common;
@@ -246,7 +247,7 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
           <div className="flex items-center gap-2">
-            {mayEditNameplate && (
+            {mayRemoveAsset && (
               <button
                 onClick={() => setRemoving(true)}
                 className="btn-ghost text-xs text-red-400 hover:text-red-300"

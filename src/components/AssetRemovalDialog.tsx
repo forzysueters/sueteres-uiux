@@ -4,6 +4,7 @@ import { Dialog } from './Dialog';
 import { Asset } from '../types';
 import { apiService } from '../services/api';
 import { useAppStore } from '../store/appStore';
+import { usePermissions } from '../hooks/usePermissions';
 import { translations } from '../translations';
 import { cn } from '../lib/utils';
 
@@ -30,6 +31,10 @@ export const AssetRemovalDialog: React.FC<AssetRemovalDialogProps> = ({
   asset, open, onOpenChange, onRemoved,
 }) => {
   const { language } = useAppStore();
+  // Apagar em definitivo é faixa 3. Sem este gate o engenheiro escolheria o
+  // modo, digitaria a TAG e só então tomaria a recusa da RLS.
+  const { can } = usePermissions();
+  const mayDelete = can('asset:delete');
   const t = translations[language].assetRemoval;
 
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -52,7 +57,7 @@ export const AssetRemovalDialog: React.FC<AssetRemovalDialogProps> = ({
   }, [open, asset.id]);
 
   const tagMatches = confirmTag.trim().toUpperCase() === asset.tag.toUpperCase();
-  const canDelete = usage?.isEmpty === true;
+  const canDelete = mayDelete && usage?.isEmpty === true;
 
   const handleConfirm = async () => {
     if (busy || !tagMatches) return;
@@ -119,7 +124,9 @@ export const AssetRemovalDialog: React.FC<AssetRemovalDialogProps> = ({
           <div className="space-y-2">
             {([
               { id: 'deactivate' as Mode, icon: EyeOff, label: t.mode_deactivate, hint: t.mode_deactivate_hint, disabled: false },
-              { id: 'delete' as Mode, icon: Trash2, label: t.mode_delete, hint: canDelete ? t.mode_delete_hint : t.mode_delete_blocked, disabled: !canDelete },
+              // Omitido, não desabilitado: para quem não é admin a opção não
+              // existe, e mostrá-la cinza só ensinaria a tentar.
+              ...(mayDelete ? [{ id: 'delete' as Mode, icon: Trash2, label: t.mode_delete, hint: canDelete ? t.mode_delete_hint : t.mode_delete_blocked, disabled: !canDelete }] : []),
             ]).map(({ id, icon: Icon, label, hint, disabled }) => (
               <button
                 key={id}

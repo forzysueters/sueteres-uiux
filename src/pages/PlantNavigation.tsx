@@ -2,8 +2,7 @@ import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
-import { useAuthStore } from '../store/authStore';
-import { canWriteAssets } from '../types/auth';
+import { usePermissions } from '../hooks/usePermissions';
 import { translations } from '../translations';
 import { apiService } from '../services/api';
 import { AssetTile } from '../components/Cards';
@@ -37,9 +36,11 @@ type ViewMode = '3d' | 'map' | 'grid';
 export const PlantNavigation: React.FC = () => {
   const { assets, setAssets, selectedAssetId, setSelectedAsset, language } = useAppStore();
   // Mesma regra da página do ativo: quem cadastra ativo também o remove.
-  const mayRemoveAsset = canWriteAssets(useAuthStore((s) => s.user)?.role);
-  /** Mesma regra: quem cadastra e remove ativo também reposiciona. */
-  const mayEditLayout = mayRemoveAsset;
+  // Três capacidades distintas, que antes compartilhavam o mesmo teste:
+  // desativar e posicionar são do engenheiro, apagar de vez é só do admin.
+  const { can } = usePermissions();
+  const mayRemoveAsset = can('asset:deactivate');
+  const mayEditLayout = can('asset:layout');
   const [removalTarget, setRemovalTarget] = useState<Asset | null>(null);
   const [inactive, setInactive] = useState<InactiveAsset[]>([]);
   const t = translations[language].plant;

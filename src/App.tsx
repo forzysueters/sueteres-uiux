@@ -21,12 +21,17 @@ import {
   ChevronDown,
   Menu,
   X,
+  Users,
 } from 'lucide-react'
 import { useAppStore } from './store/appStore'
 import { translations } from './translations'
 import { useAuthStore } from './store/authStore'
 import { useAlerts } from './hooks/useAlerts'
 import { ROLE_LABELS } from './types/auth'
+import { usePermissions } from './hooks/usePermissions'
+import { RequireCapability } from './auth/Can'
+import type { Capability } from './auth/permissions'
+import { UsersPage } from './pages/admin/UsersPage'
 import { Dashboard } from './pages/Dashboard'
 import { PlantNavigation } from './pages/PlantNavigation'
 import { AssetMonitorPage } from './pages/AssetMonitorPage'
@@ -43,6 +48,7 @@ import { AssistantProvider } from './assistant'
 
 const AppContent = () => {
   const { darkMode, primaryColor, language } = useAppStore()
+  const { can } = usePermissions()
   const { logout, user } = useAuthStore()
   const { alerts } = useAlerts()
   const activeAlertsCount = alerts.filter((a) => !a.resolved).length
@@ -90,13 +96,17 @@ const AppContent = () => {
     setShowMobileMenu(false)
   }, [location])
 
-  const navItems = [
+  // Item sem `cap` aparece para todos; com `cap`, só para quem a tem. Filtrar
+  // aqui é o que impede o técnico de ver um menu que o levaria a uma rota que
+  // o redirecionaria de volta.
+  const navItems = ([
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
+    { id: 'users', label: t.nav.users, path: '/admin/usuarios', icon: Users, cap: 'user:manage' as const },
     // O Assistente saiu do menu: agora se chega nele pelo botão "Expandir" do
     // Órion, no canto da tela. A rota /assistente continua valendo.
-  ]
+  ]).filter((item) => !('cap' in item) || can(item.cap as Capability))
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground font-sans overflow-hidden">
@@ -340,6 +350,14 @@ const AppContent = () => {
                 <Route path="/assistente" element={<AssistantPage />} />
                 <Route path="/configuracoes" element={<SettingsPage />} />
                 <Route path="/conta" element={<AccountPage />} />
+                <Route
+                  path="/admin/usuarios"
+                  element={
+                    <RequireCapability cap="user:manage">
+                      <UsersPage />
+                    </RequireCapability>
+                  }
+                />
                 <Route path="/" element={<Navigate to="/planta" replace />} />
               </Routes>
             </motion.div>

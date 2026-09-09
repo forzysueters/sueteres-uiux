@@ -1,5 +1,5 @@
 import {
-  Asset, Alert, KPIMetrics, Area, NewAssetInput, InactiveAsset,
+  Asset, Alert, KPIMetrics, Area, NewAssetInput, InactiveAsset, PlatformUser,
   ChatMessage, Sensor, SensorHistorySeries, MotorNameplate,
   Technician, NewMaintenanceOrder,
 } from '../types';
@@ -15,6 +15,7 @@ import {
 import { assetStatusFromSensors } from '../utils/plantStatus';
 import { supabase, describeSupabaseError } from '../lib/supabase';
 import type { Json, ViewRow } from '../types/database';
+import type { UserRole } from '../types/auth';
 
 // Força o uso do mock mesmo com backend disponível (útil para demo offline)
 const FORCE_OCR_MOCK = import.meta.env.VITE_OCR_USE_MOCK === 'true';
@@ -737,73 +738,31 @@ export const apiService = {
    * filtram todos por `confirmed`. Sem isso, uma falha no meio do caminho
    * deixaria um ativo órfão que só um admin conseguiria apagar.
    */
-  async confirmNameplate(nameplateId: string, assetId: string | null): Promise<void> {
-    const { data: auth } = await supabase.auth.getUser();
+  /**
+   * Confirma a placa e a vincula ao ativo.
+   *
+   * Delegado à RPC `confirm_nameplate` (migração 0016) por dois motivos:
+   *
+   * 1. **Permissão.** Confirmar é um UPDATE em `asset_nameplates`, e update de
+   *    placa é faixa 2 — o técnico, que pode registrar, não poderia confirmar
+   *    o que acabou de registrar. A RPC distingue registrar de corrigir à mão
+   *    pelo `ocr_provider`, e roda como o dono.
+   * 2. **Atomicidade.** Antes eram quatro idas ao banco, com uma janela em que
+   *    a placa anterior já estava rebaixada e a nova ainda não confirmada.
+   *
+   * A checagem de número de série duplicado e a mensagem de erro vivem agora
+   * dentro da função SQL.
+   */
+  // `assetId` não é nulo: a RPC aceita null (placa sem vínculo, para associar
+  // depois), mas nenhum caminho da interface usa isso hoje — os dois chamadores
+  // passam um ativo resolvido.
+  async confirmNameplate(nameplateId: string, assetId: string): Promise<void> {
+    const { error } = await supabase.rpc('confirm_nameplate', {
+      p_nameplate_id: nameplateId,
+      p_asset_id: assetId,
+    });
 
-    if (assetId) {
-      // A checagem de série vem ANTES de rebaixar a placa anterior: se o
-      // conflito só aparecesse no update final, o ativo já teria perdido a
-      // placa que tinha e ficaria sem nenhuma confirmada.
-      const { data: draft } = await supabase
-        .from('asset_nameplates')
-        .select('serial_number')
-        .eq('id', nameplateId)
-        .maybeSingle();
-
-      if (draft?.serial_number) {
-        const { data: clash } = await supabase
-          .from('asset_nameplates')
-          .select('id, assets(tag)')
-          .eq('serial_number', draft.serial_number)
-          .eq('status', 'confirmed')
-          .neq('asset_id', assetId)
-          .maybeSingle();
-
-        if (clash) {
-          const other = (Array.isArray(clash.assets) ? clash.assets[0] : clash.assets) as
-            | { tag: string } | null;
-          throw new Error(
-            `O número de série "${draft.serial_number}" já pertence a uma placa confirmada`
-            + `${other?.tag ? ` do ativo ${other.tag}` : ''}. Confira o campo antes de registrar.`,
-          );
-        }
-      }
-
-      // Reprocessar a placa de um ativo que já tem uma confirmada esbarraria em
-      // `nameplates_serial_key` (único parcial sobre serial_number onde status =
-      // 'confirmed'): a foto nova traz o mesmo número de série. A anterior é
-      // rebaixada primeiro — o enum não tem 'superseded', e 'rejected' é o mais
-      // próximo; a linha continua no banco com sua auditoria, nada se perde.
-      const { error: supersedeError } = await supabase
-        .from('asset_nameplates')
-        .update({ status: 'rejected' })
-        .eq('asset_id', assetId)
-        .eq('status', 'confirmed')
-        .neq('id', nameplateId);
-
-      if (supersedeError) fail(supersedeError, 'Não foi possível substituir a placa anterior.');
-    }
-
-    const { error } = await supabase
-      .from('asset_nameplates')
-      .update({
-        asset_id: assetId,
-        status: 'confirmed',
-        confirmed_by: auth.user?.id ?? null,
-        confirmed_at: new Date().toISOString(),
-      })
-      .eq('id', nameplateId);
-
-    if (error) {
-      // O serial já pertence a uma placa confirmada de OUTRO ativo.
-      if ((error as { code?: string }).code === '23505') {
-        throw new Error(
-          'Já existe uma placa confirmada com este número de série em outro ativo. '
-          + 'Confira o campo "Número de Série" antes de registrar.',
-        );
-      }
-      fail(error, 'Não foi possível confirmar a placa.');
-    }
+    if (error) fail(error, 'Não foi possível confirmar a placa.');
   },
 
   /**
@@ -1003,13 +962,86 @@ export const apiService = {
    * telemetria junto. Requer admin ou engenheiro (migração 0015).
    */
   async deleteAsset(assetId: string): Promise<void> {
-    const { error } = await supabase.from('assets').delete().eq('id', assetId);
+    // `.select('id')` pelo mesmo motivo de `updateAssetLayout`: um DELETE
+    // recusado pela RLS não devolve erro, devolve zero linhas.
+    const { data, error } = await supabase
+      .from('assets').delete().eq('id', assetId).select('id');
 
     if (error) {
       if ((error as { code?: string }).code === '42501') {
-        throw new Error('Seu papel não permite apagar ativos. Necessário administrador ou engenheiro.');
+        throw new Error('Apagar ativo em definitivo é exclusivo do administrador.');
       }
       fail(error, 'Não foi possível apagar o ativo.');
+    }
+
+    if (!data?.length) {
+      throw new Error('Exclusão recusada pelo banco — apagar ativo é exclusivo do administrador.');
+    }
+  },
+
+  // ─── Administração de usuários ────────────────────────────────────────────
+
+  /**
+   * Usuários da plataforma. Lê de `v_admin_users`, que junta `profiles` com
+   * `auth.users` e já resolve a divergência entre o papel autorizado
+   * (`profiles.role`, a fonte da verdade) e o provisionado
+   * (`app_metadata.role`, a semente). A própria view filtra por `is_admin()`,
+   * então para qualquer outro papel ela volta vazia.
+   */
+  async getUsers(): Promise<PlatformUser[]> {
+    const { data, error } = await supabase
+      .from('v_admin_users')
+      .select('*')
+      // Inativos primeiro: é a fila de aprovação de quem se cadastrou sozinho.
+      .order('is_active', { ascending: true })
+      .order('full_name');
+
+    if (error) fail(error, 'Não foi possível carregar os usuários.');
+
+    return (data ?? []).map((row) => ({
+      id: row.id as string,
+      email: row.email as string,
+      name: (row.full_name as string) || (row.email as string),
+      role: row.role as UserRole,
+      isActive: Boolean(row.is_active),
+      jobTitle: (row.job_title as string) ?? null,
+      department: (row.department as string) ?? null,
+      lastLoginAt: (row.last_sign_in_at as string) ?? (row.last_login_at as string) ?? null,
+      createdAt: row.created_at as string,
+      roleOutOfSync: Boolean(row.role_out_of_sync),
+    }));
+  },
+
+  /**
+   * Muda papel e/ou estado de um usuário.
+   *
+   * O banco tem a última palavra: `guard_profile_privileges` recusa não-admin,
+   * o admin rebaixando a si mesmo e a remoção do último admin ativo. A tela
+   * esconde esses casos, mas a garantia não é a tela.
+   */
+  async updateUserAccess(
+    userId: string,
+    patch: { role?: UserRole; isActive?: boolean },
+  ): Promise<void> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        ...(patch.role ? { role: patch.role } : {}),
+        ...(patch.isActive !== undefined ? { is_active: patch.isActive } : {}),
+      })
+      .eq('id', userId)
+      .select('id');
+
+    if (error) {
+      if ((error as { code?: string }).code === '42501') {
+        throw new Error('Gerir usuários é exclusivo do administrador.');
+      }
+      fail(error, 'Não foi possível atualizar o usuário.');
+    }
+
+    // Zero linhas = RLS recusou sem erro, a mesma armadilha de `resolve_alert`.
+    if (!data?.length) {
+      throw new Error('Alteração recusada pelo banco — gerir usuários é exclusivo do administrador.');
     }
   },
 
