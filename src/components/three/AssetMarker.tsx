@@ -262,7 +262,6 @@ export function AssetMarker({ asset, isSelected, hoveredId, focusedId, drag = nu
 
       <MachineGeometry
         type={asset.type}
-        accent={cfg.fill}
         urgency={urgency}
         running={asset.status !== 'offline'}
       />

@@ -13,9 +13,12 @@ import { ModelErrorBoundary } from './ModelErrorBoundary';
  */
 
 interface MachineProps {
-  /** Cor do status — vira a faixa de acento da máquina. */
-  accent: string;
-  /** 0-1: quanto o equipamento está "gritando". Dirige o emissive da faixa. */
+  /**
+   * 0-1: quanto o equipamento está "gritando". Sobrou só para o brilho térmico
+   * do motor primitivo (fallback do GLB) — as faixas de status coloridas foram
+   * removidas dos volumes, porque o anel no piso e a etiqueta já dizem o status
+   * e a tinta no equipamento fazia dois modelos iguais parecerem diferentes.
+   */
   urgency: number;
   /** Máquinas param de girar quando offline. */
   running: boolean;
@@ -28,23 +31,15 @@ const BODY_DARK = '#333c4b';
 const METAL = '#8d97ab';
 const SKID = '#232a36';
 
-function useMachineMaterials(accent: string, urgency: number) {
+function useMachineMaterials() {
   return useMemo(
     () => ({
       body: new THREE.MeshStandardMaterial({ color: BODY, metalness: 0.35, roughness: 0.65 }),
       dark: new THREE.MeshStandardMaterial({ color: BODY_DARK, metalness: 0.3, roughness: 0.75 }),
       metal: new THREE.MeshStandardMaterial({ color: METAL, metalness: 0.7, roughness: 0.35 }),
       skid: new THREE.MeshStandardMaterial({ color: SKID, metalness: 0.2, roughness: 0.9 }),
-      accent: new THREE.MeshStandardMaterial({
-        color: accent,
-        emissive: new THREE.Color(accent),
-        // A faixa acende só quando há o que reportar — normal fica discreto.
-        emissiveIntensity: 0.25 + urgency * 0.9,
-        metalness: 0.1,
-        roughness: 0.5,
-      }),
     }),
-    [accent, urgency],
+    [],
   );
 }
 
@@ -59,8 +54,8 @@ function Skid({ material, w, d }: { material: THREE.Material; w: number; d: numb
 }
 
 // ─── Bomba centrífuga ────────────────────────────────────────────────────────
-function Pump({ accent, urgency, running }: MachineProps) {
-  const m = useMachineMaterials(accent, urgency);
+function Pump({ running }: MachineProps) {
+  const m = useMachineMaterials();
   const shaft = useRef<THREE.Mesh>(null);
 
   useFrame((_, delta) => {
@@ -101,12 +96,6 @@ function Pump({ accent, urgency, running }: MachineProps) {
         <primitive object={m.dark} attach="material" />
       </mesh>
 
-      {/* Faixa de status */}
-      <mesh position={[0.62, 0.58, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.375, 0.375, 0.14, 20]} />
-        <primitive object={m.accent} attach="material" />
-      </mesh>
-
       {/* Pés */}
       {[-0.6, 0.62].map((x) => (
         <mesh key={x} position={[x, 0.3, 0]} castShadow>
@@ -119,8 +108,8 @@ function Pump({ accent, urgency, running }: MachineProps) {
 }
 
 // ─── Compressor de ar (tanque horizontal sobre skid) ─────────────────────────
-function Compressor({ accent, urgency, running }: MachineProps) {
-  const m = useMachineMaterials(accent, urgency);
+function Compressor({ running }: MachineProps) {
+  const m = useMachineMaterials();
   const flywheel = useRef<THREE.Mesh>(null);
 
   useFrame((_, delta) => {
@@ -143,12 +132,6 @@ function Compressor({ accent, urgency, running }: MachineProps) {
           <primitive object={m.body} attach="material" />
         </mesh>
       ))}
-
-      {/* Cinta de status no costado */}
-      <mesh position={[0, 0.72, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.575, 0.575, 0.18, 28]} />
-        <primitive object={m.accent} attach="material" />
-      </mesh>
 
       {/* Bloco compressor + volante */}
       <mesh position={[0.1, 1.42, 0]} castShadow>
@@ -178,8 +161,8 @@ function Compressor({ accent, urgency, running }: MachineProps) {
 }
 
 // ─── Exaustor axial ──────────────────────────────────────────────────────────
-function Fan({ accent, urgency, running }: MachineProps) {
-  const m = useMachineMaterials(accent, urgency);
+function Fan({ running }: MachineProps) {
+  const m = useMachineMaterials();
   const blades = useRef<THREE.Group>(null);
 
   useFrame((_, delta) => {
@@ -207,12 +190,6 @@ function Fan({ accent, urgency, running }: MachineProps) {
       <mesh position={[0, 1.35, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
         <cylinderGeometry args={[0.78, 0.78, 0.72, 28, 1, true]} />
         <meshStandardMaterial color={BODY} metalness={0.4} roughness={0.6} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Aro de status */}
-      <mesh position={[0, 1.35, 0.38]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.78, 0.055, 10, 32]} />
-        <primitive object={m.accent} attach="material" />
       </mesh>
 
       {/* Hélice */}
