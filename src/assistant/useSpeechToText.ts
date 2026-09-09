@@ -33,26 +33,46 @@ function getRecognitionCtor(): RecognitionCtor | null {
  * fazer — sem isso, quem clica no microfone e esbarra num erro (permissão
  * negada, rede corporativa bloqueando o serviço do Google, sem microfone) só
  * vê o ícone voltar ao normal, sem pista nenhuma do motivo.
+ *
+ * Toda mensagem começa dizendo que o problema é DA ENTRADA POR VOZ e termina
+ * com a saída (digitar). Num painel de monitoramento industrial, um aviso que
+ * abre com "sem conexão" é lido como a planta tendo perdido telemetria — o
+ * que aqui nunca é o caso: a transcrição roda num serviço do próprio
+ * navegador, fora da plataforma, e só ela cai.
  */
 const ERROR_MESSAGES: Record<Language, Record<string, string> & { unknown: string }> = {
   pt: {
-    'not-allowed': 'Permissão de microfone negada — libere o acesso nas configurações do navegador.',
-    'permission-denied': 'Permissão de microfone negada — libere o acesso nas configurações do navegador.',
+    'not-allowed':
+      'Microfone bloqueado pelo navegador. Libere o acesso no cadeado da barra de endereço — ou digite a pergunta no campo.',
+    'permission-denied':
+      'Microfone bloqueado pelo navegador. Libere o acesso no cadeado da barra de endereço — ou digite a pergunta no campo.',
     'service-not-allowed':
-      'O navegador bloqueou o reconhecimento de voz — confira se a página está em HTTPS (ou localhost).',
-    'no-speech': 'Não consegui ouvir nada. Tente falar mais perto do microfone.',
-    'audio-capture': 'Nenhum microfone encontrado neste dispositivo.',
-    network: 'Sem conexão com o serviço de reconhecimento de voz — redes corporativas costumam bloqueá-lo.',
-    unknown: 'Não foi possível usar o microfone agora.',
+      'Este navegador não liberou o reconhecimento de voz (ele exige HTTPS, e alguns navegadores baseados no Chromium não o incluem). Digite a pergunta no campo.',
+    'no-speech': 'Não consegui ouvir nada. Fale mais perto do microfone e tente de novo.',
+    'audio-capture': 'Nenhum microfone encontrado neste dispositivo. Digite a pergunta no campo.',
+    // `network` é o caso mais comum e o mais mal explicado: a fala não é
+    // transcrita no computador, o navegador a envia a um serviço externo. Esse
+    // caminho é o que falhou — o Órion e a telemetria seguem funcionando.
+    network:
+      'A transcrição de voz é feita por um serviço externo do navegador, e ele não foi alcançado (redes corporativas costumam bloqueá-lo). O Órion segue respondendo — digite a pergunta no campo.',
+    offline:
+      'Sem internet no momento. A transcrição de voz depende de um serviço externo do navegador — digite a pergunta no campo.',
+    unknown: 'Não foi possível usar o microfone agora. Digite a pergunta no campo.',
   },
   en: {
-    'not-allowed': 'Microphone permission denied — allow access in your browser settings.',
-    'permission-denied': 'Microphone permission denied — allow access in your browser settings.',
-    'service-not-allowed': 'The browser blocked speech recognition — make sure the page is served over HTTPS (or localhost).',
-    'no-speech': "Didn't hear anything. Try speaking closer to the microphone.",
-    'audio-capture': 'No microphone found on this device.',
-    network: 'No connection to the speech recognition service — corporate networks often block it.',
-    unknown: 'Could not use the microphone right now.',
+    'not-allowed':
+      'The browser blocked the microphone. Allow access from the padlock in the address bar — or just type your question.',
+    'permission-denied':
+      'The browser blocked the microphone. Allow access from the padlock in the address bar — or just type your question.',
+    'service-not-allowed':
+      'This browser did not enable speech recognition (it requires HTTPS, and some Chromium-based browsers ship without it). Type your question instead.',
+    'no-speech': "Didn't hear anything. Speak closer to the microphone and try again.",
+    'audio-capture': 'No microphone found on this device. Type your question instead.',
+    network:
+      'Voice is transcribed by an external browser service, and it could not be reached (corporate networks often block it). Órion still answers — just type your question.',
+    offline:
+      'You are offline. Voice transcription relies on an external browser service — type your question instead.',
+    unknown: 'Could not use the microphone right now. Type your question instead.',
   },
 };
 
@@ -86,6 +106,13 @@ export const useSpeechToText = (lang: Language) => {
   const start = useCallback(
     (onResult: (text: string) => void) => {
       if (!Ctor || listening) return;
+      // A fala não é transcrita no dispositivo. Sem rede, o `start()` ainda
+      // abre o microfone e só falha segundos depois com `network` — dizer a
+      // causa certa na hora custa uma linha.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setErrorCode('offline');
+        return;
+      }
       setErrorCode(null);
       const recognition = new Ctor();
       recognition.lang = LOCALE[lang];
