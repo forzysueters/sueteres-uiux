@@ -29,6 +29,7 @@ const asset = (tag: string, sensors: Sensor[]): Asset => ({
   name: tag,
   type: 'motor',
   areaId: null,
+  criticality: 'medium',
   area: 'Hall A',
   location: 'Hall A',
   status: 'normal',

@@ -206,6 +206,7 @@ function mapAsset(row: ViewRow<'v_assets_full'>): Asset {
     area: (row.area_name as string) ?? '',
     areaId: (row.area_id as string) ?? null,
     location: row.location as string,
+    criticality: (row.criticality as Asset['criticality']) ?? 'medium',
     status: row.status as Asset['status'],
     uptime: Number(row.uptime ?? 0),
     sensors: rawSensors.map((s) => mapSensor(s, tag)),
@@ -405,6 +406,27 @@ export const apiService = {
     );
 
     return assets;
+  },
+
+  /**
+   * Os ativos, sem passar pelo modelo de anomalia.
+   *
+   * `getAssets()` dispara `scoreAnomaly` para CADA ativo (ida ao FastAPI mais
+   * `persistScore`) porque a planta precisa do diagnóstico. Uma listagem de
+   * gestão — TAG, nome, área, quem tem placa, quem tem sensor — não precisa de
+   * nada disso, e pagar N chamadas de rede para preencher uma tabela seria
+   * desperdício puro.
+   *
+   * O `status` continua correto: `mapAsset` já o deriva dos sensores.
+   */
+  async listAssets(): Promise<Asset[]> {
+    const { data, error } = await supabase
+      .from('v_assets_full')
+      .select('*')
+      .order('tag', { ascending: true });
+
+    if (error) fail(error, 'Não foi possível carregar os ativos.');
+    return (data ?? []).map(mapAsset);
   },
 
   /**
@@ -876,6 +898,57 @@ export const apiService = {
    * aquela vista faz `.find()` por célula, um dos dois sumiria da tela. Por
    * isso o chamador passa uma célula livre junto.
    */
+  /**
+   * Edita os dados cadastrais de um ativo.
+   *
+   * Deliberadamente NÃO aceita `area_id` nem posição: trocar a área sem
+   * reposicionar deixaria o ativo desenhado fora do próprio hall — a
+   * incoerência que o editor de layout existe para impedir. Mudança de hall é
+   * feita lá, arrastando, onde a confirmação e o reposicionamento andam juntos.
+   *
+   * As colunas de saída do modelo (health_index, anomaly_score…) nem precisam
+   * ser filtradas aqui: a migração 0016 as removeu do privilégio de coluna de
+   * `authenticated`.
+   */
+  async updateAsset(
+    assetId: string,
+    patch: {
+      tag?: string;
+      name?: string;
+      type?: Asset['type'];
+      location?: string;
+      criticality?: NewAssetInput['criticality'];
+    },
+  ): Promise<void> {
+    const { data, error } = await supabase
+      .from('assets')
+      .update({
+        ...(patch.tag !== undefined ? { tag: patch.tag } : {}),
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.type !== undefined ? { asset_type: patch.type } : {}),
+        ...(patch.location !== undefined ? { location: patch.location } : {}),
+        ...(patch.criticality !== undefined ? { criticality: patch.criticality } : {}),
+      })
+      .eq('id', assetId)
+      .select('id');
+
+    if (error) {
+      const code = (error as { code?: string }).code;
+      if (code === '23505') {
+        throw new Error(`Já existe um ativo com a TAG "${patch.tag}" nesta planta.`);
+      }
+      if (code === '42501') {
+        throw new Error('Editar ativo exige engenheiro ou administrador.');
+      }
+      fail(error, 'Não foi possível salvar o ativo.');
+    }
+
+    // Zero linhas = RLS recusou sem erro, como em `updateAssetLayout`.
+    if (!data?.length) {
+      throw new Error('Alteração recusada pelo banco — editar ativo exige engenheiro ou administrador.');
+    }
+  },
+
   async updateAssetLayout(
     assetId: string,
     layout: {

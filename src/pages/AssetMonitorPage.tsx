@@ -11,7 +11,6 @@ import { useAlerts } from '../hooks/useAlerts';
 import { SensorGauge } from '../components/SensorGauge';
 import { NameplateCard } from '../components/NameplateCard';
 import { NameplateEditor } from '../components/NameplateEditor';
-import { AssetRemovalDialog } from '../components/AssetRemovalDialog';
 import { TimeSeriesChart } from '../components/TimeSeriesChart';
 import { KPICard } from '../components/Cards';
 import { HealthGauge } from '../components/HealthGauge';
@@ -25,7 +24,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Activity, Tag, AlertTriangle, CheckCircle2, TrendingUp,
   Sparkles, Zap, Shield, RefreshCw, Gauge, Bell, Download,
-  Thermometer, Clock, Box, Printer, Mail, Loader2, ChevronDown, Pencil, Trash2,
+  Thermometer, Clock, Box, Printer, Mail, Loader2, ChevronDown, Pencil,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -56,16 +55,13 @@ export const AssetMonitorPage: React.FC = () => {
   // mas não reescreve os valores de uma já cadastrada.
   const { can } = usePermissions();
   const mayEditNameplate = can('nameplate:edit');
-  const mayRemoveAsset = can('asset:deactivate');
   const t = translations[language].assetMonitor;
-  const tRemoval = translations[language].assetRemoval;
   const common = translations[language].common;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
   const isMobile = useIsMobile();
 
   const [tab, setTab] = useState<Tab>('sensors');
   const [editingNameplate, setEditingNameplate] = useState(false);
-  const [removing, setRemoving] = useState(false);
   const [historyRange, setHistoryRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
   const [history, setHistory] = useState<SensorHistorySeries[]>([]);
@@ -218,13 +214,6 @@ export const AssetMonitorPage: React.FC = () => {
         ? 'text-amber-700 dark:text-amber-200/80'
         : 'text-emerald-700 dark:text-emerald-200/80';
 
-  const handleRemoved = () => {
-    // O ativo removido não pode continuar no store: desativado ele sai da view,
-    // apagado ele deixa de existir. Volta para a planta, que relê a frota.
-    setAssets(assets.filter((a) => a.id !== asset.id));
-    navigate('/planta');
-  };
-
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'sensors',   label: t.tab_sensors,   icon: Activity },
     { id: 'history',   label: t.tab_history,   icon: TrendingUp },
@@ -256,15 +245,6 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
           <div className="flex items-center gap-2">
-            {mayRemoveAsset && (
-              <button
-                onClick={() => setRemoving(true)}
-                className="btn-ghost text-xs text-red-400 hover:text-red-300"
-              >
-                <Trash2 size={14} />
-                {tRemoval.action_remove}
-              </button>
-            )}
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button className="btn-ghost text-xs" title={t.export_hint} disabled={sendingReport}>
@@ -718,13 +698,6 @@ export const AssetMonitorPage: React.FC = () => {
         onOpenChange={setSchedulerOpen}
         asset={asset}
         language={language}
-      />
-
-      <AssetRemovalDialog
-        asset={asset}
-        open={removing}
-        onOpenChange={setRemoving}
-        onRemoved={handleRemoved}
       />
     </motion.div>
   );

@@ -24,6 +24,7 @@ const asset = (
   type,
   area,
   areaId: `area-${area}`,
+  criticality: 'medium',
   location: '',
   status: 'normal',
   uptime: 100,

@@ -60,6 +60,8 @@ export interface Asset {
   /** FK da área. Necessária para mover o ativo de hall sem casar nome por string. */
   areaId: string | null;
   location: string;       // ex: "Hall A — Posto 1"
+  /** Criticidade cadastral (não confundir com `status`, que vem dos sensores). */
+  criticality: 'low' | 'medium' | 'high' | 'critical';
   status: 'normal' | 'warning' | 'critical' | 'offline';
   uptime: number;
   sensors: Sensor[];
