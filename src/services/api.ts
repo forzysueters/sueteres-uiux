@@ -760,7 +760,7 @@ export const apiService = {
         insulation_class: nameplate.insulation_class || null,
         image_url: image?.url ?? null,
         storage_path: image?.path ?? null,
-        ocr_provider: meta?.provider ?? 'gemini',
+        ocr_provider: meta?.provider ?? 'gpt',
         // A UI trabalha em 0-100; o banco guarda 0-1.
         ocr_confidence: confidence != null ? Math.min(Math.max(confidence / 100, 0), 1) : null,
         ocr_raw: meta?.raw ?? {},
@@ -1208,10 +1208,10 @@ export const apiService = {
    * Envia a pergunta, o histórico recente e o ativo em foco para a Edge
    * Function `ai-chat`, que monta o contexto real do site (telemetria,
    * alertas, predições, manutenção, documentação técnica) e delega a redação
-   * da resposta ao Gemini — preservando o contexto entre turnos da conversa.
+   * da resposta ao GPT — preservando o contexto entre turnos da conversa.
    *
    * Se a function não estiver disponível (não implantada, sem
-   * `GEMINI_API_KEY`, ou offline), cai para o motor determinístico local
+   * `OPENAI_API_KEY`, ou offline), cai para o motor determinístico local
    * (`assistantEngine`), no mesmo padrão de fallback já usado para OCR e
    * anomalia: a demo nunca quebra, só perde a redação em linguagem natural.
    *

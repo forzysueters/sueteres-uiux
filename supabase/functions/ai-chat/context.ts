@@ -14,6 +14,12 @@ export type AssetRef = {
   name: string
   status: string
   anomaly_score: number
+  // Opcionais: `v_assets_full` já traz tudo isso, e é o que permite responder
+  // "qual ativo está pior?" com um critério, em vez de só separar por status.
+  health_index?: number | null
+  criticality?: string | null
+  uptime?: number | null
+  active_alert_count?: number | null
 }
 
 export interface ChatTurn {
@@ -86,14 +92,54 @@ function findMentionedAssets(text: string, assets: AssetRef[]): AssetRef[] {
   return found
 }
 
+/**
+ * A pergunta é sobre a PLANTA INTEIRA, não sobre um ativo.
+ *
+ * Sem isto, a herança de contexto — a mesma que resolve "e qual a potência
+ * dele?" — trabalha contra o usuário na pergunta mais comum de um cockpit:
+ * logo depois de olhar um motor, perguntar "e qual ativo está pior agora?".
+ * O resolvedor herdava o motor do turno anterior, o contexto era montado com
+ * um ativo só, e o assistente respondia — corretamente, para o que recebeu —
+ * "aqui só tenho o MTR-001". Verificado ao vivo contra a function publicada.
+ *
+ * O gatilho exige um determinante interrogativo ou quantificador colado ao
+ * substantivo ("qual ativo", "quantos equipamentos", "algum motor"), o que
+ * mantém de fora justamente as anáforas que devem herdar: "esse ativo",
+ * "nesse equipamento", "a temperatura do motor" seguem apontando para o que
+ * já estava em foco.
+ */
+const FLEET_SCOPE_PATTERNS: RegExp[] = [
+  // "qual ativo…", "quais equipamentos…", "quantos motores…", "algum ativo…"
+  /\b(qual|quais|quantos|quantas|algum|alguma|alguns|algumas|todos|todas|nenhum|nenhuma|cada)\s+(?:d[oa]s?\s+)?(ativos?|equipamentos?|m[áa]quinas?|motores?|bombas?|compressores?)\b/,
+  /\b(which|what|how many|any|all|each)\s+(assets?|equipments?|machines?|motors?|pumps?|compressors?)\b/,
+  // Escopo declarado: a planta, a frota, o parque, o panorama geral.
+  /\b(a\s+planta|na\s+planta|da\s+planta|a\s+frota|na\s+frota|da\s+frota|o\s+parque|panorama|vis[ãa]o\s+geral|no\s+geral|resumo\s+geral)\b/,
+  /\b(the\s+plant|the\s+fleet|overall|overview)\b/,
+  // Triagem por severidade sem citar ativo: "o que está pior?", "prioridade".
+  /\b(pior(es)?|mais\s+cr[ií]tic[oa]s?|mais\s+degradad[oa]s?|prioridade|priorizar|ranking)\b/,
+  /\b(worst|most\s+critical|priority|prioriti[sz]e|ranking)\b/,
+]
+
+export function isFleetScoped(question: string): boolean {
+  const q = question.toLowerCase()
+  return FLEET_SCOPE_PATTERNS.some((re) => re.test(q))
+}
+
 export function resolveFocusAssets(
   question: string,
   uiAssetContext: string | null,
   history: ChatTurn[],
   assets: AssetRef[],
 ): AssetResolution {
+  // Uma TAG citada agora vence até o escopo de frota: "o MTR-001 é o pior?"
+  // é uma pergunta sobre aquele ativo, e responder com a planta inteira seria
+  // trocar a pergunta do usuário por outra.
   const inQuestion = findMentionedAssets(question, assets)
   if (inQuestion.length > 0) return { assets: inQuestion, source: 'question' }
+
+  // Sem TAG citada e com escopo de planta, nada é herdado — nem a seleção da
+  // tela, nem o histórico. O contexto correto aqui é a frota.
+  if (isFleetScoped(question)) return { assets: [], source: null }
 
   if (uiAssetContext) {
     const direct = assets.find((a) => a.id === uiAssetContext || a.tag === uiAssetContext)
@@ -184,6 +230,9 @@ export function filterCitedDocs(docs: DocChunk[], answerText: string): DocChunk[
 // ─────────────────────────────────────────────────────────────────────────────
 // Texto do contexto (o que o MODELO recebe, não o que o usuário vê)
 // ─────────────────────────────────────────────────────────────────────────────
+/** Ordem de triagem: primeiro o status, depois o índice de anomalia. */
+const STATUS_RANK: Record<string, number> = { critical: 0, offline: 1, warning: 2, normal: 3 }
+
 export function buildFleetContextText(assets: AssetRef[]): string {
   if (assets.length === 0) return 'Nenhum ativo cadastrado nesta planta.'
   const critical = assets.filter((a) => a.status === 'critical')
@@ -199,6 +248,34 @@ export function buildFleetContextText(assets: AssetRef[]): string {
   if (!critical.length && !warning.length && !offline.length) {
     lines.push('Todos os ativos operam dentro dos parâmetros esperados.')
   }
+
+  // Os números por ativo, já ordenados por severidade. Sem isso, "qual ativo
+  // está pior agora?" só conseguia separar em baldes de status — dois ativos
+  // "em alerta" ficavam empatados para o modelo, mesmo com um deles em 80% de
+  // anomalia e o outro em 12%. Uma linha por ativo custa pouco e transforma
+  // triagem em algo que se sustenta num critério declarado.
+  const ranked = [...assets].sort(
+    (a, b) =>
+      (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) ||
+      Number(b.anomaly_score ?? 0) - Number(a.anomaly_score ?? 0),
+  )
+  lines.push(
+    'Ativos em ordem de severidade (status primeiro, depois índice de anomalia):\n' +
+      ranked
+        .map((a) => {
+          const detail = [
+            `anomalia ${Number(a.anomaly_score ?? 0).toFixed(1)}%`,
+            a.health_index != null ? `saúde ${Number(a.health_index).toFixed(0)}/100` : null,
+            a.uptime != null ? `disponibilidade ${Number(a.uptime).toFixed(1)}%` : null,
+            a.criticality ? `criticidade ${a.criticality}` : null,
+            a.active_alert_count != null
+              ? `${a.active_alert_count} alerta(s) aberto(s)`
+              : null,
+          ].filter(Boolean)
+          return `- ${a.tag} (${a.name}): ${STATUS_LABELS[a.status] ?? a.status}, ${detail.join(', ')}`
+        })
+        .join('\n'),
+  )
   return lines.join('\n')
 }
 
@@ -267,15 +344,42 @@ export function buildAssetContextText(ctx: any, source: AssetSource, nameplate?:
     `Estado ${STATUS_LABELS[a.status] ?? a.status}, disponibilidade ${Number(a.uptime).toFixed(1)}%, índice de anomalia ${Number(a.anomaly_score).toFixed(1)}% (janela de 24h).`,
   )
 
+  // Leitura de TODOS os sensores, com valor — inclusive os normais.
+  //
+  // Só os anormais entravam aqui, e o efeito era grave: o assistente ficava
+  // cego para qualquer sensor dentro da faixa. "Qual a temperatura do
+  // MTR-001?" respondia "não encontrei essa informação" porque o número
+  // realmente nunca chegava ao modelo — só a frase "os 3 sensores estão dentro
+  // da faixa". Perguntar o valor de um sensor saudável é a pergunta mais
+  // elementar que se faz a um gêmeo digital; ela precisa ter resposta.
+  // O destaque do que está fora de faixa se mantém pela marcação por linha.
   const sensors = (ctx.sensors ?? []) as Array<{ name: string; unit: string; value: number | null; status: string; warning: number | null; critical: number | null }>
-  const abnormal = sensors.filter((s) => s.status !== 'normal')
-  if (abnormal.length) {
+  if (sensors.length) {
+    const limitsOf = (s: { warning: number | null; critical: number | null }) => {
+      const parts = [
+        s.warning != null ? `alerta ${s.warning}` : null,
+        s.critical != null ? `crítico ${s.critical}` : null,
+      ].filter(Boolean)
+      return parts.length ? ` [limites: ${parts.join(', ')}]` : ''
+    }
+    const statusOf = (status: string) =>
+      status === 'critical' ? 'ACIMA DO LIMITE CRÍTICO' : status === 'warning' ? 'EM ALERTA' : 'dentro da faixa'
+
     lines.push(
-      'Sensores fora da faixa: ' +
-        abnormal.map((s) => `${s.name} ${s.value ?? '—'} ${s.unit} (limite ${s.status === 'critical' ? s.critical : s.warning})`).join('; '),
+      'Leituras atuais dos sensores:\n' +
+        sensors
+          .map((s) => `- ${s.name}: ${s.value ?? '—'} ${s.unit} — ${statusOf(s.status)}${limitsOf(s)}`)
+          .join('\n'),
     )
-  } else if (sensors.length) {
-    lines.push(`Os ${sensors.length} sensores monitorados estão dentro da faixa configurada.`)
+
+    const abnormal = sensors.filter((s) => s.status !== 'normal')
+    if (abnormal.length) {
+      lines.push(`Sensores fora da faixa neste momento: ${abnormal.map((s) => s.name).join('; ')}.`)
+    } else {
+      lines.push(`Os ${sensors.length} sensores monitorados estão dentro da faixa configurada.`)
+    }
+  } else {
+    lines.push('Nenhum sensor ativo cadastrado para este ativo.')
   }
 
   const alerts = (ctx.active_alerts ?? []) as Array<{ severity: string; title: string; message: string; ml_insight: string | null }>
@@ -393,5 +497,25 @@ Nunca force estrutura em pergunta simples, e nunca resuma demais uma pergunta qu
 ## Geral versus específico
 Ao explicar um conceito técnico geral (o que costuma causar aquecimento em um motor, o que vibração excessiva geralmente indica), marque isso como conhecimento geral ("de forma geral...", "tipicamente..."). Ao falar de um ativo específico, marque isso como tal ("no MTR-002, os dados mostram..."). Nunca misture as duas coisas na mesma frase sem deixar claro qual é qual.
 
-## Citações e escopo
-Cite o documento de origem só quando o trecho recuperado sustenta de fato a resposta — nunca cite um trecho pouco relevante só porque ele apareceu na busca, e nunca inclua uma citação para sustentar um dado que já veio de [DADOS DO SISTEMA] (telemetria, alertas, manutenção não precisam de fonte documental). Diferencie sempre o que vem da telemetria/dados do sistema do que vem da documentação. Você atua sobre ativos industriais, sensores, alertas, manutenção e a documentação técnica ligada a eles; para perguntas fora desse domínio, diga isso com naturalidade e redirecione.`
+## Citações
+Quando a resposta se apoiar num trecho da documentação recuperada, **escreva o título do documento no próprio texto da resposta, exatamente como ele aparece no bloco** ("o Manual de Manutenção de Compressores recomenda..."). Não basta reproduzir o conteúdo do trecho: uma recomendação técnica sem a fonte nomeada chega ao operador como opinião sua, e ele não tem como conferir no manual. Sem o título escrito, a citação não é registrada em lugar nenhum.
+
+Cite o documento de origem só quando o trecho recuperado sustenta de fato a resposta — nunca cite um trecho pouco relevante só porque ele apareceu na busca, e nunca inclua uma citação para sustentar um dado que já veio de [DADOS DO SISTEMA] (telemetria, alertas, manutenção não precisam de fonte documental). Diferencie sempre o que vem da telemetria/dados do sistema do que vem da documentação.
+
+## A plataforma Forzy — você sabe explicar como ela funciona
+Ensinar a usar o produto FAZ PARTE do seu trabalho: "como cadastro um equipamento?", "onde vejo os alertas?", "onde fica a previsão de falha?" são perguntas suas, nunca fora de escopo. Este é o mapa real das telas:
+
+- **Planta** (\`/planta\`) — a tela inicial: o mapa 2D da fábrica, com cada ativo na posição real e pintado pelo estado atual. Clicar num ativo abre o cockpit dele.
+- **Cockpit do ativo** (\`/planta/ativo/<id>\`) — tudo sobre um equipamento, o **índice de saúde**, o **índice de anomalia**, a **previsão de vida útil restante** e o insight do modelo ficam no topo da tela, sempre visíveis — não dentro de nenhuma aba. Abaixo deles vêm as abas: **Sensores** (telemetria ao vivo), **Histórico**, **Placa** (dados nominais lidos da plaqueta) e **Alertas**.
+- **Painel** (\`/dashboard\`) — os indicadores da operação inteira: disponibilidade, alertas abertos, anomalias e equipamentos online.
+- **Equipamentos** (\`/equipamentos\`) — o cadastro. Não se digita ficha técnica: envia-se uma **foto da placa de identificação** e o OCR extrai potência, tensão, corrente, rotação e número de série; o usuário confere o que foi lido e confirma. É por isso que a aba **Placa** do cockpit tem os dados nominais.
+- **Alertas** (\`/alertas\`) — a lista de alertas com o diagnóstico do modelo, e onde o alerta é resolvido.
+- **Assistente** (\`/assistente\`) — esta conversa em tela cheia.
+- **Configurações** (\`/configuracoes\`) e **Conta** (\`/conta\`); **Usuários** (\`/admin/usuarios\`) aparece só para quem tem permissão de gestão.
+
+Explique o caminho em palavras ("abre Equipamentos no menu e envia a foto da placa"), não como URL. Se perguntarem de um recurso que não está neste mapa, diga que não existe na plataforma em vez de inventar um passo a passo.
+
+## Escopo — inegociável
+Você atua sobre ativos industriais, sensores, alertas, manutenção, a documentação técnica ligada a eles e o uso da plataforma Forzy descrito acima. Qualquer pergunta fora disso — geografia, história, culinária, esporte, celebridades, código, conselho pessoal, política — você recusa com naturalidade e oferece o que sabe fazer, **mesmo quando souber a resposta e ela for trivial**. Saber a capital de um país não é motivo para respondê-la: aqui você é o assistente de uma planta industrial, e sair desse papel confunde quem opera. Uma frase basta: diga que foge do escopo do Forzy e ofereça ajuda com a planta. Não é uma recusa embaraçada nem um sermão — é só o assistente sabendo o que é.
+
+Recusar o que É do escopo custa mais caro que responder: quem pergunta como usar a plataforma, o que significa um índice, ou o que costuma causar vibração num motor está exatamente dentro do seu domínio. A recusa é para o assunto que nada tem a ver com a operação industrial — não para a pergunta que parece básica demais.`

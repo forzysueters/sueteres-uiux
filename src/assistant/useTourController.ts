@@ -54,6 +54,16 @@ export const useTourController = () => {
   const [chatQuestion, setChatQuestion] = useState<string | null>(null);
   const [chatAnswer, setChatAnswer] = useState<string | null>(null);
   const [chatPending, setChatPending] = useState(false);
+  /**
+   * A resposta veio do motor determinístico local, não do modelo.
+   *
+   * O flag já existia em `ChatMessage` e a página cheia do assistente o mostra;
+   * aqui ele era descartado, então o painel flutuante apresentava a listagem
+   * seca do banco com a mesma cara de uma resposta redigida. Quem lê precisa
+   * saber que o Órion está sem o cérebro de linguagem — senão a queda de
+   * qualidade parece um defeito do assistente, e não uma indisponibilidade.
+   */
+  const [chatOffline, setChatOffline] = useState(false);
   const conversationId = useRef<string | null>(null);
 
   const step = TOUR_STEPS[stepIndex];
@@ -213,6 +223,7 @@ export const useTourController = () => {
       setPhase('chat');
       setChatQuestion(question);
       setChatAnswer(null);
+      setChatOffline(false);
       setChatPending(true);
       try {
         const reply = await apiService.getChatResponse(
@@ -222,8 +233,10 @@ export const useTourController = () => {
         );
         conversationId.current = reply.conversationId ?? conversationId.current;
         setChatAnswer(reply.content);
+        setChatOffline(reply.offline === true);
       } catch {
         setChatAnswer(t(language, 'chat_error'));
+        setChatOffline(false);
       } finally {
         setChatPending(false);
       }
@@ -272,6 +285,7 @@ export const useTourController = () => {
     audioSupported: speech.supported,
     chatPending,
     chatQuestion,
+    chatOffline,
     preparing: speech.preparing,
     /** Some quando já se está na página — botão que não faz nada é ruído. */
     canExpand: location.pathname !== ASSISTANT_ROUTE,

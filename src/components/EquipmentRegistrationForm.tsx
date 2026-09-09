@@ -48,7 +48,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   const [ocrError, setOcrError] = useState<string | null>(null);
   // Motor fixo: a escolha deixou de ser oferecida na interface, e o backend
   // segue aceitando o parâmetro.
-  const mode: OcrMode = 'gemini';
+  const mode: OcrMode = 'gpt';
 
   // ─── Passo 4 — destino do cadastro ────────────────────────────────────────
   const mayCreateAsset = can('asset:create');

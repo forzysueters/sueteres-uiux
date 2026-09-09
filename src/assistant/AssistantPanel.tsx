@@ -42,6 +42,8 @@ export interface AssistantPanelModel {
   anchor: 'bottom' | 'top';
   chatPending: boolean;
   chatQuestion: string | null;
+  /** Resposta montada pelo motor local — o modelo de linguagem está fora. */
+  chatOffline: boolean;
   /** Falso quando já se está na página do assistente. */
   canExpand: boolean;
 }
@@ -238,7 +240,14 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
           ) : p.formatted ? (
             // Resposta do modelo: negrito, ênfase e listas de verdade. Aqui não
             // faz sentido acender por caractere — a estrutura é que informa.
-            <RichText text={p.text} />
+            <>
+              <RichText text={p.text} />
+              {p.chatOffline && (
+                <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                  {t(lang, 'chat_offline')}
+                </p>
+              )}
+            </>
           ) : (
             // Narração: o trecho já pronunciado fica sólido, o que falta esmaece.
             <p className="text-sm leading-relaxed text-muted">

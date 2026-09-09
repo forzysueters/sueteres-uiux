@@ -116,6 +116,7 @@ export const AssistantProvider: React.FC = () => {
             anchor={anchor}
             chatPending={c.chatPending}
             chatQuestion={c.chatQuestion}
+            chatOffline={c.chatOffline}
             canExpand={c.canExpand}
             onStart={c.actions.start}
             onDismiss={c.actions.dismiss}

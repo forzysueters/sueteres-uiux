@@ -39,6 +39,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     chat_error:
       'Não consegui responder agora. Tente novamente em instantes — ou use o Assistente IA no menu.',
     chat_intro: 'Pode perguntar sobre a plataforma, seus equipamentos ou a documentação técnica.',
+    chat_offline: 'modo offline — resposta montada só com os dados do banco',
     farewell_title: 'Tour concluído',
     ask_by_voice: 'Perguntar por voz',
     stop_listening: 'Parar de ouvir',
@@ -79,6 +80,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     chat_error:
       "I couldn't answer right now. Try again shortly — or use the AI Assistant in the menu.",
     chat_intro: 'Ask about the platform, your equipment or the technical documentation.',
+    chat_offline: 'offline mode — answer assembled from database records only',
     farewell_title: 'Tour complete',
     ask_by_voice: 'Ask by voice',
     stop_listening: 'Stop listening',
