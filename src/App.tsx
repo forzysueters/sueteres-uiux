@@ -41,6 +41,7 @@ import { AssistantPage } from './pages/AssistantPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AccountPage } from './pages/AccountPage'
 import { LoginPage } from './pages/LoginPage'
+import { NotFoundPage } from './pages/NotFoundPage'
 import logoWhite from './assets/logo-forzy-branca.svg'
 import logoBlack from './assets/logo-forzy-preta.svg'
 import { cn } from './lib/utils'
@@ -67,6 +68,14 @@ const AppContent = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+
+  // Quem rola é o <main>, não a janela — e trocar de rota não mexia nele.
+  // Rolar o Painel até o fim e clicar em Equipamentos entregava a página nova
+  // começando no meio, longe do título. Volta ao topo a cada caminho novo.
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 })
+  }, [location.pathname])
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
@@ -331,7 +340,7 @@ const AppContent = () => {
       </AnimatePresence>
 
       {/* Page content */}
-      <main className="flex-1 overflow-y-auto scrollbar-thin">
+      <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8 overflow-x-clip">
           <AnimatePresence mode="wait">
             <motion.div
@@ -359,6 +368,10 @@ const AppContent = () => {
                   }
                 />
                 <Route path="/" element={<Navigate to="/planta" replace />} />
+                {/* Sem esta, qualquer caminho desconhecido (um link antigo, uma
+                    URL digitada errada) renderizava o cabeçalho e uma área de
+                    conteúdo vazia, sem dizer nada. */}
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </motion.div>
           </AnimatePresence>
