@@ -19,7 +19,14 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: 'equipment',
     route: '/equipamentos',
-    targets: ['[data-tour="equipment-registration"]', 'nav a[href="/equipamentos"]'],
+    // O formulário só existe no DOM com o diálogo aberto; o botão que o abre
+    // está sempre lá. Se o usuário já tiver aberto o diálogo, o formulário é
+    // o alvo melhor e o resolvedor promove para ele.
+    targets: [
+      '[data-tour="equipment-registration"]',
+      '[data-tour="equipment-registration-cta"]',
+      'nav a[href="/equipamentos"]',
+    ],
     padding: 8,
   },
   {

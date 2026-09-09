@@ -102,8 +102,9 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       label: 'Equipamentos',
       title: 'Cadastro pela placa do motor',
       speech:
-        'Aqui é onde tudo começa. Em vez de digitar ficha técnica, você fotografa a placa de ' +
-        'identificação do equipamento. O sistema lê a placa sozinho, extrai potência, tensão, ' +
+        'Esta é a tela dos seus equipamentos: todos ficam listados aqui, com busca e filtros. ' +
+        'E é por este botão que entra um novo. Em vez de digitar ficha técnica, você fotografa ' +
+        'a placa de identificação. O sistema lê a placa sozinho, extrai potência, tensão, ' +
         'rotação e número de série, e você só confirma o que foi lido.',
     },
     monitoring: {
@@ -162,9 +163,10 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       label: 'Equipment',
       title: 'Register from the motor nameplate',
       speech:
-        'This is where everything starts. Instead of typing the datasheet, you photograph the ' +
-        'equipment nameplate. The system reads it on its own — power, voltage, speed and serial ' +
-        'number — and you just confirm what was extracted.',
+        'This is your equipment screen: everything is listed here, with search and filters. ' +
+        'And this button is how a new one comes in. Instead of typing the datasheet, you ' +
+        'photograph the equipment nameplate. The system reads it on its own — power, voltage, ' +
+        'speed and serial number — and you just confirm what was extracted.',
     },
     monitoring: {
       label: 'Monitoring',

@@ -153,7 +153,17 @@ export const EquipmentPage: React.FC = () => {
         </select>
 
         {mayCreate && (
-          <button onClick={() => setRegistering(true)} className="btn-primary text-xs sm:ml-auto">
+          // `data-tour` aqui, e não só no formulário: o cadastro passou a viver
+          // dentro de um Dialog do Radix, que monta os filhos num Portal apenas
+          // quando abre. O alvo preferido da etapa do tour deixou de existir no
+          // DOM, e o holofote caía no item de menu enquanto a narração falava
+          // em fotografar a placa. Este botão é a porta de entrada real do
+          // fluxo e está sempre visível.
+          <button
+            data-tour="equipment-registration-cta"
+            onClick={() => setRegistering(true)}
+            className="btn-primary text-xs sm:ml-auto"
+          >
             <Plus size={14} />
             {t.add_asset}
           </button>
