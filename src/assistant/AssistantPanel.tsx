@@ -367,10 +367,21 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                     title={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}
                     className={cn(
                       'absolute right-9 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg transition-colors disabled:opacity-30',
-                      stt.listening ? 'text-primary bg-primary/10 animate-pulse' : 'text-muted hover:text-primary hover:bg-primary/10',
+                      stt.listening ? 'text-primary bg-primary/10' : 'text-muted hover:text-primary hover:bg-primary/10',
                     )}
                   >
-                    <Mic size={14} />
+                    {/* Halo em ripple — expande e esmaece, sem voltar, reforçando a captura. */}
+                    {stt.listening && (
+                      <motion.span
+                        aria-hidden
+                        className="absolute inset-0 rounded-lg"
+                        style={{ background: 'rgba(var(--primary-rgb), 0.4)' }}
+                        initial={{ scale: 1, opacity: 0.5 }}
+                        animate={{ scale: 1.35, opacity: 0 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'easeOut' }}
+                      />
+                    )}
+                    <Mic size={14} className="relative" />
                   </button>
                 )}
                 <button
@@ -382,6 +393,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                   <CornerDownLeft size={15} />
                 </button>
               </div>
+              {stt.error && <p className="mt-1.5 px-0.5 text-[10px] font-medium text-amber-500">{stt.error}</p>}
             </motion.div>
           )}
         </AnimatePresence>

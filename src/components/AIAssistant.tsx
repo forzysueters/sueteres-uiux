@@ -1,4 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Send, User, Sparkles, MessageSquarePlus, FileText, Volume2, Square, Mic } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
@@ -270,10 +271,21 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
               title={stt.listening ? t.stop_listening : t.ask_by_voice}
               className={cn(
                 'absolute right-11 top-1/2 -translate-y-1/2 w-9 h-9 rounded-md transition-all disabled:opacity-30 flex items-center justify-center',
-                stt.listening ? 'text-primary bg-primary/10 animate-pulse' : 'text-muted hover:text-primary hover:bg-primary/10',
+                stt.listening ? 'text-primary bg-primary/10' : 'text-muted hover:text-primary hover:bg-primary/10',
               )}
             >
-              <Mic size={16} />
+              {/* Halo em ripple — expande e esmaece, sem voltar, reforçando a captura. */}
+              {stt.listening && (
+                <motion.span
+                  aria-hidden
+                  className="absolute inset-0 rounded-md"
+                  style={{ background: 'rgba(var(--primary-rgb), 0.4)' }}
+                  initial={{ scale: 1, opacity: 0.5 }}
+                  animate={{ scale: 1.35, opacity: 0 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'easeOut' }}
+                />
+              )}
+              <Mic size={16} className="relative" />
             </button>
           )}
           <button
@@ -284,6 +296,7 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
             <Send size={18} />
           </button>
         </div>
+        {stt.error && <p className="mt-2 text-[11px] font-medium text-amber-500">{stt.error}</p>}
       </div>
     </div>
   );
