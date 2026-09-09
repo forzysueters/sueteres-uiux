@@ -106,11 +106,18 @@ function HallVolume({
         </lineSegments>
       )}
 
-      {/* Rótulo do hall, ancorado no canto superior-esquerdo da laje */}
+      {/* Rótulo do hall, ancorado no canto superior-esquerdo — mas FORA da
+          laje, no corredor entre halls. Ancorá-lo dentro do canto (como era)
+          cai exatamente numa célula válida da malha do editor: um ativo
+          encostado ali (a malha não reserva folga nenhuma nos cantos) faz o
+          rótulo, um overlay HTML sem teste de profundidade, desenhar por cima
+          da máquina. O corredor (0,83 de largura entre quadrantes) nunca
+          recebe ativo — `isInsideHall` os rejeita fora do hall — então aqui o
+          rótulo nunca tem com o que colidir. */}
       {/* Rótulo do hall é contexto, não informação primária: distanceFactor
           menor que o das TAGs para ficar visivelmente subordinado. */}
       <Html
-        position={[-w / 2 + 0.15, 0.02, -d / 2 + 0.15]}
+        position={[-w / 2 - 0.22, 0.05, -d / 2 - 0.22]}
         distanceFactor={23}
         zIndexRange={[5, 0]}
         style={{ pointerEvents: 'none' }}
