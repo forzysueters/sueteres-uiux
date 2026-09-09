@@ -326,7 +326,17 @@ export const Dashboard: React.FC = () => {
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
             <XAxis dataKey="name" axisLine={false} tickLine={false} />
-            <YAxis axisLine={false} tickLine={false} domain={[85, 100]} />
+            {/* O piso fixo em 85 não segurava: com um ativo abaixo disso o
+                Recharts estende o domínio até o dado e os tiques viravam
+                80,97 / 85,97 / 90,97 / 100 — quebrados e desiguais no topo.
+                Arredondar o piso para baixo, de 5 em 5, devolve a escala
+                inteira sem cortar nenhuma barra. */}
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              domain={[(dataMin: number) => Math.floor(dataMin / 5) * 5, 100]}
+              allowDecimals={false}
+            />
             <Tooltip contentStyle={tooltipStyle} />
             <Area
               type="monotone"
