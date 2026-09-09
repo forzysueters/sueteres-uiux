@@ -8,6 +8,8 @@ import {
   buildContextBlock,
   buildAssetContextText,
   buildComparisonContextText,
+  buildSummaryContextText,
+  isSummaryRequest,
   buildFleetContextText,
   SYSTEM_PROMPT,
   type AssetRef,
@@ -55,6 +57,16 @@ describe('resolveFocusAssets', () => {
   it('resolve múltiplos ativos citados na mesma pergunta (comparação)', () => {
     const r = resolveFocusAssets('compare o CMP-001 e o MTR-002', null, [], ASSETS)
     expect(r.assets.map((a) => a.tag).sort()).toEqual(['CMP-001', 'MTR-002'])
+    expect(r.source).toBe('question')
+  })
+
+  it('resolve todos os ativos de uma categoria antes do ativo selecionado na UI', () => {
+    const assets = ASSETS.map((asset) => ({
+      ...asset,
+      asset_type: asset.tag.startsWith('MTR') ? 'motor' : 'compressor',
+    }))
+    const r = resolveFocusAssets('faça um resumo dos motores', 'a1', [], assets)
+    expect(r.assets.map((a) => a.tag).sort()).toEqual(['MTR-001', 'MTR-002'])
     expect(r.source).toBe('question')
   })
 
@@ -201,6 +213,20 @@ describe('buildComparisonContextText', () => {
     const cmpSection = text.slice(cmpIdx, mtrIdx)
     expect(cmpSection).toContain('crítico')
     expect(cmpSection).not.toContain('Motor de Reserva')
+  })
+
+  describe('summary requests', () => {
+    it('detecta pedidos de resumo e inclui o contexto completo de cada ativo', () => {
+      const items = [
+        {
+          ctx: { asset: { tag: 'MTR-001', name: 'Motor de Produção', location: 'Hall A', status: 'normal', uptime: 99, anomaly_score: 2, next_maintenance: null }, sensors: [], active_alerts: [], predictions: [], open_maintenance: [] },
+          source: 'question' as const,
+        },
+      ]
+      expect(isSummaryRequest('faça um resumo dos motores')).toBe(true)
+      expect(buildSummaryContextText(items)).toContain('MTR-001 — Motor de Produção')
+      expect(isSummaryRequest('qual é o status do MTR-001?')).toBe(false)
+    })
   })
 
   it('ignora entradas sem dados de ativo (RPC falhou para aquele item)', () => {

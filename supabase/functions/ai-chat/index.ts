@@ -30,6 +30,8 @@ import {
   buildFleetContextText,
   buildAssetContextText,
   buildComparisonContextText,
+  buildSummaryContextText,
+  isSummaryRequest,
   buildContextBlock,
 } from './context.ts'
 
@@ -166,7 +168,9 @@ Deno.serve(async (req) => {
   //     a memória não fica presa a "o último ativo": relemos o histórico em vez de
   //     depender de uma única coluna, então "compare A e B" seguido de "qual dos
   //     dois..." recupera A e B de novo, não só o que apareceu por último.
-  const { data: assetsData } = await supabase.from('v_assets_full').select('id, tag, name, status, anomaly_score')
+  const { data: assetsData } = await supabase
+    .from('v_assets_full')
+    .select('id, tag, name, status, anomaly_score, asset_type')
   const assets = (assetsData ?? []) as unknown as AssetRef[]
   const { assets: focusAssets, source: assetSource } = resolveFocusAssets(
     question,
@@ -197,6 +201,10 @@ Deno.serve(async (req) => {
     assetSection = assetContextResults[0]?.data
       ? buildAssetContextText(assetContextResults[0].data, assetSource, nameplates[0])
       : buildFleetContextText(assets)
+  } else if (isSummaryRequest(question)) {
+    assetSection = buildSummaryContextText(
+      assetContextResults.map((r, i) => ({ ctx: r.data, source: assetSource, nameplate: nameplates[i] })),
+    )
   } else {
     assetSection = buildComparisonContextText(
       assetContextResults.map((r, i) => ({ ctx: r.data, source: assetSource, nameplate: nameplates[i] })),
@@ -224,7 +232,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents,
-          generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
+          generationConfig: { temperature: 0.3, maxOutputTokens: 1200 },
         }),
       },
     )

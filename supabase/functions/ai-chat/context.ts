@@ -14,6 +14,7 @@ export type AssetRef = {
   name: string
   status: string
   anomaly_score: number
+  asset_type?: string
 }
 
 export interface ChatTurn {
@@ -86,6 +87,29 @@ function findMentionedAssets(text: string, assets: AssetRef[]): AssetRef[] {
   return found
 }
 
+const CATEGORY_MARKERS: Record<string, string[]> = {
+  motor: ['motor', 'motores'],
+  pump: ['bomba', 'bombas'],
+  compressor: ['compressor', 'compressores'],
+  fan: ['ventilador', 'ventiladores'],
+  gearbox: ['redutor', 'redutores'],
+  panel: ['painel', 'painéis', 'paineis'],
+}
+
+function findCategoryAssets(text: string, assets: AssetRef[]): AssetRef[] {
+  const q = text.toLowerCase()
+  const category = Object.entries(CATEGORY_MARKERS).find(([, markers]) =>
+    markers.some((marker) => q.includes(marker)),
+  )?.[0]
+  if (!category) return []
+
+  return assets.filter((asset) => {
+    if (asset.asset_type) return asset.asset_type === category
+    const haystack = `${asset.tag} ${asset.name}`.toLowerCase()
+    return haystack.includes(category === 'motor' ? 'motor' : CATEGORY_MARKERS[category][0])
+  })
+}
+
 export function resolveFocusAssets(
   question: string,
   uiAssetContext: string | null,
@@ -94,6 +118,11 @@ export function resolveFocusAssets(
 ): AssetResolution {
   const inQuestion = findMentionedAssets(question, assets)
   if (inQuestion.length > 0) return { assets: inQuestion, source: 'question' }
+
+  // Uma categoria explícita ("motores", "bombas") representa um pedido de
+  // panorama e deve vencer a seleção de um único ativo na interface.
+  const categoryAssets = findCategoryAssets(question, assets)
+  if (categoryAssets.length > 0) return { assets: categoryAssets, source: 'question' }
 
   if (uiAssetContext) {
     const direct = assets.find((a) => a.id === uiAssetContext || a.tag === uiAssetContext)
@@ -333,6 +362,44 @@ export function buildComparisonContextText(
   return [header, ...sections].join('\n\n')
 }
 
+/** Contexto detalhado para pedidos de resumo de uma categoria de ativos. */
+export function buildSummaryContextText(
+  items: Array<{ ctx: any; source: AssetSource; nameplate?: Nameplate | null }>,
+): string {
+  const sections = items
+    .filter((it) => it.ctx?.asset)
+    .map((it) => {
+      const a = it.ctx.asset
+      const sensors = (it.ctx.sensors ?? []) as Array<{ name: string; unit: string; value: number | null; status: string }>
+      const abnormal = sensors.filter((sensor) => sensor.status !== 'normal')
+      const alerts = (it.ctx.active_alerts ?? []) as Array<{ severity: string; title: string }>
+      const rul = (it.ctx.predictions ?? []).find((prediction: { type: string }) => prediction.type === 'remaining_useful_life')
+      const maintenance = (it.ctx.open_maintenance ?? []) as Array<{ order_number: string; title: string }>
+      return [
+        `${a.tag} — ${a.name}: status ${STATUS_LABELS[a.status] ?? a.status}; localização ${a.location}; disponibilidade ${Number(a.uptime).toFixed(1)}%; anomalia ${Number(a.anomaly_score).toFixed(1)}%.`,
+        abnormal.length
+          ? `Sensores fora da faixa: ${abnormal.map((sensor) => `${sensor.name} ${sensor.value ?? '—'} ${sensor.unit}`).join('; ')}.`
+          : 'Sensores dentro da faixa.',
+        alerts.length
+          ? `Alertas abertos: ${alerts.map((alert) => `[${alert.severity}] ${alert.title}`).join('; ')}.`
+          : 'Nenhum alerta aberto.',
+        maintenance.length
+          ? `Manutenção em aberto: ${maintenance.map((order) => `${order.order_number} — ${order.title}`).join('; ')}.`
+          : 'Nenhuma manutenção em aberto.',
+        rul?.rul_days != null ? `Vida útil estimada: ${rul.rul_days} dias.` : 'Vida útil não disponível.',
+      ].join(' ')
+    })
+
+  return [
+    `Resumo solicitado de ${sections.length} ativos da categoria mencionada.`,
+    sections.length ? sections.join('\n\n') : 'Não foi possível recuperar o contexto detalhado dos ativos.',
+  ].join('\n\n')
+}
+
+export function isSummaryRequest(question: string): boolean {
+  return /\b(resumo|resumir|panorama|visão geral|visao geral|status geral|situação geral|situacao geral)\b/i.test(question)
+}
+
 /** Bloco final enviado ao Gemini junto da pergunta — separa dados do sistema de documentação, com rótulos de proveniência. */
 export function buildContextBlock(params: { assetSection: string; docs: DocChunk[] }): string {
   const { assetSection, docs } = params
@@ -383,6 +450,8 @@ O bloco de contexto informa qual ativo está em foco e como ele foi identificado
 
 ## Tom e formato
 Converse como um especialista de plantão respondendo um colega — direto e natural, não como uma API preenchendo um formulário. Evite abrir toda resposta com "Com base nos dados fornecidos..." ou "De acordo com as informações disponíveis..."; use isso só quando a origem do dado precisar mesmo ser destacada.
+
+Quando o usuário pedir um resumo, panorama ou visão geral de uma categoria (por exemplo, "faça um resumo dos motores"), trate TODOS os ativos dessa categoria presentes no bloco de dados como parte do pedido. Navegue pelos dados individuais de cada ativo e entregue um resumo consolidado, sem omitir os que estão normais: informe a quantidade total, distribua por status, destaque os críticos e em alerta, e inclua disponibilidade, anomalia, sensores fora da faixa, alertas, manutenção e vida útil quando esses dados estiverem disponíveis. Não confunda um resumo da categoria com o ativo selecionado na interface. Para evitar respostas interrompidas, prefira uma lista compacta por ativo a uma tabela markdown e termine com uma prioridade operacional curta baseada nos dados.
 
 **Regra de concisão — a mais importante de formato:** responda apenas com o nível de detalhe necessário para a pergunta feita. Não transforme uma pergunta simples em um relatório. "Qual a temperatura?" merece "A temperatura atual é 83,04°C, acima do limite de 75°C." — nada além disso. Só entre em interpretação, causa provável ou recomendação quando o usuário pedir isso (mesmo que na pergunta seguinte) ou quando o dado por si só já for alarmante o bastante para merecer o alerta.
 - Pergunta simples e factual → resposta curta, uma ou duas frases.

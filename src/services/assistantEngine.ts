@@ -70,7 +70,27 @@ const MAINTENANCE_LABELS: Record<string, string> = {
   inspection: 'inspeção',
 }
 
-type AssetRef = { id: string; tag: string; name: string; status: string; anomaly_score: number }
+type AssetRef = { id: string; tag: string; name: string; status: string; anomaly_score: number; asset_type?: string }
+
+const SUMMARY_MARKERS = /\b(resumo|resumir|panorama|visão geral|visao geral|status geral|situação geral|situacao geral)\b/i
+const CATEGORY_MARKERS: Record<string, string[]> = {
+  motor: ['motor', 'motores'],
+  pump: ['bomba', 'bombas'],
+  compressor: ['compressor', 'compressores'],
+  fan: ['ventilador', 'ventiladores'],
+}
+
+function resolveCategory(question: string, assets: AssetRef[]): AssetRef[] {
+  const q = question.toLowerCase()
+  const category = Object.entries(CATEGORY_MARKERS).find(([, markers]) =>
+    markers.some((marker) => q.includes(marker)),
+  )?.[0]
+  if (!category) return []
+  return assets.filter((asset) => {
+    if (asset.asset_type) return asset.asset_type === category
+    return `${asset.tag} ${asset.name}`.toLowerCase().includes(CATEGORY_MARKERS[category][0])
+  })
+}
 
 /** Resolve o ativo por id, por TAG citada na pergunta ou pelo nome. */
 async function resolveAsset(question: string, assetContext: string | null): Promise<AssetRef | null> {
@@ -197,12 +217,20 @@ export async function answerQuestion(
   question: string,
   assetContext: string | null,
 ): Promise<AssistantAnswer> {
-  const asset = await resolveAsset(question, assetContext)
+  const { data: assetRows } = await supabase
+    .from('v_assets_full')
+    .select('id, tag, name, status, anomaly_score, asset_type')
+  const assets = (assetRows ?? []) as unknown as AssetRef[]
+  const categoryAssets = resolveCategory(question, assets)
+  const asset = categoryAssets.length > 0 ? null : await resolveAsset(question, assetContext)
 
-  const [contextResult, docsResult] = await Promise.all([
+  const [contextResult, categoryContexts, docsResult] = await Promise.all([
     asset
       ? supabase.rpc('get_asset_context', { p_asset_id: asset.id })
       : Promise.resolve({ data: null, error: null }),
+    categoryAssets.length > 0
+      ? Promise.all(categoryAssets.map((item) => supabase.rpc('get_asset_context', { p_asset_id: item.id })))
+      : Promise.resolve([]),
     supabase.rpc('search_document_chunks', {
       p_query: question,
       p_asset_id: asset?.id ?? undefined,
@@ -213,11 +241,20 @@ export async function answerQuestion(
   const docs = docsResult.error ? [] : (docsResult.data ?? [])
   const sections: string[] = []
 
-  if (!contextResult.error && contextResult.data) {
+  if (categoryAssets.length > 0 && SUMMARY_MARKERS.test(question)) {
+    sections.push(
+      `**Resumo dos ${categoryAssets.length} ativos encontrados:**`,
+      ...categoryContexts.map((result, index) => {
+        const current = result.error || !result.data ? null : (result.data as unknown as AssetContext)
+        return current
+          ? `\n${describeAsset(current)}`
+          : `\n**${categoryAssets[index].tag} — ${categoryAssets[index].name}**: contexto indisponível.`
+      }),
+    )
+  } else if (!contextResult.error && contextResult.data) {
     sections.push(describeAsset(contextResult.data as unknown as AssetContext))
   } else {
-    const { data } = await supabase.from('v_assets_full').select('id, tag, name, status, anomaly_score')
-    sections.push(describeFleet((data ?? []) as unknown as AssetRef[]))
+    sections.push(describeFleet(assets))
   }
 
   if (docs.length > 0) {
