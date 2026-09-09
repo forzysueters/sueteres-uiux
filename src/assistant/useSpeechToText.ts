@@ -75,11 +75,16 @@ export function speechErrorMessage(code: string | null, lang: Language): string 
 export const useSpeechToText = (lang: Language) => {
   const Ctor = useRef(getRecognitionCtor()).current;
   const recognitionRef = useRef<MinimalRecognition | null>(null);
+  /** Se `onresult` já entregou algum texto nesta captura. */
+  const gotResultRef = useRef(false);
+  /** Se foi a própria pessoa que clicou para parar — nesse caso, silêncio não é falha. */
+  const userStoppedRef = useRef(false);
   const [listening, setListening] = useState(false);
   /** Código bruto do último erro (`event.error`) — a mensagem amigável vem de `speechErrorMessage`. */
   const [errorCode, setErrorCode] = useState<string | null>(null);
 
   const stop = useCallback(() => {
+    userStoppedRef.current = true;
     recognitionRef.current?.stop();
   }, []);
 
@@ -87,15 +92,29 @@ export const useSpeechToText = (lang: Language) => {
     (onResult: (text: string) => void) => {
       if (!Ctor || listening) return;
       setErrorCode(null);
+      gotResultRef.current = false;
+      userStoppedRef.current = false;
       const recognition = new Ctor();
       recognition.lang = LOCALE[lang];
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       recognition.onresult = (event) => {
         const transcript = event.results[event.results.length - 1]?.[0]?.transcript?.trim();
-        if (transcript) onResult(transcript);
+        if (transcript) {
+          gotResultRef.current = true;
+          onResult(transcript);
+        }
       };
-      recognition.onend = () => setListening(false);
+      recognition.onend = () => {
+        setListening(false);
+        // Terminou sem transcrever nada, sem `onerror` explícito, e não fomos
+        // nós que interrompemos por vontade da pessoa — o navegador às vezes
+        // encerra em silêncio quando não capta fala (mic errado, mudo, muito
+        // baixo). Sem isto, essa captura vazia não dava pista nenhuma.
+        if (!gotResultRef.current && !userStoppedRef.current) {
+          setErrorCode((prev) => prev ?? 'no-speech');
+        }
+      };
       recognition.onerror = (event) => {
         setListening(false);
         setErrorCode(event.error);
