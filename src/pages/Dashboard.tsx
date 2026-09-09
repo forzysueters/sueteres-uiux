@@ -9,7 +9,7 @@ import { KPICard } from '../components/Cards'
 import { cn } from '../lib/utils'
 import { STATUS_COLORS, statusBadge, statusLabel } from '../utils/plantStatus'
 import { CardSkeleton, ChartSkeleton } from '../components/SkeletonLoaders'
-import { tooltipStyle } from '../theme'
+import { tooltipStyle, tooltipItemStyle } from '../theme'
 import {
   BarChart,
   Bar,
@@ -268,7 +268,7 @@ export const Dashboard: React.FC = () => {
                   <Cell key={`cell-${index}`} fill={`url(#pie-${entry.status})`} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={tooltipStyle} itemStyle={{ fontSize: '12px', fontWeight: 600 }} />
+              <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} />
               <Legend
                 iconType="circle"
                 formatter={(value) => (
