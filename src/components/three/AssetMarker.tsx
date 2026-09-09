@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { Asset } from '../../types';
 import { statusConfig, statusUrgency } from '../../utils/plantStatus';
-import { plantToWorld } from './plantLayout';
+import { plantToWorld, hallForArea } from './plantLayout';
 import { worldToSvg } from './plantGrid';
 import { useFloorPointer } from './useFloorPointer';
 import { MachineGeometry } from './MachineGeometry';
@@ -44,6 +44,9 @@ interface AssetMarkerProps {
 /** Alturas fixas: independem do porte da máquina para as etiquetas alinharem. */
 const LABEL_Y = 2.9;
 const ARROW_Y = 3.75;
+
+/** Folga visual entre a borda do anel e a parede do hall. */
+const WALL_GAP = 0.05;
 
 /** Seta que aponta o equipamento, com flutuação sutil. */
 function PointerArrow({ color }: { color: string }) {
@@ -84,6 +87,34 @@ export function AssetMarker({ asset, isSelected, hoveredId, focusedId, drag = nu
 
   const ringRef = useRef<THREE.Mesh>(null);
   const ringMat = useRef<THREE.MeshBasicMaterial>(null);
+
+  /**
+   * Recorta o anel/disco/seleção nas paredes do hall do ativo, em vez de
+   * encolhê-los: encolher deixava o TAMANHO do indicador variar com a posição
+   * (um ativo no meio do hall parecia "mais crítico" que um colado à parede só
+   * por estar mais longe da borda), o que é pior que o problema original. A
+   * malha do editor garante a CÉLULA inteira dentro do hall, mas não folga
+   * nenhuma para o anel — bem maior que a célula (motor 2x2 = 0,83 de meia-
+   * pegada contra 1,32 de raio do anel) — daí ele pintar além da laje quando o
+   * ativo está na borda. Planos de recorte cortam só o pedaço que sairia,
+   * mantendo o mesmo raio nominal para todos os ativos.
+   */
+  const clippingPlanes = useMemo(() => {
+    const hall = hallForArea(asset.area);
+    if (!hall) return undefined;
+    const [hx, hz] = hall.center;
+    const [hw, hd] = hall.size;
+    const xMin = hx - hw / 2 + WALL_GAP;
+    const xMax = hx + hw / 2 - WALL_GAP;
+    const zMin = hz - hd / 2 + WALL_GAP;
+    const zMax = hz + hd / 2 - WALL_GAP;
+    return [
+      new THREE.Plane(new THREE.Vector3(1, 0, 0), -xMin),
+      new THREE.Plane(new THREE.Vector3(-1, 0, 0), xMax),
+      new THREE.Plane(new THREE.Vector3(0, 0, 1), -zMin),
+      new THREE.Plane(new THREE.Vector3(0, 0, -1), zMax),
+    ];
+  }, [asset.area]);
 
   useFrame(() => {
     // Só o que precisa de atenção pulsa. Normal fica estático de propósito:
@@ -199,13 +230,20 @@ export function AssetMarker({ asset, isSelected, hoveredId, focusedId, drag = nu
           opacity={urgency > 0 ? 0.75 : 0.45}
           depthWrite={false}
           side={THREE.DoubleSide}
+          clippingPlanes={clippingPlanes}
         />
       </mesh>
 
       {/* Disco de contato — ancora a máquina no piso */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
         <circleGeometry args={[1.15, 40]} />
-        <meshBasicMaterial color={cfg.fill} transparent opacity={0.09} depthWrite={false} />
+        <meshBasicMaterial
+          color={cfg.fill}
+          transparent
+          opacity={0.09}
+          depthWrite={false}
+          clippingPlanes={clippingPlanes}
+        />
       </mesh>
 
       {/* Anel de seleção / hover */}
@@ -217,6 +255,7 @@ export function AssetMarker({ asset, isSelected, hoveredId, focusedId, drag = nu
             transparent
             opacity={isSelected ? 0.9 : 0.45}
             depthWrite={false}
+            clippingPlanes={clippingPlanes}
           />
         </mesh>
       )}

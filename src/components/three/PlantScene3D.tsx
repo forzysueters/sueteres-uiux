@@ -211,6 +211,9 @@ export function PlantScene3D({
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         camera={{ position: CAMERA_HOME, fov: CAMERA_FOV }}
         onPointerMissed={editMode ? undefined : guard(() => onSelectAsset(null))}
+        // Precisa estar ligado para os `clippingPlanes` do AssetMarker
+        // (recorte do anel de status na parede do hall) terem efeito.
+        onCreated={(state) => { state.gl.localClippingEnabled = true; }}
       >
         <PerformanceMonitor onDecline={() => setDpr(1)} />
         <AdaptiveDpr pixelated />
