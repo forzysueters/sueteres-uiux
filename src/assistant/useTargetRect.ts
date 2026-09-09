@@ -73,6 +73,12 @@ export const useTargetRect = (
 
     let element: HTMLElement | null = null;
     let rank = Infinity; // índice do seletor que venceu (menor = melhor)
+    /**
+     * Melhor rank que já provocou rolagem. Diferente de `rank`, NÃO volta a
+     * Infinity quando o alvo some por um instante — e é isso que impede a
+     * rolagem repetida.
+     */
+    let scrolledRank = Infinity;
     let frame = 0;
     let cancelled = false;
     const started = performance.now();
@@ -87,7 +93,15 @@ export const useTargetRect = (
         if (found && found !== element) {
           element = found;
           rank = i;
-          found.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+          // Rola no máximo uma vez por nível de prioridade. Durante a animação
+          // de entrada da página o alvo entra e sai de `isVisible` — sem esta
+          // trava, ele era readquirido a cada quadro e disparava dezenas de
+          // rolagens suaves por segundo, que brigam entre si e deixam a página
+          // presa, sem responder ao clique.
+          if (i < scrolledRank) {
+            scrolledRank = i;
+            found.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+          }
           return;
         }
       }
