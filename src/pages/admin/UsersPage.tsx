@@ -11,7 +11,16 @@ import type { PlatformUser } from '../../types';
 import { cn } from '../../lib/utils';
 import { PermissionMatrix } from '../../components/PermissionMatrix';
 
-const ROLES: UserRole[] = ['admin', 'engineer', 'technician'];
+/**
+ * Papéis que ESTA TELA atribui.
+ *
+ * `admin` ficou de fora por regra de negócio: a conta de administrador é
+ * provisionada pelo time de desenvolvimento, fora do produto. Tirar o botão é
+ * só a metade visível — quem recusa de verdade é o gatilho
+ * `guard_profile_privileges` (migração 0017), porque `updateUserAccess` escreve
+ * direto em `profiles` e uma chamada montada à mão não passa por aqui.
+ */
+const ASSIGNABLE_ROLES: Exclude<UserRole, 'admin'>[] = ['engineer', 'technician'];
 
 /**
  * Administração de usuários — a contrapartida que faltava ao cadastro
@@ -155,23 +164,37 @@ export const UsersPage: React.FC = () => {
                       </span>
                     ) : (
                       <>
-                        <div className="inline-flex rounded-lg bg-card-hover border border-border p-0.5">
-                          {ROLES.map((role) => (
-                            <button
-                              key={role}
-                              disabled={busy || role === user.role}
-                              onClick={() => apply(user, { role })}
-                              className={cn(
-                                'px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all',
-                                role === user.role
-                                  ? 'bg-primary text-white'
-                                  : 'text-muted hover:text-foreground disabled:opacity-40',
-                              )}
-                            >
-                              {ROLE_LABELS[role]}
-                            </button>
-                          ))}
-                        </div>
+                        {/* A conta de administrador mostra o papel como rótulo:
+                            conceder ou retirar esse papel não é ação da
+                            aplicação. Ativar e desativar continua valendo — é a
+                            válvula para revogar acesso com urgência, e o banco já
+                            impede que o último administrador ativo caia. */}
+                        {user.role === 'admin' ? (
+                          <span
+                            title={t.admin_locked_hint}
+                            className="text-[11px] font-bold uppercase tracking-widest text-muted"
+                          >
+                            {ROLE_LABELS.admin}
+                          </span>
+                        ) : (
+                          <div className="inline-flex rounded-lg bg-card-hover border border-border p-0.5">
+                            {ASSIGNABLE_ROLES.map((role) => (
+                              <button
+                                key={role}
+                                disabled={busy || role === user.role}
+                                onClick={() => apply(user, { role })}
+                                className={cn(
+                                  'px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all',
+                                  role === user.role
+                                    ? 'bg-primary text-white'
+                                    : 'text-muted hover:text-foreground disabled:opacity-40',
+                                )}
+                              >
+                                {ROLE_LABELS[role]}
+                              </button>
+                            ))}
+                          </div>
+                        )}
 
                         <button
                           disabled={busy}
