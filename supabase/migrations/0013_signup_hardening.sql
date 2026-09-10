@@ -35,7 +35,11 @@ begin
 
   -- Sem papel provisionado = cadastro espontâneo: entra travado.
   v_is_active := v_role is not null;
-  v_role := coalesce(v_role, 'viewer');
+  -- 'technician' e nao 'viewer': o papel foi eliminado na 0016 e o literal
+  -- levantaria "invalid input value for enum" na proxima conta criada. A conta
+  -- nasce INATIVA de qualquer forma (v_is_active acima), entao o papel so vale
+  -- depois que um admin liberar.
+  v_role := coalesce(v_role, 'technician');
 
   insert into public.profiles (id, email, full_name, role, is_active, job_title, department)
   values (
@@ -95,8 +99,12 @@ $$;
 -- Limpa contas espontâneas que possam ter nascido com papel elevado antes desta
 -- correção. As contas de demonstração são preservadas pelo e-mail conhecido.
 -- -----------------------------------------------------------------------------
+-- O papel de rebaixamento passou a ser 'technician' (a 0016 eliminou
+-- 'viewer'). Sem esta troca, a REEXECUCAO desta migracao aborta com
+-- "invalid input value for enum user_role" e nenhuma migracao seguinte roda.
+-- O que protege a conta e `is_active = false`, nao o papel.
 update public.profiles p
-   set role = 'viewer', is_active = false
+   set role = 'technician', is_active = false
   from auth.users u
  where u.id = p.id
    and coalesce(u.raw_app_meta_data ->> 'role', '') = ''

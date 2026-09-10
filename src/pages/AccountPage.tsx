@@ -4,7 +4,8 @@ import { User, Mail, Shield, Building2, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAppStore } from '../store/appStore';
 import { translations } from '../translations';
-import { ROLE_LABELS, canWrite } from '../types/auth';
+import { ROLE_LABELS } from '../types/auth';
+import { usePermissions } from '../hooks/usePermissions';
 import { Dialog } from '../components/Dialog';
 
 const EditProfileDialog: React.FC<{ open: boolean; onOpenChange: (open: boolean) => void }> = ({ open, onOpenChange }) => {
@@ -154,7 +155,14 @@ export const AccountPage: React.FC = () => {
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   const roleLabel = user ? ROLE_LABELS[user.role] : '—';
-  const writeAccess = canWrite(user?.role);
+  // "Acesso de escrita: sim/não" perdeu sentido: os três papéis escrevem. O que
+  // distingue um do outro são as FAIXAS da matriz, e é isso que vale mostrar.
+  const { can } = usePermissions();
+  const bands = [
+    { label: t.band_operate, granted: can('asset:read'), hint: t.band_operate_hint },
+    { label: t.band_configure, granted: can('asset:update'), hint: t.band_configure_hint },
+    { label: t.band_administer, granted: can('user:manage'), hint: t.band_administer_hint },
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
@@ -213,11 +221,18 @@ export const AccountPage: React.FC = () => {
                 <span className="flex-shrink-0 text-muted">{t.role_label}</span>
                 <span className="text-right font-bold text-foreground uppercase tracking-widest">{roleLabel}</span>
               </div>
-              <div className="flex justify-between items-center gap-3 text-xs">
-                <span className="flex-shrink-0 text-muted">{t.write_access}</span>
-                <span className={`text-right font-bold uppercase tracking-widest ${writeAccess ? 'text-success' : 'text-warning'}`}>
-                  {writeAccess ? t.granted : t.read_only}
-                </span>
+              <div className="pt-1 space-y-2 border-t border-border">
+                {bands.map(({ label, granted, hint }) => (
+                  <div key={label} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="min-w-0">
+                      <span className={granted ? 'font-bold text-foreground' : 'text-muted'}>{label}</span>
+                      <span className="block text-[10px] text-muted leading-relaxed">{hint}</span>
+                    </span>
+                    <span className={`flex-shrink-0 font-bold uppercase tracking-widest ${granted ? 'text-success' : 'text-muted-soft'}`}>
+                      {granted ? t.granted : '—'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

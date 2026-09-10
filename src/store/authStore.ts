@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, describeSupabaseError } from '../lib/supabase'
 import type { AuthState, LoginCredentials, User, UserRole } from '../types/auth'
-import { canWrite } from '../types/auth'
 
 interface AuthStore extends AuthState {
   /** Resolve a sessão persistida e passa a acompanhar as mudanças de auth. */
@@ -16,7 +15,6 @@ interface AuthStore extends AuthState {
   }) => Promise<void>
   changePassword: (newPassword: string) => Promise<void>
   clearError: () => void
-  canWrite: () => boolean
 }
 
 type ProfileRow = {
@@ -29,10 +27,11 @@ type ProfileRow = {
   avatar_url: string | null
   plant_id: string | null
   last_login_at: string | null
+  is_active: boolean
 }
 
 const PROFILE_COLUMNS =
-  'id, email, full_name, role, job_title, department, avatar_url, plant_id, last_login_at'
+  'id, email, full_name, role, job_title, department, avatar_url, plant_id, last_login_at, is_active'
 
 function toUser(row: ProfileRow): User {
   return {
@@ -45,6 +44,7 @@ function toUser(row: ProfileRow): User {
     avatarUrl: row.avatar_url,
     plantId: row.plant_id,
     lastLoginAt: row.last_login_at,
+    isActive: row.is_active,
   }
 }
 
@@ -87,6 +87,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             isAuthenticated: false,
             isInitializing: false,
             error: 'Perfil não encontrado. Contate um administrador.',
+          })
+          return
+        }
+        // Conta desativada não é "logada com menos coisas": toda policy exige
+        // `is_active`, então o app renderizaria vazio e quebrado. Melhor dizer
+        // o motivo — é o outro lado do cadastro espontâneo nascer inativo.
+        if (!profile.isActive) {
+          await supabase.auth.signOut()
+          set({
+            user: null,
+            isAuthenticated: false,
+            isInitializing: false,
+            error: 'Sua conta aguarda liberação de um administrador.',
           })
           return
         }
@@ -138,6 +151,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const profile = await fetchProfile(data.user.id)
       if (!profile) throw new Error('Perfil não encontrado. Contate um administrador.')
+      if (!profile.isActive) {
+        await supabase.auth.signOut()
+        throw new Error('Sua conta aguarda liberação de um administrador.')
+      }
 
       set({ user: profile, isAuthenticated: true, isLoading: false, isInitializing: false, error: null })
 
@@ -185,6 +202,4 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-
-  canWrite: () => canWrite(get().user?.role),
 }))

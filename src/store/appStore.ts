@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { Asset, Alert, KPIMetrics, ChatMessage } from '../types';
 
 interface AppStore {
@@ -37,41 +38,66 @@ interface AppStore {
   setLanguage: (lang: 'pt' | 'en') => void;
 }
 
-export const useAppStore = create<AppStore>((set) => ({
-  // Initial state
-  selectedAssetId: null,
-  sidebarOpen: true,
-  darkMode: true,
-  primaryColor: 'orange',
-  language: 'pt',
-  assets: [],
-  alerts: [],
-  kpis: null,
-  chatMessages: [],
-  conversationId: null,
-  loading: false,
-  error: null,
+/**
+ * Chave da preferência de interface no localStorage.
+ *
+ * Lida também pelo script inline do index.html, que aplica tema e cor ANTES do
+ * React montar. Mudou aqui? Mude lá — senão volta o flash de tema errado no
+ * primeiro paint.
+ */
+export const PREFS_STORAGE_KEY = 'forzy.prefs';
 
-  // Actions
-  setSelectedAsset: (assetId) => set({ selectedAssetId: assetId }),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  setAssets: (assets) => set({ assets }),
-  setAlerts: (alerts) => set({ alerts }),
-  setKPIs: (kpis) => set({ kpis }),
-  updateAsset: (asset) =>
-    set((state) => ({ assets: state.assets.map((a) => (a.id === asset.id ? asset : a)) })),
-  resolveAlert: (alertId) =>
-    set((state) => ({
-      alerts: state.alerts.map((a) => (a.id === alertId ? { ...a, resolved: true } : a)),
-    })),
-  addChatMessage: (message) =>
-    set((state) => ({ chatMessages: [...state.chatMessages, message] })),
-  clearChatMessages: () => set({ chatMessages: [], conversationId: null }),
-  setConversationId: (id) => set({ conversationId: id }),
-  setLoading: (loading) => set({ loading }),
-  setError: (error) => set({ error }),
-  clearError: () => set({ error: null }),
-  toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
-  setPrimaryColor: (color) => set({ primaryColor: color }),
-  setLanguage: (lang) => set({ language: lang }),
-}));
+export const useAppStore = create<AppStore>()(
+  persist(
+    (set) => ({
+      // Initial state
+      selectedAssetId: null,
+      sidebarOpen: true,
+      darkMode: true,
+      primaryColor: 'orange',
+      language: 'pt',
+      assets: [],
+      alerts: [],
+      kpis: null,
+      chatMessages: [],
+      conversationId: null,
+      loading: false,
+      error: null,
+
+      // Actions
+      setSelectedAsset: (assetId) => set({ selectedAssetId: assetId }),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      setAssets: (assets) => set({ assets }),
+      setAlerts: (alerts) => set({ alerts }),
+      setKPIs: (kpis) => set({ kpis }),
+      updateAsset: (asset) =>
+        set((state) => ({ assets: state.assets.map((a) => (a.id === asset.id ? asset : a)) })),
+      resolveAlert: (alertId) =>
+        set((state) => ({
+          alerts: state.alerts.map((a) => (a.id === alertId ? { ...a, resolved: true } : a)),
+        })),
+      addChatMessage: (message) =>
+        set((state) => ({ chatMessages: [...state.chatMessages, message] })),
+      clearChatMessages: () => set({ chatMessages: [], conversationId: null }),
+      setConversationId: (id) => set({ conversationId: id }),
+      setLoading: (loading) => set({ loading }),
+      setError: (error) => set({ error }),
+      clearError: () => set({ error: null }),
+      toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+      setPrimaryColor: (color) => set({ primaryColor: color }),
+      setLanguage: (lang) => set({ language: lang }),
+    }),
+    {
+      name: PREFS_STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      // Só as escolhas da pessoa. Ativos, alertas, KPIs e a conversa com o
+      // Órion são dados do turno: gravados aqui, a tela abriria mostrando
+      // telemetria velha como se fosse a de agora.
+      partialize: (state) => ({
+        darkMode: state.darkMode,
+        primaryColor: state.primaryColor,
+        language: state.language,
+      }),
+    },
+  ),
+);

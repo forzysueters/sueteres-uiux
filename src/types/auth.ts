@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'engineer' | 'technician' | 'viewer';
+export type UserRole = 'admin' | 'engineer' | 'technician';
 
 export interface User {
   id: string;
@@ -10,6 +10,8 @@ export interface User {
   avatarUrl?: string | null;
   plantId?: string | null;
   lastLoginAt?: string | null;
+  /** Conta desativada não autentica: o authStore a trata como não logada. */
+  isActive?: boolean;
 }
 
 export interface AuthState {
@@ -31,23 +33,12 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   engineer: 'Engenheiro',
   technician: 'Técnico de Manutenção',
-  viewer: 'Visualizador',
 };
 
-/** Papéis que escrevem dados operacionais — espelha public.can_write() no banco. */
-export const WRITE_ROLES: UserRole[] = ['admin', 'engineer', 'technician'];
-
-export function canWrite(role: UserRole | undefined | null): boolean {
-  return !!role && WRITE_ROLES.includes(role);
-}
-
 /**
- * Papéis que cadastram ativos — espelha a policy de insert de `public.assets`,
- * mais restrita que `can_write()`: o técnico registra a placa, mas não cria o
- * ativo. Checar aqui evita expor um erro cru de RLS ao usuário.
+ * Quem pode o quê mora em `src/auth/permissions.ts`, por CAPACIDADE.
+ *
+ * As antigas `canWrite`/`canWriteAssets` foram removidas de propósito: eram
+ * listas de papéis, e um mesmo teste acabava reaproveitado para capacidades
+ * diferentes (`mayEditLayout = mayRemoveAsset`) — que no modelo atual divergem.
  */
-export const ASSET_WRITE_ROLES: UserRole[] = ['admin', 'engineer'];
-
-export function canWriteAssets(role: UserRole | undefined | null): boolean {
-  return !!role && ASSET_WRITE_ROLES.includes(role);
-}

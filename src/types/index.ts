@@ -60,6 +60,8 @@ export interface Asset {
   /** FK da área. Necessária para mover o ativo de hall sem casar nome por string. */
   areaId: string | null;
   location: string;       // ex: "Hall A — Posto 1"
+  /** Criticidade cadastral (não confundir com `status`, que vem dos sensores). */
+  criticality: 'low' | 'medium' | 'high' | 'critical';
   status: 'normal' | 'warning' | 'critical' | 'offline';
   uptime: number;
   sensors: Sensor[];
@@ -163,6 +165,27 @@ export interface NewAssetInput {
   /** Posição % no mapa da planta (0-100), escolhida no mini-mapa. */
   plantX: number;
   plantY: number;
+}
+
+// ─── Administração de usuários ──────────────────────────────────────────────
+
+/** Linha da tela de usuários. Vem de `v_admin_users`. */
+export interface PlatformUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'engineer' | 'technician';
+  isActive: boolean;
+  jobTitle: string | null;
+  department: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  /**
+   * `profiles.role` (que autoriza) diverge de `app_metadata.role` (que
+   * provisiona). Não abre furo — nenhuma policy lê o JWT —, mas morde se o
+   * perfil for recriado, então a tela sinaliza.
+   */
+  roleOutOfSync: boolean;
 }
 
 // ─── Chat ──────────────────────────────────────────────────────────────────

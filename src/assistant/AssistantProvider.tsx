@@ -7,6 +7,7 @@ import { TourSpotlight } from './TourSpotlight';
 import { useTourController } from './useTourController';
 import { useTargetRect } from './useTargetRect';
 import { ASSISTANT_NAME, t } from './copy';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 /**
  * Ponto único de integração do assistente com o site.
@@ -22,12 +23,13 @@ export const AssistantProvider: React.FC = () => {
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
 
   const spotlightOn = c.open && c.phase === 'tour';
-  const rect = useTargetRect(c.step.targets, c.step.padding ?? 8, spotlightOn);
+  const compact = useMediaQuery('(max-width: 639px), (max-height: 500px) and (pointer: coarse)');
+  const rect = useTargetRect(c.step.targets, c.step.padding ?? 8, spotlightOn, compact ? 'start' : 'center', c.stepIndex);
 
   // O painel sobe quando o elemento em destaque está na metade de baixo da
   // tela — senão o próprio assistente taparia o que está explicando.
   const anchor: 'top' | 'bottom' =
-    rect && rect.top + rect.height > window.innerHeight * 0.52 ? 'top' : 'bottom';
+    !compact && rect && rect.top + rect.height > window.innerHeight * 0.52 ? 'top' : 'bottom';
 
   // Origem do traço que liga o avatar ao elemento destacado.
   useLayoutEffect(() => {
@@ -116,6 +118,7 @@ export const AssistantProvider: React.FC = () => {
             anchor={anchor}
             chatPending={c.chatPending}
             chatQuestion={c.chatQuestion}
+            chatOffline={c.chatOffline}
             canExpand={c.canExpand}
             onStart={c.actions.start}
             onDismiss={c.actions.dismiss}

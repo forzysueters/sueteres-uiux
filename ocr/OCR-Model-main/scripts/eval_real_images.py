@@ -20,7 +20,7 @@ from PIL import Image
 from src.preprocessing.image_enhancer import adaptive_enhance, assess_quality
 from src.postprocessing.field_extractor import FieldExtractor
 from src.postprocessing.validator import PhysicalValidator
-from src.postprocessing.vlm_fallback import GeminiFallback
+from src.postprocessing.vlm_fallback import VlmFallback
 from src.api.main import _run_easyocr_on_image, _infer_motor_type
 
 CRITICAL = {"tensao_v", "corrente_a", "potencia_kw", "rpm", "numero_serie"}
@@ -28,7 +28,7 @@ SUPPORTED = {".jpg", ".jpeg", ".png", ".webp"}
 
 extractor = FieldExtractor()
 validator = PhysicalValidator()
-gemini = GeminiFallback()
+vlm = VlmFallback()
 
 
 def process_image(path: Path) -> dict:
@@ -44,8 +44,8 @@ def process_image(path: Path) -> dict:
     merged_bbox = extractor.extract_from_bboxes(bboxes)
     merged = extractor.merge_zones({0: merged_text, 1: merged_bbox})
 
-    if gemini.available() and gemini.needs_fallback(merged):
-        fallback = gemini.extract(pil, merged)
+    if vlm.available() and vlm.needs_fallback(merged):
+        fallback = vlm.extract(pil, merged)
         if fallback:
             merged = extractor.merge_zones({0: merged, 1: fallback})
 

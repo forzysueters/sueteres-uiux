@@ -3,9 +3,13 @@
 //
 // Recebe a pergunta do usuário + histórico da conversa, monta o contexto real
 // do site (telemetria, alertas, predições, manutenção, trechos de documentação
-// via RAG lexical) e delega a geração da resposta em linguagem natural ao
-// Gemini. A chave da API nunca chega ao front-end: fica em `GEMINI_API_KEY`,
+// via RAG lexical) e delega a geração da resposta em linguagem natural ao GPT
+// (OpenAI). A chave da API nunca chega ao front-end: fica em `OPENAI_API_KEY`,
 // um secret do projeto Supabase.
+//
+// O provedor é escolhido por presença de secret: `OPENAI_API_KEY` manda; sem
+// ela, a function ainda atende pelo Gemini se `GEMINI_API_KEY` existir — assim
+// um deploy novo não derruba o assistente antes do secret ser configurado.
 //
 // Roda com a JWT do usuário autenticado (repassada pelo supabase-js), então
 // toda leitura/escrita respeita a Row Level Security já definida nas
@@ -33,9 +37,15 @@ import {
   buildContextBlock,
 } from './context.ts'
 
+// Modelo do assistente. `gpt-5.4-mini` é rápido e barato o suficiente para o
+// turno conversacional; ajustável sem deploy de código pelo secret
+// `OPENAI_MODEL` no projeto.
+const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') ?? 'gpt-5.4-mini'
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
+
+// Provedor legado, mantido só como rede de segurança (ver cabeçalho).
 // `gemini-2.0-flash` foi desativado pela Google (erro 404 em produção,
 // verificado ao vivo em 2026-08); `gemini-3.6-flash` é o substituto atual.
-// Ajustável sem deploy de código via o secret `GEMINI_MODEL` no projeto.
 const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -86,6 +96,73 @@ async function fetchNameplate(supabase: any, assetId: string): Promise<Nameplate
   return (data as Nameplate | null) ?? null
 }
 
+/** Um turno neutro de conversa, traduzido depois para o formato do provedor. */
+interface Turn {
+  role: 'user' | 'assistant'
+  text: string
+}
+
+/**
+ * Resposta do GPT via Chat Completions. `max_completion_tokens` (e não
+ * `max_tokens`, rejeitado pelos modelos da linha 5) limita o tamanho da
+ * resposta; temperatura baixa mantém o assistente colado no contexto.
+ */
+async function callOpenAI(turns: Turn[]): Promise<string> {
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...turns.map((t) => ({ role: t.role, content: t.text })),
+      ],
+      temperature: 0.3,
+      max_completion_tokens: 800,
+    }),
+  })
+
+  if (!resp.ok) {
+    const errText = await resp.text()
+    console.error('[ai-chat] OpenAI error:', resp.status, errText)
+    throw new Error(`openai_${resp.status}`)
+  }
+
+  const data = await resp.json()
+  return data.choices?.[0]?.message?.content ?? ''
+}
+
+/** Provedor legado — só entra em cena sem `OPENAI_API_KEY` configurada. */
+async function callGemini(turns: Turn[]): Promise<string> {
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: turns.map((t) => ({
+          role: t.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: t.text }],
+        })),
+        generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
+      }),
+    },
+  )
+
+  if (!resp.ok) {
+    const errText = await resp.text()
+    console.error('[ai-chat] Gemini error:', resp.status, errText)
+    throw new Error(`gemini_${resp.status}`)
+  }
+
+  const data = await resp.json()
+  return data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
+}
+
 Deno.serve(async (req) => {
   // Calculado por requisição (nunca num `let` de módulo) — sob concorrência,
   // um estado compartilhado misturaria a origem de uma requisição na resposta
@@ -100,9 +177,10 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return json({ error: 'unauthorized' }, 401)
 
-  if (!GEMINI_API_KEY) {
-    return json({ error: 'llm_unavailable', message: 'GEMINI_API_KEY não configurada no projeto Supabase.' }, 503)
+  if (!OPENAI_API_KEY && !GEMINI_API_KEY) {
+    return json({ error: 'llm_unavailable', message: 'OPENAI_API_KEY não configurada no projeto Supabase.' }, 503)
   }
+  const modelUsed = OPENAI_API_KEY ? OPENAI_MODEL : GEMINI_MODEL
 
   let body: RequestBody
   try {
@@ -166,7 +244,9 @@ Deno.serve(async (req) => {
   //     a memória não fica presa a "o último ativo": relemos o histórico em vez de
   //     depender de uma única coluna, então "compare A e B" seguido de "qual dos
   //     dois..." recupera A e B de novo, não só o que apareceu por último.
-  const { data: assetsData } = await supabase.from('v_assets_full').select('id, tag, name, status, anomaly_score')
+  const { data: assetsData } = await supabase
+    .from('v_assets_full')
+    .select('id, tag, name, status, anomaly_score, health_index, criticality, uptime, active_alert_count')
   const assets = (assetsData ?? []) as unknown as AssetRef[]
   const { assets: focusAssets, source: assetSource } = resolveFocusAssets(
     question,
@@ -205,42 +285,21 @@ Deno.serve(async (req) => {
 
   const contextBlock = buildContextBlock({ assetSection, docs })
 
-  // ─── Monta a conversa para o Gemini: histórico + turno atual com contexto ─
-  const contents = [
-    ...history.map((turn) => ({
-      role: turn.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: turn.content }],
-    })),
-    { role: 'user', parts: [{ text: `${contextBlock}\n\nPergunta atual: ${question}` }] },
+  // ─── Monta a conversa: histórico + turno atual com o contexto do site ────
+  const turns: Turn[] = [
+    ...history.map((turn) => ({ role: turn.role, text: turn.content })),
+    { role: 'user' as const, text: `${contextBlock}\n\nPergunta atual: ${question}` },
   ]
 
   let answerText: string
   try {
-    const geminiResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents,
-          generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
-        }),
-      },
-    )
-    if (!geminiResp.ok) {
-      const errText = await geminiResp.text()
-      console.error('[ai-chat] Gemini error:', geminiResp.status, errText)
-      return json({ error: 'llm_unavailable', message: 'Falha ao consultar o modelo de linguagem.' }, 502)
-    }
-    const geminiJson = await geminiResp.json()
-    answerText = geminiJson.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
+    answerText = OPENAI_API_KEY ? await callOpenAI(turns) : await callGemini(turns)
     if (!answerText.trim()) {
       return json({ error: 'llm_empty_response' }, 502)
     }
   } catch (err) {
-    console.error('[ai-chat] erro ao chamar Gemini:', err)
-    return json({ error: 'llm_unavailable' }, 502)
+    console.error('[ai-chat] erro ao chamar o modelo de linguagem:', err)
+    return json({ error: 'llm_unavailable', message: 'Falha ao consultar o modelo de linguagem.' }, 502)
   }
 
   const latencyMs = Date.now() - startedAt
@@ -257,18 +316,35 @@ Deno.serve(async (req) => {
   }))
 
   // ─── Persiste os dois lados do turno ───────────────────────────────────
-  await supabase.from('chat_messages').insert([
-    { conversation_id: conversationId, role: 'user', content: question, asset_context: singleAsset?.id ?? null },
+  //
+  // As duas linhas precisam ter EXATAMENTE as mesmas chaves: num insert em
+  // lote o PostgREST recusa o corpo inteiro com `PGRST102 All object keys must
+  // match` se um objeto tiver campo que o outro não tem. Era o que apagava a
+  // memória do assistente — a linha do usuário não trazia
+  // `citations`/`model`/`latency_ms`, as duas se perdiam juntas, e como o erro
+  // não era lido a function respondia como se tivesse gravado. Resultado: todo
+  // turno começava do zero e "e qual a potência dele?" não achava o "dele".
+  const { error: insertError } = await supabase.from('chat_messages').insert([
+    {
+      conversation_id: conversationId,
+      role: 'user',
+      content: question,
+      asset_context: singleAsset?.id ?? null,
+      citations: [],
+      model: null,
+      latency_ms: null,
+    },
     {
       conversation_id: conversationId,
       role: 'assistant',
       content: answerText,
       asset_context: singleAsset?.id ?? null,
       citations,
-      model: GEMINI_MODEL,
+      model: modelUsed,
       latency_ms: latencyMs,
     },
   ])
+  if (insertError) console.error('[ai-chat] falha ao gravar o turno:', insertError)
 
   return json({
     content: answerText,

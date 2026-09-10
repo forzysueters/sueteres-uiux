@@ -9,8 +9,33 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <script>
+      // Tema aplicado ANTES do primeiro paint. Sem isto, o React só põe a
+      // classe depois de montar: quem escolheu o tema claro via a tela nascer
+      // escura e clarear. Lê a mesma chave que o appStore grava
+      // (PREFS_STORAGE_KEY); qualquer falha cai no escuro, que é o padrão.
+      (function () {
+        var dark = true;
+        var accent = 'orange';
+        try {
+          var saved = JSON.parse(localStorage.getItem('forzy.prefs') || 'null');
+          if (saved && saved.state) {
+            if (typeof saved.state.darkMode === 'boolean') dark = saved.state.darkMode;
+            if (saved.state.primaryColor) accent = saved.state.primaryColor;
+          }
+        } catch (e) {
+          /* localStorage bloqueado ou JSON corrompido: segue no padrão */
+        }
+        var root = document.documentElement;
+        if (dark) root.classList.add('dark');
+        root.classList.add('theme-' + accent);
+      })();
+    </script>
   </head>
-  <body class="bg-[#07080D] text-slate-100 antialiased">
+  <!-- Sem cor cravada aqui: quem pinta fundo e texto é a regra `body` do
+       index.css, via as variáveis do tema. Com `bg-[#07080D]` fixo, o tema
+       claro deixava o corpo escuro por baixo da casca do app. -->
+  <body class="antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

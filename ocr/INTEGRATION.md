@@ -9,7 +9,7 @@ do gêmeo digital (tela **Equipamentos → Registro de Equipamento**).
 ┌──────────────┐   POST /ocr/extract (multipart)   ┌────────────────────────┐
 │   Frontend   │ ────────────────────────────────► │  Modelo OCR (FastAPI)  │
 │  (Vite/React)│                                    │  uvicorn src.api.main  │
-│              │ ◄──────────────────────────────── │  EasyOCR + Gemini      │
+│              │ ◄──────────────────────────────── │  EasyOCR + GPT Vision  │
 └──────────────┘        OCRResponse (JSON)          └────────────────────────┘
 ```
 
@@ -32,8 +32,8 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 
-# (opcional) habilita o fallback Gemini Vision:
-cp .env.example .env   # e preencha GEMINI_API_KEY
+# habilita o modo/fallback GPT Vision:
+cp .env.example .env   # e preencha OPENAI_API_KEY
 
 # Windows: force UTF-8 (a barra de progresso do EasyOCR usa caractere unicode
 # que quebra no console cp1252). PowerShell:  $env:PYTHONUTF8=1
@@ -61,7 +61,7 @@ VITE_OCR_USE_MOCK=false
 ## 3. Usar
 
 1. `npm run dev` e abra **Equipamentos**.
-2. Escolha o motor de OCR (**EasyOCR** ou **Gemini Vision**).
+2. O motor é o **GPT Vision** (`mode=gpt`); `mode=easyocr` segue disponível na API.
 3. Faça upload da foto da placa (PNG/JPG/WebP até 10 MB).
 4. Revise os campos extraídos (confiança, tipo de motor, alertas de validação física).
 5. Confirme o registro.

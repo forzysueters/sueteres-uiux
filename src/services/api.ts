@@ -1,5 +1,5 @@
 import {
-  Asset, Alert, KPIMetrics, Area, NewAssetInput, InactiveAsset,
+  Asset, Alert, KPIMetrics, Area, NewAssetInput, InactiveAsset, PlatformUser,
   ChatMessage, Sensor, SensorHistorySeries, MotorNameplate,
   Technician, NewMaintenanceOrder,
 } from '../types';
@@ -15,10 +15,24 @@ import {
 import { assetStatusFromSensors } from '../utils/plantStatus';
 import { supabase, describeSupabaseError } from '../lib/supabase';
 import type { Json, ViewRow } from '../types/database';
+import type { UserRole } from '../types/auth';
 
 // Força o uso do mock mesmo com backend disponível (útil para demo offline)
 const FORCE_OCR_MOCK = import.meta.env.VITE_OCR_USE_MOCK === 'true';
 const FORCE_ANOMALY_MOCK = import.meta.env.VITE_ANOMALY_USE_MOCK === 'true';
+
+/**
+ * Disjuntor do serviço de anomalia.
+ *
+ * `scoreAnomaly` roda por ativo, a cada ciclo de atualização, e não guardava
+ * que o backend acabou de recusar conexão: com a porta 8001 fora do ar, oito
+ * ativos a cada cinco segundos passavam de mil requisições recusadas em quinze
+ * minutos, cada uma com um erro no console. Depois de uma falha de rede, a
+ * frota inteira vai direto ao mock por esta janela; a primeira chamada depois
+ * dela sonda o serviço de novo, e um sucesso rearma o disjuntor na hora.
+ */
+const ANOMALY_RETRY_COOLDOWN_MS = 60_000;
+let anomalyOfflineUntil = 0;
 
 function fail(error: unknown, message: string): never {
   throw new Error(describeSupabaseError(error, message));
@@ -220,6 +234,7 @@ function mapAsset(row: ViewRow<'v_assets_full'>): Asset {
     area: (row.area_name as string) ?? '',
     areaId: (row.area_id as string) ?? null,
     location: row.location as string,
+    criticality: (row.criticality as Asset['criticality']) ?? 'medium',
     status: row.status as Asset['status'],
     uptime: Number(row.uptime ?? 0),
     sensors: rawSensors.map((s) => mapSensor(s, tag)),
@@ -303,6 +318,14 @@ const conditionOf = (asset: Asset): number => {
   if (relevantes.length === 0) return 0;
   return Math.max(...relevantes.map((s) => deviationOf(s, asset.tag)));
 };
+
+/**
+ * Idade máxima de um diagnóstico do servidor para ele valer.
+ *
+ * O avaliador agendado roda de 5 em 5 minutos; 12 minutos dá folga para um
+ * ciclo perdido sem cair para o caminho do cliente à toa.
+ */
+const SERVER_SCORE_MAX_AGE_MS = 12 * 60 * 1000;
 
 // Constantes calibradas empiricamente contra o serviço de anomalia (porta 8001).
 const AN_WINDOW_POINTS = 30;         // 30 x 10s = 5 min (casa com RESAMPLE_RULE/FEATURE_WIN)
@@ -436,9 +459,32 @@ export const apiService = {
     if (error) fail(error, 'Não foi possível carregar os ativos.');
     const assets = (data ?? []).map(mapAsset);
 
-    // Pontua todos os ativos com o modelo real (fallback p/ mock se offline).
+    // O diagnóstico é do SERVIDOR quando ele está fresco.
+    //
+    // O avaliador roda no banco a cada 5 minutos (migração 0018) e grava saúde,
+    // severidade e insight no próprio ativo. Repontuar aqui sobrescrevia tudo
+    // isso com o resultado do navegador — e o resultado dependia de quem estava
+    // olhando: com o serviço Python local no ar, um número; sem ele, o mock,
+    // outro. Pior, `getAssetById` sempre leu o banco, então a lista da planta e
+    // a tela do ativo mostravam diagnósticos diferentes para o mesmo motor.
+    //
+    // O caminho do cliente continua existindo para quem roda sem o cenário
+    // agendado (ou com ele parado): só entra quando o servidor não tem
+    // diagnóstico recente para aquele ativo.
+    const scoredAt = new Map<string, number>(
+      (data ?? []).map((row) => [
+        String((row as Record<string, unknown>).id),
+        (row as Record<string, unknown>).scored_at
+          ? new Date(String((row as Record<string, unknown>).scored_at)).getTime()
+          : 0,
+      ]),
+    );
+
     await Promise.all(
       assets.map(async (asset) => {
+        const age = Date.now() - (scoredAt.get(asset.id) ?? 0);
+        if (asset.severity && age < SERVER_SCORE_MAX_AGE_MS) return;
+
         let result: ScoreResult;
         try {
           result = await apiService.scoreAnomaly(asset);
@@ -460,17 +506,49 @@ export const apiService = {
   },
 
   /**
+   * Os ativos, sem passar pelo modelo de anomalia.
+   *
+   * `getAssets()` dispara `scoreAnomaly` para CADA ativo (ida ao FastAPI mais
+   * `persistScore`) porque a planta precisa do diagnóstico. Uma listagem de
+   * gestão — TAG, nome, área, quem tem placa, quem tem sensor — não precisa de
+   * nada disso, e pagar N chamadas de rede para preencher uma tabela seria
+   * desperdício puro.
+   *
+   * O `status` continua correto: `mapAsset` já o deriva dos sensores.
+   */
+  async listAssets(): Promise<Asset[]> {
+    const { data, error } = await supabase
+      .from('v_assets_full')
+      .select('*')
+      .order('tag', { ascending: true });
+
+    if (error) fail(error, 'Não foi possível carregar os ativos.');
+    return (data ?? []).map(mapAsset);
+  },
+
+  /**
    * Pontua um ativo com o serviço de anomalia (pasta `anomaly/`, FastAPI).
    * Cai para mock determinístico apenas quando o backend está inacessível.
    */
   async scoreAnomaly(asset: Asset): Promise<ScoreResult> {
-    if (!FORCE_ANOMALY_MOCK) {
+    if (!FORCE_ANOMALY_MOCK && Date.now() >= anomalyOfflineUntil) {
       try {
         const resp = await anomalyAPI.score(buildReadings(asset));
+        anomalyOfflineUntil = 0;
         return { ...resp, modelUsed: 'anomaly' };
       } catch (err) {
         if (!(err instanceof AnomalyNetworkError)) throw err;
-        console.warn('[anomaly] backend offline — usando mock:', (err as Error).message);
+        // A frota é pontuada em paralelo, então os oito ativos já estão em voo
+        // quando o primeiro recusa: sem este guarda seriam oito avisos idênticos
+        // por sondagem. Loga quem abriu o disjuntor; os outros seguem calados.
+        const jaEstavaAberto = anomalyOfflineUntil > Date.now();
+        anomalyOfflineUntil = Date.now() + ANOMALY_RETRY_COOLDOWN_MS;
+        if (!jaEstavaAberto) {
+          console.warn(
+            `[anomaly] backend offline — usando mock e só tentando de novo em ${ANOMALY_RETRY_COOLDOWN_MS / 1000}s:`,
+            (err as Error).message,
+          );
+        }
       }
     }
     return mockScoreAnomaly(asset);
@@ -766,7 +844,7 @@ export const apiService = {
         insulation_class: nameplate.insulation_class || null,
         image_url: image?.url ?? null,
         storage_path: image?.path ?? null,
-        ocr_provider: meta?.provider ?? 'gemini',
+        ocr_provider: meta?.provider ?? 'gpt',
         // A UI trabalha em 0-100; o banco guarda 0-1.
         ocr_confidence: confidence != null ? Math.min(Math.max(confidence / 100, 0), 1) : null,
         ocr_raw: meta?.raw ?? {},
@@ -790,73 +868,31 @@ export const apiService = {
    * filtram todos por `confirmed`. Sem isso, uma falha no meio do caminho
    * deixaria um ativo órfão que só um admin conseguiria apagar.
    */
-  async confirmNameplate(nameplateId: string, assetId: string | null): Promise<void> {
-    const { data: auth } = await supabase.auth.getUser();
+  /**
+   * Confirma a placa e a vincula ao ativo.
+   *
+   * Delegado à RPC `confirm_nameplate` (migração 0016) por dois motivos:
+   *
+   * 1. **Permissão.** Confirmar é um UPDATE em `asset_nameplates`, e update de
+   *    placa é faixa 2 — o técnico, que pode registrar, não poderia confirmar
+   *    o que acabou de registrar. A RPC distingue registrar de corrigir à mão
+   *    pelo `ocr_provider`, e roda como o dono.
+   * 2. **Atomicidade.** Antes eram quatro idas ao banco, com uma janela em que
+   *    a placa anterior já estava rebaixada e a nova ainda não confirmada.
+   *
+   * A checagem de número de série duplicado e a mensagem de erro vivem agora
+   * dentro da função SQL.
+   */
+  // `assetId` não é nulo: a RPC aceita null (placa sem vínculo, para associar
+  // depois), mas nenhum caminho da interface usa isso hoje — os dois chamadores
+  // passam um ativo resolvido.
+  async confirmNameplate(nameplateId: string, assetId: string): Promise<void> {
+    const { error } = await supabase.rpc('confirm_nameplate', {
+      p_nameplate_id: nameplateId,
+      p_asset_id: assetId,
+    });
 
-    if (assetId) {
-      // A checagem de série vem ANTES de rebaixar a placa anterior: se o
-      // conflito só aparecesse no update final, o ativo já teria perdido a
-      // placa que tinha e ficaria sem nenhuma confirmada.
-      const { data: draft } = await supabase
-        .from('asset_nameplates')
-        .select('serial_number')
-        .eq('id', nameplateId)
-        .maybeSingle();
-
-      if (draft?.serial_number) {
-        const { data: clash } = await supabase
-          .from('asset_nameplates')
-          .select('id, assets(tag)')
-          .eq('serial_number', draft.serial_number)
-          .eq('status', 'confirmed')
-          .neq('asset_id', assetId)
-          .maybeSingle();
-
-        if (clash) {
-          const other = (Array.isArray(clash.assets) ? clash.assets[0] : clash.assets) as
-            | { tag: string } | null;
-          throw new Error(
-            `O número de série "${draft.serial_number}" já pertence a uma placa confirmada`
-            + `${other?.tag ? ` do ativo ${other.tag}` : ''}. Confira o campo antes de registrar.`,
-          );
-        }
-      }
-
-      // Reprocessar a placa de um ativo que já tem uma confirmada esbarraria em
-      // `nameplates_serial_key` (único parcial sobre serial_number onde status =
-      // 'confirmed'): a foto nova traz o mesmo número de série. A anterior é
-      // rebaixada primeiro — o enum não tem 'superseded', e 'rejected' é o mais
-      // próximo; a linha continua no banco com sua auditoria, nada se perde.
-      const { error: supersedeError } = await supabase
-        .from('asset_nameplates')
-        .update({ status: 'rejected' })
-        .eq('asset_id', assetId)
-        .eq('status', 'confirmed')
-        .neq('id', nameplateId);
-
-      if (supersedeError) fail(supersedeError, 'Não foi possível substituir a placa anterior.');
-    }
-
-    const { error } = await supabase
-      .from('asset_nameplates')
-      .update({
-        asset_id: assetId,
-        status: 'confirmed',
-        confirmed_by: auth.user?.id ?? null,
-        confirmed_at: new Date().toISOString(),
-      })
-      .eq('id', nameplateId);
-
-    if (error) {
-      // O serial já pertence a uma placa confirmada de OUTRO ativo.
-      if ((error as { code?: string }).code === '23505') {
-        throw new Error(
-          'Já existe uma placa confirmada com este número de série em outro ativo. '
-          + 'Confira o campo "Número de Série" antes de registrar.',
-        );
-      }
-      fail(error, 'Não foi possível confirmar a placa.');
-    }
+    if (error) fail(error, 'Não foi possível confirmar a placa.');
   },
 
   /**
@@ -970,6 +1006,57 @@ export const apiService = {
    * aquela vista faz `.find()` por célula, um dos dois sumiria da tela. Por
    * isso o chamador passa uma célula livre junto.
    */
+  /**
+   * Edita os dados cadastrais de um ativo.
+   *
+   * Deliberadamente NÃO aceita `area_id` nem posição: trocar a área sem
+   * reposicionar deixaria o ativo desenhado fora do próprio hall — a
+   * incoerência que o editor de layout existe para impedir. Mudança de hall é
+   * feita lá, arrastando, onde a confirmação e o reposicionamento andam juntos.
+   *
+   * As colunas de saída do modelo (health_index, anomaly_score…) nem precisam
+   * ser filtradas aqui: a migração 0016 as removeu do privilégio de coluna de
+   * `authenticated`.
+   */
+  async updateAsset(
+    assetId: string,
+    patch: {
+      tag?: string;
+      name?: string;
+      type?: Asset['type'];
+      location?: string;
+      criticality?: NewAssetInput['criticality'];
+    },
+  ): Promise<void> {
+    const { data, error } = await supabase
+      .from('assets')
+      .update({
+        ...(patch.tag !== undefined ? { tag: patch.tag } : {}),
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.type !== undefined ? { asset_type: patch.type } : {}),
+        ...(patch.location !== undefined ? { location: patch.location } : {}),
+        ...(patch.criticality !== undefined ? { criticality: patch.criticality } : {}),
+      })
+      .eq('id', assetId)
+      .select('id');
+
+    if (error) {
+      const code = (error as { code?: string }).code;
+      if (code === '23505') {
+        throw new Error(`Já existe um ativo com a TAG "${patch.tag}" nesta planta.`);
+      }
+      if (code === '42501') {
+        throw new Error('Editar ativo exige engenheiro ou administrador.');
+      }
+      fail(error, 'Não foi possível salvar o ativo.');
+    }
+
+    // Zero linhas = RLS recusou sem erro, como em `updateAssetLayout`.
+    if (!data?.length) {
+      throw new Error('Alteração recusada pelo banco — editar ativo exige engenheiro ou administrador.');
+    }
+  },
+
   async updateAssetLayout(
     assetId: string,
     layout: {
@@ -1056,13 +1143,158 @@ export const apiService = {
    * telemetria junto. Requer admin ou engenheiro (migração 0015).
    */
   async deleteAsset(assetId: string): Promise<void> {
-    const { error } = await supabase.from('assets').delete().eq('id', assetId);
+    // `.select('id')` pelo mesmo motivo de `updateAssetLayout`: um DELETE
+    // recusado pela RLS não devolve erro, devolve zero linhas.
+    const { data, error } = await supabase
+      .from('assets').delete().eq('id', assetId).select('id');
 
     if (error) {
       if ((error as { code?: string }).code === '42501') {
-        throw new Error('Seu papel não permite apagar ativos. Necessário administrador ou engenheiro.');
+        throw new Error('Apagar ativo em definitivo é exclusivo do administrador.');
       }
       fail(error, 'Não foi possível apagar o ativo.');
+    }
+
+    if (!data?.length) {
+      throw new Error('Exclusão recusada pelo banco — apagar ativo é exclusivo do administrador.');
+    }
+  },
+
+  // ─── Administração de usuários ────────────────────────────────────────────
+
+  /**
+   * Usuários da plataforma. Lê de `v_admin_users`, que junta `profiles` com
+   * `auth.users` e já resolve a divergência entre o papel autorizado
+   * (`profiles.role`, a fonte da verdade) e o provisionado
+   * (`app_metadata.role`, a semente). A própria view filtra por `is_admin()`,
+   * então para qualquer outro papel ela volta vazia.
+   */
+  async getUsers(): Promise<PlatformUser[]> {
+    const { data, error } = await supabase
+      .from('v_admin_users')
+      .select('*')
+      // Inativos primeiro: é a fila de aprovação de quem se cadastrou sozinho.
+      .order('is_active', { ascending: true })
+      .order('full_name');
+
+    if (error) fail(error, 'Não foi possível carregar os usuários.');
+
+    return (data ?? []).map((row) => ({
+      id: row.id as string,
+      email: row.email as string,
+      name: (row.full_name as string) || (row.email as string),
+      role: row.role as UserRole,
+      isActive: Boolean(row.is_active),
+      jobTitle: (row.job_title as string) ?? null,
+      department: (row.department as string) ?? null,
+      lastLoginAt: (row.last_sign_in_at as string) ?? (row.last_login_at as string) ?? null,
+      createdAt: row.created_at as string,
+      roleOutOfSync: Boolean(row.role_out_of_sync),
+    }));
+  },
+
+  /**
+   * Muda papel e/ou estado de um usuário.
+   *
+   * O banco tem a última palavra: `guard_profile_privileges` recusa não-admin,
+   * o admin rebaixando a si mesmo e a remoção do último admin ativo. A tela
+   * esconde esses casos, mas a garantia não é a tela.
+   */
+  /**
+   * Cria um login de acesso para outra pessoa.
+   *
+   * Delega à Edge Function `create-user` porque criar conta exige a Auth Admin
+   * API, que só responde à service role key — e essa chave ignora toda a RLS,
+   * então não pode existir no navegador. A function reconfirma no banco que
+   * quem chamou é administrador ativo antes de criar qualquer coisa.
+   *
+   * `admin` não é um papel atribuível: conceder esse papel é feito fora do
+   * produto (ver migração 0017).
+   */
+  async createUser(input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    role: Exclude<UserRole, 'admin'>;
+  }): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('create-user', { body: input });
+
+    if (error) {
+      // O corpo da function carrega o motivo; sem lê-lo, todo problema vira
+      // "Edge Function returned a non-2xx status code" na tela.
+      const ctx = (error as {
+        context?: { json?: () => Promise<{ error?: string; message?: string }> };
+      }).context;
+
+      let code: string | undefined;
+      let message: string | undefined;
+      if (typeof ctx?.json === 'function') {
+        try {
+          const detail = await ctx.json();
+          code = detail?.error;
+          message = detail?.message;
+        } catch {
+          /* corpo não-JSON: fica a mensagem genérica abaixo */
+        }
+      }
+      const BY_CODE: Record<string, string> = {
+        email_taken: 'Já existe uma conta com esse e-mail.',
+        forbidden: 'Criar usuários é exclusivo do administrador.',
+        invalid_email: 'Informe um endereço de e-mail válido.',
+        invalid_role: 'Papel inválido.',
+        name_required: 'Informe nome e sobrenome.',
+        weak_password: 'A senha deve ter pelo menos 8 caracteres.',
+      };
+
+      // Sem corpo legível, a requisição não chegou a completar — e o navegador
+      // não deixa saber por quê. Quando a function não está publicada, a gateway
+      // responde 404 SEM cabeçalho de CORS; o navegador bloqueia a resposta e o
+      // JavaScript recebe só "Failed to fetch", indistinguível de estar offline
+      // (verificado ao vivo contra o projeto). Como não dá para separar os dois,
+      // a mensagem cita a causa mais provável em vez de fingir certeza.
+      const unreachable = typeof ctx?.json !== 'function';
+      const fallback = unreachable
+        ? 'Não foi possível falar com o servidor. A causa mais comum é a function `create-user` não estar publicada (supabase functions deploy create-user); também pode ser falta de conexão.'
+        : 'Não foi possível criar o usuário.';
+
+      throw new Error((code && BY_CODE[code]) ?? message ?? fallback);
+    }
+
+    // 207: a conta nasceu, mas o papel não foi aplicado. É sucesso pela metade
+    // — fingir sucesso inteiro deixaria alguém com o papel errado sem ninguém
+    // saber.
+    if ((data as { error?: string } | null)?.error === 'profile_incomplete') {
+      throw new Error(
+        (data as { message?: string }).message ??
+          'Conta criada, mas o papel não foi aplicado. Ajuste na lista de usuários.',
+      );
+    }
+  },
+
+  async updateUserAccess(
+    userId: string,
+    patch: { role?: UserRole; isActive?: boolean },
+  ): Promise<void> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        ...(patch.role ? { role: patch.role } : {}),
+        ...(patch.isActive !== undefined ? { is_active: patch.isActive } : {}),
+      })
+      .eq('id', userId)
+      .select('id');
+
+    if (error) {
+      if ((error as { code?: string }).code === '42501') {
+        throw new Error('Gerir usuários é exclusivo do administrador.');
+      }
+      fail(error, 'Não foi possível atualizar o usuário.');
+    }
+
+    // Zero linhas = RLS recusou sem erro, a mesma armadilha de `resolve_alert`.
+    if (!data?.length) {
+      throw new Error('Alteração recusada pelo banco — gerir usuários é exclusivo do administrador.');
     }
   },
 
@@ -1132,10 +1364,10 @@ export const apiService = {
    * Envia a pergunta, o histórico recente e o ativo em foco para a Edge
    * Function `ai-chat`, que monta o contexto real do site (telemetria,
    * alertas, predições, manutenção, documentação técnica) e delega a redação
-   * da resposta ao Gemini — preservando o contexto entre turnos da conversa.
+   * da resposta ao GPT — preservando o contexto entre turnos da conversa.
    *
    * Se a function não estiver disponível (não implantada, sem
-   * `GEMINI_API_KEY`, ou offline), cai para o motor determinístico local
+   * `OPENAI_API_KEY`, ou offline), cai para o motor determinístico local
    * (`assistantEngine`), no mesmo padrão de fallback já usado para OCR e
    * anomalia: a demo nunca quebra, só perde a redação em linguagem natural.
    *
@@ -1239,6 +1471,9 @@ export const apiService = {
 
 // ─── Realtime ───────────────────────────────────────────────────────────────
 
+/** Piso entre duas buscas do mesmo ativo, por mais eventos que cheguem. */
+const REALTIME_MIN_INTERVAL_MS = 3000;
+
 /**
  * Acompanha um ativo. Reage a mudanças em `assets` e a novas leituras via
  * Realtime do Postgres, com um poll de segurança caso o canal não esteja
@@ -1246,8 +1481,11 @@ export const apiService = {
  */
 export const startRealtimeUpdates = (assetId: string, callback: (asset: Asset) => void) => {
   let stopped = false;
+  let lastRun = 0;
+  let pending: ReturnType<typeof setTimeout> | undefined;
 
-  const refresh = async () => {
+  const fetchNow = async () => {
+    lastRun = Date.now();
     if (stopped) return;
     try {
       const updated = await apiService.getAssetById(assetId);
@@ -1257,26 +1495,45 @@ export const startRealtimeUpdates = (assetId: string, callback: (asset: Asset) =
     }
   };
 
+  /**
+   * Rajada de eventos vira um refresh só.
+   *
+   * Cada leitura inserida acorda este canal, e com o cenário agendado (0018)
+   * são 3 sensores x 6 leituras por minuto no mesmo ativo — perto de 20 eventos
+   * por minuto, cada um disparando uma consulta completa da view. O ativo não
+   * muda 20 vezes por minuto: o que muda é a última leitura, e ela chega em
+   * bloco. Um piso de 3s entre buscas mantém o gauge vivo e corta o resto.
+   */
+  const refresh = () => {
+    if (stopped || pending) return;
+    const wait = Math.max(0, REALTIME_MIN_INTERVAL_MS - (Date.now() - lastRun));
+    pending = setTimeout(() => {
+      pending = undefined;
+      void fetchNow();
+    }, wait);
+  };
+
   const channel = supabase
     .channel(`asset-${assetId}`)
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'assets', filter: `id=eq.${assetId}` },
-      () => void refresh(),
+      () => refresh(),
     )
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'sensor_readings', filter: `asset_id=eq.${assetId}` },
-      () => void refresh(),
+      () => refresh(),
     )
     .subscribe();
 
-  const interval = setInterval(() => void refresh(), 10_000);
-  void refresh();
+  const interval = setInterval(() => refresh(), 10_000);
+  void fetchNow();
 
   return () => {
     stopped = true;
     clearInterval(interval);
+    clearTimeout(pending);
     void supabase.removeChannel(channel);
   };
 };

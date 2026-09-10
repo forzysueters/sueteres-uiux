@@ -14,10 +14,13 @@ export const AlertsPage: React.FC = () => {
   const [search, setSearch] = useState('');
 
   const filteredAlerts = alerts.filter(alert => {
+    // "Críticos" e "Alertas" são recortes do que está EM ABERTO. Sem o
+    // `!resolved`, clicar em "Críticos 1" abria um alerta já resolvido numa
+    // tela cujo título promete o que precisa de atenção agora.
     const matchesFilter =
       filter === 'all' ||
-      (filter === 'critical' && alert.severity === 'critical') ||
-      (filter === 'warning' && alert.severity === 'warning') ||
+      (filter === 'critical' && alert.severity === 'critical' && !alert.resolved) ||
+      (filter === 'warning' && alert.severity === 'warning' && !alert.resolved) ||
       (filter === 'resolved' && alert.resolved);
 
     const q = search.toLowerCase();
@@ -31,11 +34,16 @@ export const AlertsPage: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
+  // Severidade e status contavam populações diferentes lado a lado: `critical`
+  // somava resolvidos, `active` não. Dava a faixa "1 CRÍTICO · 0 ATIVOS" com
+  // tudo resolvido — dois números que se contradizem no mesmo cabeçalho.
+  // Agora as contagens de severidade também falam só do que está em aberto.
+  const open = alerts.filter(a => !a.resolved);
   const stats = {
     total: alerts.length,
-    critical: alerts.filter(a => a.severity === 'critical').length,
-    warning: alerts.filter(a => a.severity === 'warning').length,
-    active: alerts.filter(a => !a.resolved).length,
+    critical: open.filter(a => a.severity === 'critical').length,
+    warning: open.filter(a => a.severity === 'warning').length,
+    active: open.length,
     resolved: alerts.filter(a => a.resolved).length,
   };
 

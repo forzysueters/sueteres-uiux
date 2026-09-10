@@ -57,13 +57,9 @@ const users = [
     job_title: 'Técnico de Manutenção',
     department: 'Manutenção Industrial',
   },
-  {
-    email: 'viewer@industrial.com',
-    full_name: 'Marina Alves',
-    role: 'viewer',
-    job_title: 'Analista de Operações',
-    department: 'Operações',
-  },
+  // A conta `viewer@industrial.com` saiu na migração 0016: o papel deixou de
+  // existir. Se ela ainda estiver no projeto, a migração a rebaixou para
+  // technician INATIVO — o admin decide na tela de usuários se libera ou apaga.
 ]
 
 const headers = {

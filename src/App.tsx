@@ -21,12 +21,17 @@ import {
   ChevronDown,
   Menu,
   X,
+  Users,
 } from 'lucide-react'
 import { useAppStore } from './store/appStore'
 import { translations } from './translations'
 import { useAuthStore } from './store/authStore'
 import { useAlerts } from './hooks/useAlerts'
 import { ROLE_LABELS } from './types/auth'
+import { usePermissions } from './hooks/usePermissions'
+import { RequireCapability } from './auth/Can'
+import type { Capability } from './auth/permissions'
+import { UsersPage } from './pages/admin/UsersPage'
 import { Dashboard } from './pages/Dashboard'
 import { PlantNavigation } from './pages/PlantNavigation'
 import { AssetMonitorPage } from './pages/AssetMonitorPage'
@@ -36,6 +41,7 @@ import { AssistantPage } from './pages/AssistantPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AccountPage } from './pages/AccountPage'
 import { LoginPage } from './pages/LoginPage'
+import { NotFoundPage } from './pages/NotFoundPage'
 import logoWhite from './assets/logo-forzy-branca.svg'
 import logoBlack from './assets/logo-forzy-preta.svg'
 import { cn } from './lib/utils'
@@ -43,6 +49,7 @@ import { AssistantProvider } from './assistant'
 
 const AppContent = () => {
   const { darkMode, primaryColor, language } = useAppStore()
+  const { can } = usePermissions()
   const { logout, user } = useAuthStore()
   const { alerts } = useAlerts()
   const activeAlertsCount = alerts.filter((a) => !a.resolved).length
@@ -61,6 +68,14 @@ const AppContent = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+
+  // Quem rola é o <main>, não a janela — e trocar de rota não mexia nele.
+  // Rolar o Painel até o fim e clicar em Equipamentos entregava a página nova
+  // começando no meio, longe do título. Volta ao topo a cada caminho novo.
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 })
+  }, [location.pathname])
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
@@ -90,13 +105,17 @@ const AppContent = () => {
     setShowMobileMenu(false)
   }, [location])
 
-  const navItems = [
+  // Item sem `cap` aparece para todos; com `cap`, só para quem a tem. Filtrar
+  // aqui é o que impede o técnico de ver um menu que o levaria a uma rota que
+  // o redirecionaria de volta.
+  const navItems = ([
     { id: 'plant', label: t.nav.plant, path: '/planta', icon: Factory },
     { id: 'dashboard', label: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
     { id: 'equipment', label: t.nav.equipment, path: '/equipamentos', icon: Cpu },
+    { id: 'users', label: t.nav.users, path: '/admin/usuarios', icon: Users, cap: 'user:manage' as const },
     // O Assistente saiu do menu: agora se chega nele pelo botão "Expandir" do
     // Órion, no canto da tela. A rota /assistente continua valendo.
-  ]
+  ]).filter((item) => !('cap' in item) || can(item.cap as Capability))
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground font-sans overflow-hidden">
@@ -321,7 +340,7 @@ const AppContent = () => {
       </AnimatePresence>
 
       {/* Page content */}
-      <main className="flex-1 overflow-y-auto scrollbar-thin">
+      <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8 overflow-x-clip">
           <AnimatePresence mode="wait">
             <motion.div
@@ -340,7 +359,19 @@ const AppContent = () => {
                 <Route path="/assistente" element={<AssistantPage />} />
                 <Route path="/configuracoes" element={<SettingsPage />} />
                 <Route path="/conta" element={<AccountPage />} />
+                <Route
+                  path="/admin/usuarios"
+                  element={
+                    <RequireCapability cap="user:manage">
+                      <UsersPage />
+                    </RequireCapability>
+                  }
+                />
                 <Route path="/" element={<Navigate to="/planta" replace />} />
+                {/* Sem esta, qualquer caminho desconhecido (um link antigo, uma
+                    URL digitada errada) renderizava o cabeçalho e uma área de
+                    conteúdo vazia, sem dizer nada. */}
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </motion.div>
           </AnimatePresence>

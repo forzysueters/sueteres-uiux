@@ -24,7 +24,7 @@ import {
   TelemetryRow,
 } from '../services/api'
 import { useAppStore } from '../store/appStore'
-import { tooltipStyle } from '../theme'
+import { tooltipItemStyle, tooltipStyle } from '../theme'
 import { translations } from '../translations'
 import { STATUS_COLORS, statusLabel } from '../utils/plantStatus'
 
@@ -417,6 +417,7 @@ export const Dashboard: React.FC = () => {
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
+                    itemStyle={tooltipItemStyle}
                     labelFormatter={(value) => new Date(value).toLocaleString(locale(language))}
                   />
                   <Legend />

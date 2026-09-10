@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { statusFor, reasonFor, limitFor, sensorByRole } from './sensorLimits';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import {
+  statusFor, reasonFor, limitFor, sensorByRole,
+  registerSensorLimits, clearRegisteredLimits,
+} from './sensorLimits';
 import type { Sensor } from '../types';
 
 describe('statusFor — direção "above" (alto é ruim)', () => {
@@ -18,18 +21,24 @@ describe('statusFor — direção "above" (alto é ruim)', () => {
 });
 
 describe('statusFor — direção "below" (baixo é ruim)', () => {
-  // Vazão da bomba: warn 120 / crit 100 L/min. Só existe como override de
-  // pump-001 — vazão não é uma grandeza com limite universal.
+  // Nenhum ativo da planta usa 'below' desde a 0020 — vazão e rotação saíram
+  // por não terem transdutor. A direção continua existindo no motor de limites
+  // (um CLP futuro traz vazão de volta), então o caso segue coberto aqui com
+  // um limite registrado, e nos testes de `registerSensorLimits` mais abaixo.
+  const VAZAO = { warn: 120, crit: 100, direction: 'below' as const };
+  beforeEach(() => registerSensorLimits('CLP-001', 'Vazão', VAZAO));
+  afterEach(() => clearRegisteredLimits());
+
   it('acima do warn é normal', () => {
-    expect(statusFor('Vazão', 149.59, 'BBA-001')).toBe('normal');
+    expect(statusFor('Vazão', 149.59, 'CLP-001')).toBe('normal');
   });
   it('a partir do warn é warning', () => {
-    expect(statusFor('Vazão', 120, 'BBA-001')).toBe('warning');
-    expect(statusFor('Vazão', 110, 'BBA-001')).toBe('warning');
+    expect(statusFor('Vazão', 120, 'CLP-001')).toBe('warning');
+    expect(statusFor('Vazão', 110, 'CLP-001')).toBe('warning');
   });
   it('a partir do crit é critical', () => {
-    expect(statusFor('Vazão', 100, 'BBA-001')).toBe('critical');
-    expect(statusFor('Vazão', 80, 'BBA-001')).toBe('critical');
+    expect(statusFor('Vazão', 100, 'CLP-001')).toBe('critical');
+    expect(statusFor('Vazão', 80, 'CLP-001')).toBe('critical');
   });
 });
 
@@ -49,12 +58,15 @@ describe('statusFor — direção "band" (desvio nos dois sentidos)', () => {
 
 describe('limitFor — resolução por ativo', () => {
   it('usa o override do ativo quando existe', () => {
-    // fan-001 é 0,75 kW → ISO 10816-3 classe I, limites mais apertados
-    expect(limitFor('Vibração', 'EXA-001')?.warn).toBe(2.8);
-    expect(limitFor('Vibração', 'CMP-001')?.warn).toBe(4.5);
+    // EXA-001 é 0,75 kW → ISO 10816-3 classe I, limites mais apertados que os
+    // do compressor de 22 kW, que é classe II. Mesma grandeza, mesmo nome,
+    // limite diferente — é exatamente para isso que o override por ativo existe.
+    expect(limitFor('Velocidade', 'EXA-001')?.warn).toBe(2.8);
+    expect(limitFor('Velocidade', 'CMP-001')?.warn).toBe(4.5);
   });
   it('cai no limite genérico quando o ativo não tem override', () => {
-    expect(limitFor('Vibração')?.warn).toBe(4.5);
+    expect(limitFor('Velocidade')?.warn).toBe(4.5);
+    expect(limitFor('Velocidade', 'ATIVO-SEM-OVERRIDE')?.warn).toBe(4.5);
   });
   it('retorna null para grandeza desconhecida', () => {
     expect(limitFor('Grandeza Inexistente')).toBeNull();
@@ -94,35 +106,38 @@ describe('cenário dos ativos', () => {
   const casos: [string, string, number, string][] = [
     // MTR-001 — operação nominal, nada fora de faixa. Mede as mesmas três
     // grandezas dos pontos reais do Forzy Lab.
-    ['MTR-001', 'Velocidade de Vibração', 2.08, 'normal'],
+    ['MTR-001', 'Velocidade', 2.08, 'normal'],
     ['MTR-001', 'Aceleração', 0.38, 'normal'],
     ['MTR-001', 'Temperatura', 60.34, 'normal'],
 
     // MTR-002 — rolamento em degradação. Vibração e aceleração medem o MESMO
     // fenômeno (a = 2πf·v), então têm de acusar juntas: se uma entrar em
     // warning e a outra não, os limites saíram de sincronia.
-    ['MTR-002', 'Velocidade de Vibração', 5.19, 'warning'],
+    ['MTR-002', 'Velocidade', 5.19, 'warning'],
     ['MTR-002', 'Aceleração', 0.78, 'warning'],
     ['MTR-002', 'Temperatura', 79.47, 'warning'],
 
-    // BBA-001 — nominal
-    ['BBA-001', 'Pressão', 2.65, 'normal'],
-    ['BBA-001', 'Vazão', 149.59, 'normal'],
-    ['BBA-001', 'Temperatura', 41.85, 'normal'],
-    ['BBA-001', 'Potência', 5.1, 'normal'],
+    // Desde a 0020 todo ativo mede o mesmo trio do kit real. Os limites de
+    // vibração mudam com a classe de potência da máquina, e a aceleração com a
+    // rotação de placa — é isso que os casos abaixo travam.
 
-    // CMP-001 — vibração severa; o resto opera dentro da faixa
-    ['CMP-001', 'Pressão de Saída', 7.09, 'normal'],
-    ['CMP-001', 'Temp. Entrada', 27.35, 'normal'],
-    ['CMP-001', 'Temp. Saída', 81.18, 'normal'],
-    ['CMP-001', 'Corrente Motor', 38.76, 'normal'],
-    ['CMP-001', 'Vibração', 8.08, 'critical'],
+    // BBA-001 — bomba de 5,5 kW, classe I (2,8/4,5 mm/s) a 1450 rpm
+    ['BBA-001', 'Velocidade', 1.94, 'normal'],
+    ['BBA-001', 'Aceleração', 0.29, 'normal'],
+    ['BBA-001', 'Temperatura', 58.4, 'normal'],
+    // O mesmo 3,1 mm/s que é normal num motor de 22 kW já é alerta aqui.
+    ['BBA-001', 'Velocidade', 3.1, 'warning'],
+    ['MTR-001', 'Velocidade', 3.1, 'normal'],
 
-    // EXA-001 — nominal
-    ['EXA-001', 'Velocidade', 82.9, 'normal'],
-    ['EXA-001', 'Corrente Motor', 2.96, 'normal'],
-    ['EXA-001', 'Temp. Mancal', 55.4, 'normal'],
-    ['EXA-001', 'Vibração', 0.91, 'normal'],
+    // CMP-001 — compressor de 22 kW, classe II, a 2950 rpm. Vibração severa.
+    ['CMP-001', 'Velocidade', 8.08, 'critical'],
+    ['CMP-001', 'Aceleração', 2.5, 'critical'],
+    ['CMP-001', 'Temperatura', 81.18, 'warning'],
+
+    // EXA-001 — exaustor de 0,75 kW, classe I, a 1710 rpm
+    ['EXA-001', 'Velocidade', 0.91, 'normal'],
+    ['EXA-001', 'Aceleração', 0.16, 'normal'],
+    ['EXA-001', 'Temperatura', 55.4, 'normal'],
   ];
 
   it.each(casos)('%s / %s = %s', (assetId, sensor, valor, esperado) => {
@@ -146,7 +161,7 @@ describe('sensorByRole — resolve a grandeza por papel, não por nome literal',
   // "Vibração", sensorByRole devolvia undefined e o viewer 3D dessas páginas
   // caía no default de vibração 0 — com o gauge ao lado mostrando o valor certo.
   it('acha a vibração pelo nome dos ativos reais e dos motores', () => {
-    const sensores = [s('Temperatura', 48), s('Velocidade de Vibração', 3.1)];
+    const sensores = [s('Temperatura', 48), s('Velocidade', 3.1)];
     expect(sensorByRole(sensores, 'vibration')?.value).toBe(3.1);
   });
 
@@ -155,15 +170,60 @@ describe('sensorByRole — resolve a grandeza por papel, não por nome literal',
     expect(sensorByRole(sensores, 'vibration')?.value).toBe(2.2);
   });
 
-  // EXA-001 tem um sensor "Velocidade" que é rotação em %, não vibração.
-  // Ele não pode ser confundido com "Velocidade de Vibração".
-  it('não confunde a velocidade do exaustor (% de rotação) com vibração', () => {
-    const sensores = [s('Velocidade', 84), s('Corrente Motor', 3.1)];
-    expect(sensorByRole(sensores, 'vibration')).toBeUndefined();
+  // 'Velocidade' passou a SER o nome da velocidade de vibração (0021), igual ao
+  // campo que o coletor manda. A ambiguidade com rotação — que existia enquanto
+  // EXA-001 tinha um sensor de rotação com esse nome — foi desfeita na 0020, e a
+  // 0021 pôs um trigger no banco que recusa 'Velocidade' em sensor que não seja
+  // de vibração. Ou seja: a garantia deixou de ser o nome longo aqui e passou a
+  // ser a restrição na origem do dado.
+  it('resolve "Velocidade" como vibração — é o nome do campo do coletor', () => {
+    const sensores = [s('Velocidade', 3.1), s('Temperatura', 48)];
+    expect(sensorByRole(sensores, 'vibration')?.value).toBe(3.1);
+  });
+
+  it('prefere o nome do coletor quando os dois estão presentes (dado antigo e novo)', () => {
+    const sensores = [s('Vibração', 2.2), s('Velocidade', 3.1)];
+    expect(sensorByRole(sensores, 'vibration')?.value).toBe(3.1);
   });
 
   it('resolve a temperatura sob os vários nomes que os ativos usam', () => {
     expect(sensorByRole([s('Temp. Saída', 81)], 'temperature')?.value).toBe(81);
     expect(sensorByRole([s('Temp. Mancal', 55)], 'temperature')?.value).toBe(55);
+  });
+});
+
+describe('registerSensorLimits — direção ausente (bug real da view)', () => {
+  afterEach(() => clearRegisteredLimits());
+
+  it('infere "below" quando o corte crítico está abaixo do de atenção', () => {
+    // `v_assets_full` não trazia `limit_direction` (corrigido na migração 0019).
+    // Assumir 'above' invertia a escala inteira: a Vazão de 110 L/min, que está
+    // em ALERTA (mínimo de projeto 120, crítico 100), era lida como "≥ 100,
+    // logo crítico" — e valor nenhum conseguia ser normal, porque quanto MAIS
+    // vazão, mais grave a leitura parecia.
+    registerSensorLimits('BBA-001', 'Vazão', { warn: 120, crit: 100 });
+
+    expect(limitFor('Vazão', 'BBA-001')?.direction).toBe('below');
+    expect(statusFor('Vazão', 132, 'BBA-001')).toBe('normal');    // acima do mínimo
+    expect(statusFor('Vazão', 109.9, 'BBA-001')).toBe('warning'); // caiu abaixo de 120
+    expect(statusFor('Vazão', 98, 'BBA-001')).toBe('critical');   // passou de 100 para baixo
+  });
+
+  it('infere "below" também para a rotação do exaustor', () => {
+    registerSensorLimits('EXA-001', 'Velocidade', { warn: 60, crit: 40 });
+    expect(statusFor('Velocidade', 70.2, 'EXA-001')).toBe('normal');
+    expect(statusFor('Velocidade', 38, 'EXA-001')).toBe('critical');
+  });
+
+  it('mantém "above" quando o crítico é maior — o caso comum', () => {
+    registerSensorLimits('MTR-001', 'Temperatura', { warn: 75, crit: 90 });
+    expect(limitFor('Temperatura', 'MTR-001')?.direction).toBe('above');
+    expect(statusFor('Temperatura', 68, 'MTR-001')).toBe('normal');
+    expect(statusFor('Temperatura', 92, 'MTR-001')).toBe('critical');
+  });
+
+  it('a direção explícita do banco continua vencendo a inferência', () => {
+    registerSensorLimits('EXA-001', 'Velocidade', { warn: 60, crit: 40, direction: 'below' });
+    expect(limitFor('Velocidade', 'EXA-001')?.direction).toBe('below');
   });
 });

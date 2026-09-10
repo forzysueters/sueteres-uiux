@@ -42,6 +42,7 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
 }) => {
   const { language } = useAppStore();
   const t = translations[language].plantAlertRail;
+  const common = translations[language].common;
   const ordered = useMemo(() => [...assets].sort(byTriage), [assets]);
   const needsAttention = ordered.filter((a) => a.status === 'critical' || a.status === 'warning');
   const healthy = ordered.length - needsAttention.length;
@@ -132,8 +133,15 @@ export const PlantAlertRail: React.FC<PlantAlertRailProps> = ({
                   </div>
                 )}
 
-                {/* Anomalia */}
+                {/* Anomalia
+                    O rótulo não é enfeite: a barra fica logo abaixo do valor do
+                    sensor, e sem ele o "70%" era lido como percentual DAQUELE
+                    sensor — "a pressão está em 70%?". É o índice de anomalia do
+                    ativo inteiro, grandeza diferente da linha de cima. */}
                 <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-wide text-muted">
+                    {common.anomaly}
+                  </span>
                   <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                     <div
                       className="h-full rounded-full transition-all"

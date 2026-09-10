@@ -29,9 +29,12 @@ const SENSOR_LIMITS: Record<string, SensorLimit> = {
   // ISO 10816-3, máquinas classe II (15–75 kW) em base rígida:
   // zona B/C = 4,5 mm/s (aceitável → insatisfatório), C/D = 7,1 (inaceitável).
   'Vibração': { warn: 4.5, crit: 7.1, direction: 'above', source: 'ISO 10816-3 — zona B/C e C/D' },
-  // Mesma grandeza com o nome que os pontos de medição reais usam (LAB-S1/S2) e
-  // que os motores passaram a usar. Os dois nomes coexistem de propósito: bomba,
-  // compressor e exaustor continuam com 'Vibração'.
+  // O nome que o instrumento usa. `collector_field_map` (migração 0014) nomeia
+  // os três campos do túnel do Forzy Lab — Velocidade, Aceleração, Temperatura
+  // — e desde a 0021 a tela mostra exatamente esses nomes, sem tradução no meio.
+  // 'Vibração' e 'Velocidade de Vibração' ficam como apelidos de compatibilidade
+  // para dado antigo; a unidade (mm/s) é o que desfaz a dúvida na tela.
+  'Velocidade': { warn: 4.5, crit: 7.1, direction: 'above', source: 'ISO 10816-3 — zona B/C e C/D' },
   'Velocidade de Vibração': { warn: 4.5, crit: 7.1, direction: 'above', source: 'ISO 10816-3 — zona B/C e C/D' },
 
   // Fallback provisório, herdado do cadastro dos pontos reais. O limite honesto
@@ -56,11 +59,16 @@ const SENSOR_LIMITS: Record<string, SensorLimit> = {
  * que é onde eles passaram a ser mantidos (ver supabase/seed.sql).
  */
 const ASSET_LIMIT_OVERRIDES: Record<string, Record<string, SensorLimit>> = {
-  // Os dois motores medem as mesmas três grandezas dos pontos reais do Forzy Lab
-  // (velocidade de vibração, aceleração, temperatura). A aceleração não tem
-  // limite universal: para um harmônico, a = 2πf·v, então o mesmo corte da ISO
-  // 10816-3 vale um número diferente em cada rotação. Derivar daí mantém os dois
-  // sensores do mesmo motor contando a mesma história.
+  // TODO ativo mede as mesmas três grandezas dos pontos reais do Forzy Lab
+  // (velocidade de vibração, aceleração, temperatura) — o kit é um acelerômetro,
+  // e o `collector_field_map` da migração 0014 mostra que é só isso que chega do
+  // túnel. Pressão, vazão, potência e corrente saíram na 0020: não havia
+  // transdutor por trás de nenhuma delas.
+  //
+  // A aceleração não tem limite universal: para um harmônico, a = 2πf·v, então o
+  // mesmo corte da ISO 10816-3 vale um número diferente em cada rotação. Derivar
+  // da rotação de placa mantém os dois canais de vibração contando a mesma
+  // história — e é uma conta que se defende na arguição.
   'MTR-001': {
     // 1760 rpm → 29,33 Hz → 2πf = 184,3 s⁻¹. 4,5 mm/s ⇒ 0,83 m/s²; 7,1 ⇒ 1,31.
     'Aceleração': { warn: 0.83, crit: 1.31, direction: 'above', source: 'ISO 10816-3 convertida a 1760 rpm (a = 2πf·v)' },
@@ -69,25 +77,23 @@ const ASSET_LIMIT_OVERRIDES: Record<string, Record<string, SensorLimit>> = {
     // 1465 rpm → 24,42 Hz → 2πf = 153,4 s⁻¹. 4,5 mm/s ⇒ 0,69 m/s²; 7,1 ⇒ 1,09.
     'Aceleração': { warn: 0.69, crit: 1.09, direction: 'above', source: 'ISO 10816-3 convertida a 1465 rpm (a = 2πf·v)' },
   },
+  // Bomba KSB Etanorm, 5,5 kW ⇒ ISO 10816-3 classe I. 1450 rpm ⇒ 2πf = 151,8 s⁻¹.
   'BBA-001': {
-    'Pressão': { warn: 3.5, crit: 4.2, direction: 'above', source: 'Pressão de recalque do circuito de refrigeração' },
-    // Vazão que cai indica cavitação, obstrução ou desgaste de rotor.
-    'Vazão': { warn: 120, crit: 100, direction: 'below', source: 'Vazão mínima de projeto do circuito (145 L/min nominal)' },
-    // Água de refrigeração, não enrolamento: limite bem menor que o do motor.
-    'Temperatura': { warn: 60, crit: 75, direction: 'above', source: 'Fluido de refrigeração — perda de eficiência térmica' },
-    'Potência': { warn: 5.5, crit: 6.3, direction: 'above', source: 'P = 5,5 kW de placa, fator de serviço 1,15' },
+    'Velocidade': { warn: 2.8, crit: 4.5, direction: 'above', source: 'ISO 10816-3 — classe I, zona B/C e C/D' },
+    'Aceleração': { warn: 0.43, crit: 0.68, direction: 'above', source: 'ISO 10816-3 convertida a 1450 rpm (a = 2πf·v)' },
+    'Temperatura': { warn: 70, crit: 85, direction: 'above', source: 'Mancal — graxa de rolamento, vida útil cai pela metade a cada +15 °C' },
   },
+  // Compressor Atlas Copco GA 22+, 22 kW ⇒ classe II. 2950 rpm ⇒ 2πf = 308,9 s⁻¹.
   'CMP-001': {
-    'Pressão de Saída': { warn: 8.5, crit: 9.5, direction: 'above', source: 'Pressão de trabalho 7 bar, alívio da válvula em 9,5' },
-    'Temp. Entrada': { warn: 40, crit: 50, direction: 'above', source: 'Ar de admissão — acima disso a eficiência volumétrica cai' },
-    'Temp. Saída': { warn: 95, crit: 110, direction: 'above', source: 'Descarga — degradação do óleo do estágio' },
-    'Corrente Motor': { warn: 42.0, crit: 48.3, direction: 'above', source: 'In = 42,0 A de placa, fator de serviço 1,15' },
+    'Velocidade': { warn: 4.5, crit: 7.1, direction: 'above', source: 'ISO 10816-3 — classe II, zona B/C e C/D' },
+    'Aceleração': { warn: 1.39, crit: 2.19, direction: 'above', source: 'ISO 10816-3 convertida a 2950 rpm (a = 2πf·v)' },
+    'Temperatura': { warn: 75, crit: 90, direction: 'above', source: 'Mancal — isolamento classe F' },
   },
+  // Exaustor WEG W21, 0,75 kW ⇒ classe I. 1710 rpm ⇒ 2πf = 179,1 s⁻¹.
   'EXA-001': {
-    // 0,75 kW → ISO 10816-3 classe I (máquinas pequenas): limites mais apertados.
-    'Vibração': { warn: 2.8, crit: 4.5, direction: 'above', source: 'ISO 10816-3 — classe I, zona B/C e C/D' },
-    'Velocidade': { warn: 60, crit: 40, direction: 'below', source: 'Rotação mínima para a renovação de ar do galpão' },
-    'Corrente Motor': { warn: 3.2, crit: 3.68, direction: 'above', source: 'In = 3,2 A de placa, fator de serviço 1,15' },
+    'Velocidade': { warn: 2.8, crit: 4.5, direction: 'above', source: 'ISO 10816-3 — classe I, zona B/C e C/D' },
+    'Aceleração': { warn: 0.50, crit: 0.81, direction: 'above', source: 'ISO 10816-3 convertida a 1710 rpm (a = 2πf·v)' },
+    'Temperatura': { warn: 70, crit: 85, direction: 'above', source: 'Mancal — graxa de rolamento, vida útil cai pela metade a cada +15 °C' },
   },
 };
 
@@ -116,7 +122,21 @@ export function registerSensorLimits(
 ): void {
   if (input.warn == null || input.crit == null) return;
 
-  const direction = (input.direction ?? 'above') as LimitDirection;
+  // Sem direção declarada, INFERE — nunca assume 'above'.
+  //
+  // O limite vindo do banco tem precedência sobre o override estático, então
+  // uma suposição errada aqui vence o valor correto. Foi o que aconteceu
+  // enquanto `v_assets_full` não trazia `limit_direction` (corrigido na
+  // migração 0019): Vazão (mínimo 120, crítico 100) e Velocidade (mínimo 60,
+  // crítico 40) eram lidas como limite de máximo, e dois ativos saudáveis
+  // apareciam em vermelho na planta inteira.
+  //
+  // `crit < warn` é inequívoco: só um limite de mínimo tem o corte crítico
+  // abaixo do de atenção. A inferência mantém o front correto mesmo contra uma
+  // origem de dados que esqueça o campo.
+  const direction: LimitDirection =
+    (input.direction as LimitDirection | null | undefined) ??
+    (input.crit < input.warn ? 'below' : 'above');
   if (direction === 'band' && input.nominal == null) return;
 
   RUNTIME_LIMITS[assetTag] ??= {};
@@ -232,12 +252,14 @@ export function gaugeRange(
 export type SensorRole = 'temperature' | 'vibration';
 
 /** Nomes aceitos por papel, em ordem de preferência (o mais diagnóstico primeiro). */
-// Cuidado ao mexer aqui: EXA-001 tem um sensor chamado 'Velocidade' que é
-// rotação em %, grandeza diferente. O alias precisa ser o nome completo
-// 'Velocidade de Vibração', nunca 'Velocidade' sozinho.
+// 'Velocidade' aqui é velocidade de VIBRAÇÃO, em mm/s — o nome que o coletor
+// do Forzy Lab usa. Até a 0020, EXA-001 tinha um sensor com esse nome que era
+// rotação em %, e casar os dois quebrava o modelo de anomalia. Aquele sensor
+// saiu, e a 0021 pôs um trigger no banco que recusa 'Velocidade' em sensor que
+// não seja de vibração — é o que mantém este alias seguro.
 const ROLE_ALIASES: Record<SensorRole, string[]> = {
   temperature: ['Temperatura', 'Temp. Saída', 'Temp. Mancal', 'Temp. Entrada'],
-  vibration: ['Vibração', 'Velocidade de Vibração'],
+  vibration: ['Velocidade', 'Velocidade de Vibração', 'Vibração'],
 };
 
 export function sensorByRole(sensors: Sensor[], role: SensorRole): Sensor | undefined {

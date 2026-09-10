@@ -6,7 +6,7 @@ import { MotorModel, MotorPrimitive, TelemetryData } from './MotorModel';
 import { MachineGeometry } from './MachineGeometry';
 import { ModelErrorBoundary } from './ModelErrorBoundary';
 import { sensorByRole, statusFor, limitFor } from '../../services/sensorLimits';
-import { statusConfig, statusUrgency } from '../../utils/plantStatus';
+import { statusUrgency } from '../../utils/plantStatus';
 import type { Asset } from '../../types';
 
 interface MotorViewerProps {
@@ -197,10 +197,11 @@ function LiveLabels({ assetId, setup }: MotorViewerProps & { setup: ViewerSetup 
 /**
  * Volume das máquinas proceduriais (bomba, compressor, exaustor).
  *
- * Elas não recebem telemetria: comunicam estado por cor, e quem traduz status em
- * cor é `plantStatus` — a mesma fonte que a planta 3D e o mapa SVG consomem.
- * Dois lugares decidindo "que cor é warning" é exatamente como eles saem de
- * sincronia. Assina o store por conta própria, como LiveLabels, para não forçar
+ * Elas não recebem telemetria. O status já não pinta o próprio equipamento — as
+ * faixas coloridas saíram dos volumes; quem comunica estado no hero são os
+ * rótulos de sensor. Daqui o status ainda decide se a máquina gira e alimenta
+ * `urgency`, e quem o traduz é `plantStatus`, a mesma fonte da planta 3D e do
+ * mapa SVG. Assina o store por conta própria, como LiveLabels, para não forçar
  * re-render do componente que hospeda o Canvas.
  */
 function MachineVolume({ assetId, type }: MotorViewerProps & { type: Asset['type'] }) {
@@ -208,7 +209,6 @@ function MachineVolume({ assetId, type }: MotorViewerProps & { type: Asset['type
   return (
     <MachineGeometry
       type={type}
-      accent={statusConfig(status).fill}
       urgency={statusUrgency(status)}
       running={status !== 'offline'}
     />

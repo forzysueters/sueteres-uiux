@@ -7,6 +7,7 @@ import { ChatMessage } from '../types';
 import { translations } from '../translations';
 import { AvatarFace, useSpeech, useSpeechToText, stripMarkdown } from '../assistant';
 import { cn } from '../lib/utils';
+import { fleetSummaryIntent } from '../assistant/fleetSummary';
 
 /** Interpreta **negrito** sem markdown completo — evita dangerouslySetInnerHTML. */
 function renderContent(content: string): React.ReactNode {
@@ -104,6 +105,12 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
   const handleSend = async (text?: string) => {
     const message = (text ?? input).trim();
     if (!message || isTyping) return;
+    if (fleetSummaryIntent(message)) {
+      speech.cancel();
+      setInput('');
+      window.dispatchEvent(new CustomEvent('orion:summary', { detail: message }));
+      return;
+    }
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,

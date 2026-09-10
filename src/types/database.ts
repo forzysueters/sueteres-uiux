@@ -697,6 +697,7 @@ export interface Database {
           notes: string | null
           created_at: string
           updated_at: string
+          headers: Json
         }
         Insert: {
           id?: string
@@ -709,6 +710,7 @@ export interface Database {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          headers?: Json
         }
         Update: {
           id?: string
@@ -721,6 +723,7 @@ export interface Database {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          headers?: Json
         }
         Relationships: []
       }
@@ -1599,6 +1602,24 @@ export interface Database {
         }
         Relationships: []
       }
+      v_admin_users: {
+        Row: {
+          id: string | null
+          email: string | null
+          full_name: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
+          is_active: boolean | null
+          job_title: string | null
+          department: string | null
+          plant_id: string | null
+          last_login_at: string | null
+          created_at: string | null
+          provisioned_role: string | null
+          role_out_of_sync: boolean | null
+          last_sign_in_at: string | null
+        }
+        Relationships: []
+      }
       v_alerts_full: {
         Row: {
           id: string | null
@@ -1745,11 +1766,11 @@ export interface Database {
         }
         Returns: undefined
       }
-      can_read: {
+      can_configure: {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
-      can_write: {
+      can_operate: {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
@@ -1762,6 +1783,13 @@ export interface Database {
           p_nominal?: number
         }
         Returns: Database["public"]["Enums"]["sensor_status"]
+      }
+      confirm_nameplate: {
+        Args: {
+          p_nameplate_id: string
+          p_asset_id: string
+        }
+        Returns: unknown
       }
       current_user_role: {
         Args: Record<PropertyKey, never>
@@ -1947,7 +1975,7 @@ export interface Database {
       reading_quality: "good" | "uncertain" | "bad" | "disconnected"
       sensor_status: "normal" | "warning" | "critical"
       sensor_type: "voltage" | "current" | "temperature" | "rpm" | "vibration" | "pressure" | "flow" | "power" | "speed" | "humidity" | "other"
-      user_role: "admin" | "engineer" | "technician" | "viewer"
+      user_role: "admin" | "engineer" | "technician"
     }
     CompositeTypes: Record<PropertyKey, never>
   }

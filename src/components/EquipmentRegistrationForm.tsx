@@ -6,8 +6,7 @@ import { Area, Asset, MotorNameplate, NewAssetInput } from '../types';
 import type { Json } from '../types/database';
 import type { NameplateResult, OcrMode } from '../services/ocrAPI';
 import { useAppStore } from '../store/appStore';
-import { useAuthStore } from '../store/authStore';
-import { canWriteAssets } from '../types/auth';
+import { usePermissions } from '../hooks/usePermissions';
 import { PlantFloorMap } from './PlantFloorMap';
 import { footprintCells, footprintOf, rectToPlant } from './three/plantGrid';
 import type { CellRect } from './three/plantGrid';
@@ -37,7 +36,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   onRegistered,
 }) => {
   const { language, assets, setAssets } = useAppStore();
-  const user = useAuthStore((s) => s.user);
+  const { can } = usePermissions();
   const t = translations[language].equipmentForm;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
 
@@ -49,10 +48,10 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
   const [ocrError, setOcrError] = useState<string | null>(null);
   // Motor fixo: a escolha deixou de ser oferecida na interface, e o backend
   // segue aceitando o parâmetro.
-  const mode: OcrMode = 'gemini';
+  const mode: OcrMode = 'gpt';
 
   // ─── Passo 4 — destino do cadastro ────────────────────────────────────────
-  const mayCreateAsset = canWriteAssets(user?.role);
+  const mayCreateAsset = can('asset:create');
   const [target, setTarget] = useState<Target>(mayCreateAsset ? 'new' : 'existing');
   const [areas, setAreas] = useState<Area[]>([]);
   const [linkAssetId, setLinkAssetId] = useState(assetId ?? '');

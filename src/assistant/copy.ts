@@ -39,6 +39,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     chat_error:
       'Não consegui responder agora. Tente novamente em instantes — ou use o Assistente IA no menu.',
     chat_intro: 'Pode perguntar sobre a plataforma, seus equipamentos ou a documentação técnica.',
+    chat_offline: 'modo offline — resposta montada só com os dados do banco',
     farewell_title: 'Tour concluído',
     ask_by_voice: 'Perguntar por voz',
     stop_listening: 'Parar de ouvir',
@@ -79,6 +80,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     chat_error:
       "I couldn't answer right now. Try again shortly — or use the AI Assistant in the menu.",
     chat_intro: 'Ask about the platform, your equipment or the technical documentation.',
+    chat_offline: 'offline mode — answer assembled from database records only',
     farewell_title: 'Tour complete',
     ask_by_voice: 'Ask by voice',
     stop_listening: 'Stop listening',
@@ -100,8 +102,9 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       label: 'Equipamentos',
       title: 'Cadastro pela placa do motor',
       speech:
-        'Aqui é onde tudo começa. Em vez de digitar ficha técnica, você fotografa a placa de ' +
-        'identificação do equipamento. O sistema lê a placa sozinho, extrai potência, tensão, ' +
+        'Esta é a tela dos seus equipamentos: todos ficam listados aqui, com busca e filtros. ' +
+        'E é por este botão que entra um novo. Em vez de digitar ficha técnica, você fotografa ' +
+        'a placa de identificação. O sistema lê a placa sozinho, extrai potência, tensão, ' +
         'rotação e número de série, e você só confirma o que foi lido.',
     },
     monitoring: {
@@ -160,9 +163,10 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       label: 'Equipment',
       title: 'Register from the motor nameplate',
       speech:
-        'This is where everything starts. Instead of typing the datasheet, you photograph the ' +
-        'equipment nameplate. The system reads it on its own — power, voltage, speed and serial ' +
-        'number — and you just confirm what was extracted.',
+        'This is your equipment screen: everything is listed here, with search and filters. ' +
+        'And this button is how a new one comes in. Instead of typing the datasheet, you ' +
+        'photograph the equipment nameplate. The system reads it on its own — power, voltage, ' +
+        'speed and serial number — and you just confirm what was extracted.',
     },
     monitoring: {
       label: 'Monitoring',

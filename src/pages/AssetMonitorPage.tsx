@@ -2,17 +2,16 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
-import { useAuthStore } from '../store/authStore';
-import { canWriteAssets } from '../types/auth';
+import { usePermissions } from '../hooks/usePermissions';
 import { translations } from '../translations';
 import { statusLabel } from '../utils/plantStatus';
 import { apiService } from '../services/api';
 import { useAssetRealtime } from '../hooks/useAssetRealtime';
+import { useNextInsight } from '../hooks/useNextInsight';
 import { useAlerts } from '../hooks/useAlerts';
 import { SensorGauge } from '../components/SensorGauge';
 import { NameplateCard } from '../components/NameplateCard';
 import { NameplateEditor } from '../components/NameplateEditor';
-import { AssetRemovalDialog } from '../components/AssetRemovalDialog';
 import { TimeSeriesChart } from '../components/TimeSeriesChart';
 import { KPICard } from '../components/Cards';
 import { HealthGauge } from '../components/HealthGauge';
@@ -26,7 +25,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Activity, Tag, AlertTriangle, CheckCircle2, TrendingUp,
   Sparkles, Zap, Shield, RefreshCw, Gauge, Bell, Download,
-  Thermometer, Clock, Box, Printer, Mail, Loader2, ChevronDown, Pencil, Trash2,
+  Thermometer, Clock, Box, Printer, Mail, Loader2, ChevronDown, Pencil,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -52,19 +51,18 @@ const itemVariants = {
 export const AssetMonitorPage: React.FC = () => {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
-  const { assets, setAssets, darkMode, language } = useAppStore();
-  // Corrigir a placa à mão é privilégio de quem cadastra ativo (admin/engineer);
-  // o técnico registra placa nova pelo OCR, mas não reescreve os valores.
-  const mayEditNameplate = canWriteAssets(useAuthStore((s) => s.user)?.role);
+  const { assets, setAssets, updateAsset, darkMode, language } = useAppStore();
+  // Corrigir a placa à mão é faixa 2: o técnico registra placa nova pelo OCR,
+  // mas não reescreve os valores de uma já cadastrada.
+  const { can } = usePermissions();
+  const mayEditNameplate = can('nameplate:edit');
   const t = translations[language].assetMonitor;
-  const tRemoval = translations[language].assetRemoval;
   const common = translations[language].common;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
   const isMobile = useIsMobile();
 
   const [tab, setTab] = useState<Tab>('sensors');
   const [editingNameplate, setEditingNameplate] = useState(false);
-  const [removing, setRemoving] = useState(false);
   const [historyRange, setHistoryRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
   const [history, setHistory] = useState<SensorHistorySeries[]>([]);
@@ -103,15 +101,51 @@ export const AssetMonitorPage: React.FC = () => {
   useAssetRealtime(assetId ?? null);
 
   // Load history
+  //
+  // `silent` recarrega sem acender o spinner: a série cresce a cada 10s com o
+  // cenário agendado (0018), e piscar o esqueleto de carregamento a cada
+  // atualização deixaria o gráfico ilegível. Só a primeira carga e a troca de
+  // janela mostram carregamento.
+  const loadHistory = React.useCallback(
+    async (silent = false) => {
+      if (!assetId) return;
+      if (!silent) setHistoryLoading(true);
+      try {
+        const data = await apiService.getSensorHistory(assetId, historyRange);
+        setHistory(data);
+        // A janela nova pode não ter leitura do sensor que estava aberto. Manter
+        // a seleção antiga deixaria a aba pedindo "selecione um sensor acima"
+        // com o sensor já marcado nos chips — escolhe o primeiro disponível.
+        setSelectedSensor((prev) =>
+          prev && data.some((d) => d.sensorName === prev) ? prev : (data[0]?.sensorName ?? null),
+        );
+      } catch {
+        // Sem o catch a promise rejeitada deixava o spinner girando para sempre.
+        if (!silent) setHistory([]);
+      } finally {
+        if (!silent) setHistoryLoading(false);
+      }
+    },
+    [assetId, historyRange],
+  );
+
   useEffect(() => {
-    if (!assetId) return;
-    setHistoryLoading(true);
-    apiService.getSensorHistory(assetId, historyRange).then((data) => {
-      setHistory(data);
-      if (!selectedSensor && data.length > 0) setSelectedSensor(data[0].sensorName);
-      setHistoryLoading(false);
-    });
-  }, [assetId, historyRange]);
+    void loadHistory();
+  }, [loadHistory]);
+
+  // O histórico é série temporal viva, não uma foto tirada quando a tela abriu.
+  // A telemetria entra a cada 10s; 30s de intervalo mantém o gráfico andando
+  // sem transformar a página aberta num gerador de consultas.
+  useEffect(() => {
+    const id = window.setInterval(() => void loadHistory(true), 30_000);
+    return () => window.clearInterval(id);
+  }, [loadHistory]);
+
+  // Quando o avaliador publica o diagnóstico novo, releem-se ativo e série.
+  const nextInsight = useNextInsight(() => {
+    if (assetId) void apiService.getAssetById(assetId).then((a) => a && updateAsset(a));
+    void loadHistory(true);
+  });
 
   useEffect(() => {
     if (!assetId) return;
@@ -208,13 +242,6 @@ export const AssetMonitorPage: React.FC = () => {
         ? 'text-amber-700 dark:text-amber-200/80'
         : 'text-emerald-700 dark:text-emerald-200/80';
 
-  const handleRemoved = () => {
-    // O ativo removido não pode continuar no store: desativado ele sai da view,
-    // apagado ele deixa de existir. Volta para a planta, que relê a frota.
-    setAssets(assets.filter((a) => a.id !== asset.id));
-    navigate('/planta');
-  };
-
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'sensors',   label: t.tab_sensors,   icon: Activity },
     { id: 'history',   label: t.tab_history,   icon: TrendingUp },
@@ -246,15 +273,6 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
           <div className="flex items-center gap-2">
-            {mayEditNameplate && (
-              <button
-                onClick={() => setRemoving(true)}
-                className="btn-ghost text-xs text-red-400 hover:text-red-300"
-              >
-                <Trash2 size={14} />
-                {tRemoval.action_remove}
-              </button>
-            )}
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button className="btn-ghost text-xs" title={t.export_hint} disabled={sendingReport}>
@@ -410,16 +428,41 @@ export const AssetMonitorPage: React.FC = () => {
         </span>
       </motion.div>
 
-      {/* ───────── Insight Preditivo IA (banner full-width) ───────── */}
-      {severity !== 'ok' && asset.insight && (
+      {/* ───────── Insight Preditivo IA (banner full-width) ─────────
+          O banner aparece em QUALQUER severidade, inclusive 'ok'. Escondê-lo no
+          ativo saudável fazia o diagnóstico parecer um aviso de erro que surge e
+          some, em vez do que ele é: uma leitura contínua, que também tem valor
+          quando diz "está tudo dentro do padrão". É essa continuidade que a
+          contagem regressiva ao lado torna visível. */}
+      {asset.insight && (
         <motion.div
           variants={itemVariants}
-          className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10"
+          className="rounded-xl bg-primary/5 border border-primary/10 overflow-hidden"
         >
-          <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-xs font-bold text-primary mb-1">{t.ai_insight}</p>
-            <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
+          <div className="flex items-start gap-3 p-4">
+            <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p className="text-xs font-bold text-primary">{t.ai_insight}</p>
+                <p
+                  className="text-[10px] font-semibold text-muted tabular-nums"
+                  title={t.insight_cycle}
+                >
+                  {t.next_insight}{' '}
+                  <span className="text-foreground-soft">{nextInsight.label}</span>
+                </p>
+              </div>
+              <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
+            </div>
+          </div>
+          {/* Barra do ciclo: enche em 5 min e zera junto com a próxima avaliação.
+              `transition-none` porque o valor já anda de segundo em segundo —
+              animar por cima faria a barra ficar sempre atrasada. */}
+          <div className="h-[2px] w-full bg-primary/10">
+            <div
+              className="h-full bg-primary/50 transition-none"
+              style={{ width: `${nextInsight.progress * 100}%` }}
+            />
           </div>
         </motion.div>
       )}
@@ -518,26 +561,50 @@ export const AssetMonitorPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
-                {history.map((h) => (
-                  <button
-                    key={h.sensorName}
-                    onClick={() => setSelectedSensor(h.sensorName)}
-                    className={cn(
-                      'px-2.5 py-1 rounded-md text-[11px] font-bold transition-all border',
-                      selectedSensor === h.sensorName ? 'border-current' : 'border-transparent bg-card-hover text-muted hover:text-foreground',
-                    )}
-                    style={selectedSensor === h.sensorName ? { color: h.color, borderColor: h.color, background: `${h.color}15` } : {}}
-                  >
-                    {h.sensorName}
-                  </button>
-                ))}
-              </div>
+              {/* Os chips só aparecem quando há série. Vazios, a linha virava um
+                  espaço em branco e o "selecione um sensor acima" apontava para
+                  lugar nenhum. O rótulo diz o que a linha é. */}
+              {history.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+                    {t.sensor_picker_label}
+                  </span>
+                  {history.map((h) => (
+                    <button
+                      key={h.sensorName}
+                      aria-pressed={selectedSensor === h.sensorName}
+                      onClick={() => setSelectedSensor(h.sensorName)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-md text-[11px] font-bold transition-all border',
+                        selectedSensor === h.sensorName ? 'border-current' : 'border-transparent bg-card-hover text-muted hover:text-foreground',
+                      )}
+                      style={selectedSensor === h.sensorName ? { color: h.color, borderColor: h.color, background: `${h.color}15` } : {}}
+                    >
+                      {h.sensorName}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {historyLoading ? (
                 <div className="h-56 flex items-center justify-center text-muted text-sm">
                   <RefreshCw size={16} className="animate-spin mr-2" />
                   {t.loading_history}
+                </div>
+              ) : asset.sensors.length === 0 ? (
+                // Ativo sem instrumentação nunca terá histórico — a causa é outra,
+                // e é a mesma que a aba de sensores explica.
+                <div className="h-56 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                  <Gauge size={18} className="text-muted" />
+                  <p className="text-sm font-bold text-foreground">{t.no_sensors_title}</p>
+                  <p className="max-w-sm text-xs leading-relaxed text-muted">{t.no_sensors_desc}</p>
+                </div>
+              ) : history.length === 0 ? (
+                // Tem sensor, mas nenhuma leitura caiu na janela escolhida.
+                <div className="h-56 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                  <TrendingUp size={18} className="text-muted" />
+                  <p className="text-sm font-bold text-foreground">{t.no_history_title}</p>
+                  <p className="max-w-sm text-xs leading-relaxed text-muted">{t.no_history_desc}</p>
                 </div>
               ) : currentHistory ? (
                 <TimeSeriesChart
@@ -684,13 +751,6 @@ export const AssetMonitorPage: React.FC = () => {
         onOpenChange={setSchedulerOpen}
         asset={asset}
         language={language}
-      />
-
-      <AssetRemovalDialog
-        asset={asset}
-        open={removing}
-        onOpenChange={setRemoving}
-        onRemoved={handleRemoved}
       />
     </motion.div>
   );
