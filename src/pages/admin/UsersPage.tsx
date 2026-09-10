@@ -9,6 +9,7 @@ import { ROLE_LABELS } from '../../types/auth';
 import type { UserRole } from '../../types/auth';
 import type { PlatformUser } from '../../types';
 import { cn } from '../../lib/utils';
+import { PermissionMatrix } from '../../components/PermissionMatrix';
 
 const ROLES: UserRole[] = ['admin', 'engineer', 'technician'];
 
@@ -84,6 +85,10 @@ export const UsersPage: React.FC = () => {
           <p className="text-xs font-medium text-red-400 leading-relaxed">{error}</p>
         </div>
       )}
+
+      {/* Antes da lista: quem vai escolher um papel abaixo precisa poder
+          conferir aqui o que aquele papel significa. */}
+      <PermissionMatrix />
 
       <div className="saas-card overflow-hidden">
         <div className="px-4 sm:px-5 py-3.5 border-b border-border bg-card-hover flex items-center justify-between gap-3">

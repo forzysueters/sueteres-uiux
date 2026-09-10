@@ -85,6 +85,44 @@ export const CAPABILITIES: Record<Capability, readonly UserRole[]> = {
   'collector:manage': ADMIN,
 };
 
+/**
+ * Como as capacidades se agrupam na matriz de permissões da tela de Usuários.
+ *
+ * Ordem e recorte são de apresentação — quem decide o que cada papel pode
+ * fazer continua sendo `CAPABILITIES` acima, e antes dele a RLS no banco. O
+ * rótulo de cada linha vive em `translations`, não aqui: este arquivo não
+ * conhece idioma.
+ */
+export const CAPABILITY_GROUPS = [
+  {
+    id: 'assets',
+    caps: ['asset:read', 'asset:create', 'asset:update', 'asset:deactivate', 'asset:layout', 'asset:delete'],
+  },
+  { id: 'alerts', caps: ['alert:acknowledge', 'alert:resolve', 'alert:delete'] },
+  {
+    id: 'maintenance',
+    caps: ['maintenance:create', 'maintenance:complete', 'maintenance:assign', 'maintenance:delete'],
+  },
+  { id: 'nameplate', caps: ['nameplate:register', 'nameplate:edit', 'nameplate:delete'] },
+  { id: 'sensors', caps: ['sensor:manage', 'sensor:delete'] },
+  { id: 'documents', caps: ['document:manage', 'document:delete'] },
+  { id: 'ml', caps: ['ml:manage'] },
+  { id: 'plant', caps: ['plant:manage', 'collector:manage'] },
+  { id: 'admin', caps: ['user:manage', 'audit:read'] },
+] as const satisfies readonly { id: string; caps: readonly Capability[] }[];
+
+export type CapabilityGroupId = (typeof CAPABILITY_GROUPS)[number]['id'];
+
+/**
+ * Trava de compilação: capacidade que não entrou em nenhum grupo quebra o
+ * build aqui. Sem isto, criar uma `Capability` nova e esquecer o grupo faria
+ * ela sumir da matriz em silêncio — a tela seguiria bonita, dizendo que o
+ * papel não pode algo que ele pode.
+ */
+type UngroupedCapability = Exclude<Capability, (typeof CAPABILITY_GROUPS)[number]['caps'][number]>;
+const _everyCapabilityIsGrouped: UngroupedCapability extends never ? true : never = true;
+void _everyCapabilityIsGrouped;
+
 export function can(role: UserRole | null | undefined, cap: Capability): boolean {
   return !!role && CAPABILITIES[cap].includes(role);
 }
