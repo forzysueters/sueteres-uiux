@@ -388,7 +388,13 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && submit()}
-                  placeholder={stt.listening ? t(lang, 'listening') : t(lang, 'ask_placeholder')}
+                  placeholder={
+                    stt.listening
+                      ? t(lang, 'listening')
+                      : stt.transcribing
+                        ? t(lang, 'transcribing')
+                        : t(lang, 'ask_placeholder')
+                  }
                   disabled={p.chatPending}
                   className={cn(
                     'h-10 w-full rounded-xl border border-border bg-card-hover pl-3 text-xs font-medium text-foreground transition-colors placeholder:text-muted-soft focus:border-primary/50 focus:outline-none disabled:opacity-50',
@@ -398,16 +404,19 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                 {stt.supported && (
                   <button
                     type="button"
-                    onClick={() => (stt.listening ? stt.stop() : startListening())}
+                    onClick={() => {
+                      if (stt.transcribing) return;
+                      stt.listening ? stt.stop() : startListening();
+                    }}
                     disabled={p.chatPending}
                     aria-label={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}
-                    title={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}
+                    title={stt.listening ? t(lang, 'stop_listening') : stt.transcribing ? t(lang, 'transcribing') : t(lang, 'ask_by_voice')}
                     className={cn(
                       'absolute right-9 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg transition-colors disabled:opacity-30',
-                      stt.listening ? 'text-primary bg-primary/10' : 'text-muted hover:text-primary hover:bg-primary/10',
+                      stt.busy ? 'text-primary bg-primary/10' : 'text-muted hover:text-primary hover:bg-primary/10',
                     )}
                   >
-                    {/* Halo em ripple — expande e esmaece, sem voltar, reforçando a captura. */}
+                    {/* Halo em ripple — expande e esmaece, sem voltar, só enquanto grava de fato. */}
                     {stt.listening && (
                       <motion.span
                         aria-hidden
@@ -418,7 +427,11 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                         transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
                       />
                     )}
-                    <Mic size={14} className="relative" />
+                    {stt.transcribing ? (
+                      <Loader2 size={14} className="relative animate-spin" />
+                    ) : (
+                      <Mic size={14} className="relative" />
+                    )}
                   </button>
                 )}
                 <button

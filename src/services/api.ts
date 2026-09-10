@@ -1451,6 +1451,22 @@ export const apiService = {
     return { conversationId: conversation.id, messages };
   },
 
+  /**
+   * Transcreve um áudio gravado no navegador via Edge Function `stt`, que
+   * delega à OpenAI (Whisper) — mesma chave do `ai-chat`. Existe pra não
+   * depender do reconhecimento de voz embutido no navegador, que manda o
+   * áudio direto pro Google por fora da nossa aplicação e se mostrou
+   * instável fora do ambiente de desenvolvimento (bloqueios de rede, cota,
+   * falhas silenciosas).
+   */
+  async transcribeAudio(audioBase64: string, mimeType: string, lang: 'pt' | 'en'): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('stt', {
+      body: { audio: audioBase64, mimeType, lang },
+    });
+    if (error) throw error;
+    return (data?.text ?? '').trim();
+  },
+
   /** Envia a foto da placa para o bucket de equipamentos. */
   async uploadEquipmentImage(file: File): Promise<{ url: string; path: string }> {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';

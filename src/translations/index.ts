@@ -666,6 +666,7 @@ export const translations = {
       ask_by_voice: 'Perguntar por voz',
       stop_listening: 'Parar de ouvir',
       listening_placeholder: 'Ouvindo…',
+      transcribing: 'Transcrevendo…',
     },
   },
   en: {
@@ -1332,6 +1333,7 @@ export const translations = {
       ask_by_voice: 'Ask by voice',
       stop_listening: 'Stop listening',
       listening_placeholder: 'Listening…',
+      transcribing: 'Transcribing…',
     },
   },
 };

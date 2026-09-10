@@ -1,6 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, User, Sparkles, MessageSquarePlus, FileText, Volume2, Square, Mic } from 'lucide-react';
+import { Send, User, Sparkles, MessageSquarePlus, FileText, Volume2, Square, Mic, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { ChatMessage } from '../types';
@@ -264,7 +264,15 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={stt.listening ? t.listening_placeholder : selectedAssetId ? t.placeholder_with_asset : t.placeholder_generic}
+            placeholder={
+              stt.listening
+                ? t.listening_placeholder
+                : stt.transcribing
+                  ? t.transcribing
+                  : selectedAssetId
+                    ? t.placeholder_with_asset
+                    : t.placeholder_generic
+            }
             className={cn(
               'w-full h-12 pl-4 rounded-lg bg-card-hover border border-border text-foreground placeholder:text-muted-soft focus:outline-none focus:border-primary/50 transition-all text-sm font-medium',
               stt.supported ? 'pr-20' : 'pr-12',
@@ -273,15 +281,18 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
           {stt.supported && (
             <button
               type="button"
-              onClick={() => (stt.listening ? stt.stop() : startListening())}
+              onClick={() => {
+                if (stt.transcribing) return;
+                stt.listening ? stt.stop() : startListening();
+              }}
               disabled={isTyping}
-              title={stt.listening ? t.stop_listening : t.ask_by_voice}
+              title={stt.listening ? t.stop_listening : stt.transcribing ? t.transcribing : t.ask_by_voice}
               className={cn(
                 'absolute right-11 top-1/2 -translate-y-1/2 w-9 h-9 rounded-md transition-all disabled:opacity-30 flex items-center justify-center',
-                stt.listening ? 'text-primary bg-primary/10' : 'text-muted hover:text-primary hover:bg-primary/10',
+                stt.busy ? 'text-primary bg-primary/10' : 'text-muted hover:text-primary hover:bg-primary/10',
               )}
             >
-              {/* Halo em ripple — expande e esmaece, sem voltar, reforçando a captura. */}
+              {/* Halo em ripple — expande e esmaece, sem voltar, só enquanto grava de fato. */}
               {stt.listening && (
                 <motion.span
                   aria-hidden
@@ -292,7 +303,11 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
                   transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
                 />
               )}
-              <Mic size={16} className="relative" />
+              {stt.transcribing ? (
+                <Loader2 size={16} className="relative animate-spin" />
+              ) : (
+                <Mic size={16} className="relative" />
+              )}
             </button>
           )}
           <button
