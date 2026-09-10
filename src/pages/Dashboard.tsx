@@ -1,60 +1,69 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, AlertCircle, Zap, Cpu, Sparkles, AlertOctagon, Factory } from 'lucide-react'
-import { useAppStore } from '../store/appStore'
-import { translations } from '../translations'
-import { apiService } from '../services/api'
-import { KPICard } from '../components/Cards'
-import { cn } from '../lib/utils'
-import { STATUS_COLORS, statusBadge, statusLabel } from '../utils/plantStatus'
-import { CardSkeleton, ChartSkeleton } from '../components/SkeletonLoaders'
-import { tooltipStyle } from '../theme'
+import { Activity, AlertCircle, AlertOctagon, Cpu, Factory, Radio, Zap } from 'lucide-react'
 import {
-  BarChart,
+  Area,
+  AreaChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
 } from 'recharts'
+import { KPICard } from '../components/Cards'
+import { CardSkeleton, ChartSkeleton } from '../components/SkeletonLoaders'
+import {
+  apiService,
+  FleetTrendRow,
+  startFleetTelemetryUpdates,
+  TelemetryRow,
+} from '../services/api'
+import { useAppStore } from '../store/appStore'
+import { tooltipStyle } from '../theme'
+import { translations } from '../translations'
+import { STATUS_COLORS, statusLabel } from '../utils/plantStatus'
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06, delayChildren: 0.05 },
-  },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const } },
+const COLORS = [
+  '#f97316',
+  '#8b5cf6',
+  '#06b6d4',
+  '#10b981',
+  '#ef4444',
+  '#3b82f6',
+  '#eab308',
+  '#ec4899',
+]
+const variants = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
+const locale = (language: 'pt' | 'en') => (language === 'pt' ? 'pt-BR' : 'en-US')
+const shortTime = (iso: string, language: 'pt' | 'en') =>
+  new Intl.DateTimeFormat(locale(language), { hour: '2-digit', minute: '2-digit' }).format(
+    new Date(iso),
+  )
+const relativeAge = (iso: string, language: 'pt' | 'en') => {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+  if (seconds < 60) return language === 'pt' ? `há ${seconds}s` : `${seconds}s ago`
+  const minutes = Math.round(seconds / 60)
+  return language === 'pt' ? `há ${minutes} min` : `${minutes}m ago`
 }
 
 export const Dashboard: React.FC = () => {
   const { assets, setAssets, kpis, setKPIs, language } = useAppStore()
-  const navigate = useNavigate()
+  const [telemetry, setTelemetry] = useState<TelemetryRow[]>([])
+  const [trend, setTrend] = useState<FleetTrendRow[]>([])
+  const [minutes, setMinutes] = useState<15 | 60>(15)
+  const [trendHours, setTrendHours] = useState<24 | 168>(24)
+  const [metric, setMetric] = useState('Temperatura')
   const [loading, setLoading] = useState(true)
+  const [chartsLoading, setChartsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
   const t = translations[language].dashboard
 
-  useEffect(() => {
-    loadDashboardData()
-    const interval = setInterval(loadDashboardData, 5000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const loadDashboardData = async () => {
-    setLoading(true)
+  const loadStructure = useCallback(async () => {
     try {
       const [assetsData, kpiData] = await Promise.all([
         apiService.getAssets(),
@@ -68,347 +77,481 @@ export const Dashboard: React.FC = () => {
         err instanceof Error
           ? err.message
           : language === 'pt'
-            ? 'Não foi possível carregar os dados da operação.'
-            : 'Could not load operation data.',
+            ? 'Não foi possível carregar a operação.'
+            : 'Could not load the operation.',
       )
     } finally {
       setLoading(false)
     }
-  }
+  }, [language, setAssets, setKPIs])
 
-  const assetStatusData = (['normal', 'warning', 'critical', 'offline'] as const)
-    .map((status) => ({
-      status,
-      name: statusLabel(status, language),
-      value: assets.filter((a) => a.status === status).length,
+  const loadCharts = useCallback(
+    async (quiet = false) => {
+      if (!quiet) setChartsLoading(true)
+      try {
+        const [rows, trendRows] = await Promise.all([
+          apiService.getFleetTelemetry(minutes),
+          apiService.getFleetTelemetryTrend(trendHours),
+        ])
+        setTelemetry(rows)
+        setTrend(trendRows)
+        setError(null)
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : language === 'pt'
+              ? 'Não foi possível atualizar os gráficos.'
+              : 'Could not refresh the charts.',
+        )
+      } finally {
+        if (!quiet) setChartsLoading(false)
+      }
+    },
+    [language, minutes, trendHours],
+  )
+
+  useEffect(() => {
+    void loadStructure()
+  }, [loadStructure])
+  useEffect(() => {
+    void loadCharts()
+  }, [loadCharts])
+  useEffect(
+    () =>
+      startFleetTelemetryUpdates(
+        (rows) => {
+          const cutoff = Date.now() - minutes * 60_000
+          setTelemetry((current) =>
+            [...current, ...rows].filter((row) => new Date(row.ts).getTime() >= cutoff),
+          )
+        },
+        () => void loadCharts(true),
+      ),
+    [loadCharts, minutes],
+  )
+
+  const sensorMeta = useMemo(
+    () =>
+      new Map(
+        assets.flatMap((asset) =>
+          asset.sensors.map(
+            (sensor) =>
+              [
+                sensor.id,
+                {
+                  assetTag: asset.tag,
+                  name: sensor.name,
+                  unit: sensor.unit,
+                },
+              ] as const,
+          ),
+        ),
+      ),
+    [assets],
+  )
+  const metrics = useMemo(
+    () => [...new Set([...sensorMeta.values()].map((sensor) => sensor.name))].sort(),
+    [sensorMeta],
+  )
+  useEffect(() => {
+    if (metrics.length && !metrics.includes(metric)) setMetric(metrics[0])
+  }, [metric, metrics])
+  const selectedRows = useMemo(
+    () => telemetry.filter((row) => sensorMeta.get(row.sensorId)?.name === metric),
+    [metric, sensorMeta, telemetry],
+  )
+  const series = useMemo(
+    () =>
+      [
+        ...new Set(
+          selectedRows.map((row) => sensorMeta.get(row.sensorId)?.assetTag).filter(Boolean),
+        ),
+      ] as string[],
+    [selectedRows, sensorMeta],
+  )
+  const liveData = useMemo(() => {
+    const buckets = new Map<number, Record<string, number | string>>()
+    selectedRows.forEach((row) => {
+      const bucket = Math.floor(new Date(row.ts).getTime() / 5_000) * 5_000
+      const point = buckets.get(bucket) ?? { ts: new Date(bucket).toISOString() }
+      point[sensorMeta.get(row.sensorId)!.assetTag] = Number(row.value.toFixed(2))
+      buckets.set(bucket, point)
+    })
+    return [...buckets.values()]
+  }, [selectedRows, sensorMeta])
+  const rangeData = useMemo(() => {
+    const buckets = new Map<number, { ts: string; warning: number; critical: number }>()
+    telemetry.forEach((row) => {
+      const bucket = Math.floor(new Date(row.ts).getTime() / 60_000) * 60_000
+      const point = buckets.get(bucket) ?? {
+        ts: new Date(bucket).toISOString(),
+        warning: 0,
+        critical: 0,
+      }
+      if (row.status === 'warning') point.warning++
+      if (row.status === 'critical') point.critical++
+      buckets.set(bucket, point)
+    })
+    return [...buckets.values()]
+  }, [telemetry])
+  const trendData = useMemo(() => {
+    const buckets = new Map<string, { ts: string; samples: number; critical: number }>()
+    trend.forEach((row) => {
+      const point = buckets.get(row.bucket) ?? { ts: row.bucket, samples: 0, critical: 0 }
+      point.samples += row.sampleCount
+      point.critical += row.criticalCount
+      buckets.set(row.bucket, point)
+    })
+    return [...buckets.values()].map((point) => ({
+      ts: point.ts,
+      conformity: point.samples
+        ? Number((((point.samples - point.critical) / point.samples) * 100).toFixed(1))
+        : 0,
     }))
-    .filter((d) => d.value > 0)
-
-  const uptimeData = assets.map((a) => ({
-    name: a.name.length > 10 ? a.name.substring(0, 10) + '…' : a.name,
-    uptime: parseFloat(a.uptime.toFixed(2)),
+  }, [trend])
+  const anomalyData = assets.map((asset) => ({
+    name: asset.tag,
+    anomaly: Number(asset.anomalyScore.toFixed(1)),
   }))
+  const latestTs = telemetry[telemetry.length - 1]?.ts
+  const stale = !latestTs || Date.now() - new Date(latestTs).getTime() > 90_000
+  const statusCounts = (['normal', 'warning', 'critical', 'offline'] as const)
+    .map((status) => ({ status, count: assets.filter((asset) => asset.status === status).length }))
+    .filter(({ count }) => count)
 
-  const anomalyData = assets.map((a) => ({
-    name: a.name.length > 10 ? a.name.substring(0, 10) + '…' : a.name,
-    anomaly: parseFloat(a.anomalyScore.toFixed(1)),
-  }))
-
-  if (loading && assets.length === 0) {
+  if (loading && !assets.length)
     return (
-      <div className="space-y-8">
+      <div className="space-y-6">
         <CardSkeleton count={4} />
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          <div className="lg:col-span-2"><ChartSkeleton height={280} /></div>
-          <div className="lg:col-span-3"><ChartSkeleton height={280} /></div>
-        </div>
-        <ChartSkeleton height={220} />
+        <ChartSkeleton height={330} />
+        <ChartSkeleton height={260} />
       </div>
     )
-  }
-
-  if (error && assets.length === 0) {
+  if (error && !assets.length)
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
-        <div className="w-12 h-12 rounded-xl bg-danger/10 border border-danger/20 flex items-center justify-center text-danger">
-          <AlertOctagon size={22} />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-foreground">{error}</p>
-          <p className="text-xs text-muted mt-1">
-            {language === 'pt' ? 'Verifique sua conexão e tente novamente.' : 'Check your connection and try again.'}
-          </p>
-        </div>
-        <button onClick={loadDashboardData} className="btn-ghost text-xs">
+      <div className="flex flex-col items-center gap-4 py-24 text-center">
+        <AlertOctagon className="text-danger" />
+        <p>{error}</p>
+        <button className="btn-ghost" onClick={() => void loadStructure()}>
           {language === 'pt' ? 'Tentar novamente' : 'Try again'}
         </button>
       </div>
     )
-  }
+
+  const EmptyChart = () => (
+    <div className="flex h-[260px] items-center justify-center text-xs text-muted">
+      {language === 'pt' ? 'Nenhuma leitura nesta janela.' : 'No readings in this window.'}
+    </div>
+  )
+  const WindowButtons = ({ long = false }: { long?: boolean }) => (
+    <div className="flex rounded-lg border border-border bg-card-hover p-0.5 text-[10px] font-semibold">
+      {(long ? [24, 168] : [15, 60]).map((value) => (
+        <button
+          key={value}
+          onClick={() => (long ? setTrendHours(value as 24 | 168) : setMinutes(value as 15 | 60))}
+          className={`rounded-md px-2.5 py-1 ${(long ? trendHours : minutes) === value ? 'bg-primary text-white' : 'text-muted hover:text-foreground'}`}
+        >
+          {long ? (value === 24 ? '24 h' : '7 d') : `${value} min`}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
     <motion.div
-      variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-8"
+      transition={{ staggerChildren: 0.05 }}
+      className="space-y-6"
     >
-      {/* Header */}
-      <motion.div
-        variants={itemVariants}
-        className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-2"
+      <motion.header
+        variants={variants}
+        className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
       >
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card-hover text-[10px] font-semibold uppercase tracking-wider text-muted mb-3">
-            <Sparkles size={11} className="text-primary" />
-            <span>Operations Console</span>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card-hover px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+            <Radio size={11} className="text-primary" />
+            Operations Console
           </div>
           <h1>{t.title}</h1>
           <p className="mt-1.5">
-            {t.subtitle} · <span className="font-semibold text-foreground-soft tabular-nums">{assets.length}</span> {t.tracked}
+            {t.subtitle} · <b className="text-foreground-soft">{assets.length}</b> {t.tracked}
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-card-hover border border-border">
-            <span className="live-dot" />
-            <span className="text-foreground-soft">
-              {language === 'pt' ? 'Dados ao Vivo' : 'Live Data'}
-            </span>
-            <span className="text-muted-soft font-mono text-[10px]">5s</span>
-          </div>
+        <div
+          className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold ${stale ? 'border-warning/30 bg-warning/10 text-warning' : 'border-success/20 bg-success/10 text-success'}`}
+        >
+          <span className={stale ? 'h-2 w-2 rounded-full bg-warning' : 'live-dot'} />
+          {stale
+            ? language === 'pt'
+              ? 'Dados atrasados'
+              : 'Delayed data'
+            : language === 'pt'
+              ? 'Ao vivo'
+              : 'Live'}
+          <span className="font-mono text-[10px] opacity-70">
+            {latestTs ? relativeAge(latestTs, language) : '—'}
+          </span>
         </div>
-      </motion.div>
-
+      </motion.header>
       {error && (
         <motion.div
-          variants={itemVariants}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger"
+          variants={variants}
+          className="border-danger/20 bg-danger/10 flex items-center gap-3 rounded-xl border px-4 py-3 text-sm text-danger"
         >
-          <AlertOctagon size={16} className="flex-shrink-0" />
-          <span>{error}</span>
+          <AlertOctagon size={16} />
+          {error}
         </motion.div>
       )}
-
-      {assets.length === 0 && !error ? (
-        <motion.div
-          variants={itemVariants}
-          className="saas-card flex flex-col items-center justify-center gap-3 py-24 text-center"
-        >
-          <div className="w-12 h-12 rounded-xl bg-card-hover border border-border flex items-center justify-center text-muted">
-            <Factory size={22} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              {language === 'pt' ? 'Nenhum ativo cadastrado ainda' : 'No assets registered yet'}
-            </p>
-            <p className="text-xs text-muted mt-1">
-              {language === 'pt'
-                ? 'Cadastre um equipamento para começar a monitorar a operação.'
-                : 'Register an equipment to start monitoring the operation.'}
-            </p>
-          </div>
-        </motion.div>
+      {!assets.length ? (
+        <div className="saas-card flex flex-col items-center gap-3 py-24 text-center">
+          <Factory className="text-muted" />
+          <p>{language === 'pt' ? 'Nenhum ativo cadastrado ainda' : 'No assets registered yet'}</p>
+        </div>
       ) : (
-      <>
-      {/* KPI grid */}
-      <motion.div
-        variants={itemVariants}
-        data-tour="dashboard-kpis"
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5"
-      >
-        <KPICard
-          title={t.uptime}
-          value={kpis?.totalUptime.toFixed(1) || '0'}
-          unit="%"
-          icon={Activity}
-          trend={2.3}
-          accent="success"
-        />
-        <KPICard
-          title={t.active_alerts}
-          value={kpis?.activeAlerts || 0}
-          icon={AlertCircle}
-          trend={-1.2}
-          accent="danger"
-        />
-        <KPICard
-          title={t.anomalies}
-          value={kpis?.anomaliesDetected || 0}
-          icon={Zap}
-          trend={5}
-          accent="warning"
-        />
-        <KPICard
-          title={t.assets_online}
-          value={`${kpis?.assetsOnline || 0}/${kpis?.totalAssets || 0}`}
-          icon={Cpu}
-          accent="info"
-        />
-      </motion.div>
-
-      {/* Charts row */}
-      <motion.div
-        variants={itemVariants}
-        className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-5"
-      >
-        {/* Pie */}
-        <div className="saas-card-premium p-4 sm:p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-2">
-            <span className="section-title !mb-0">{t.status_distribution}</span>
-          </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <defs>
-                {Object.entries(STATUS_COLORS).map(([status, cfg]) => (
-                  <linearGradient
-                    id={`pie-${status}`}
-                    key={status}
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor={cfg.fill} stopOpacity={1} />
-                    <stop offset="100%" stopColor={cfg.fill} stopOpacity={0.6} />
-                  </linearGradient>
-                ))}
-              </defs>
-              <Pie
-                data={assetStatusData}
-                cx="50%"
-                cy="50%"
-                innerRadius={62}
-                outerRadius={92}
-                paddingAngle={3}
-                dataKey="value"
-                stroke="none"
-              >
-                {assetStatusData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={`url(#pie-${entry.status})`} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={tooltipStyle} itemStyle={{ fontSize: '12px', fontWeight: 600 }} />
-              <Legend
-                iconType="circle"
-                formatter={(value) => (
-                  <span className="text-xs font-medium text-muted">{value}</span>
-                )}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Bar */}
-        <div className="saas-card-premium p-4 sm:p-6 lg:col-span-3">
-          <span className="section-title">{t.anomaly_index}</span>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={anomalyData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-              <defs>
-                <linearGradient id="anomalyGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="rgb(var(--primary-rgb))" stopOpacity={0.95} />
-                  <stop offset="100%" stopColor="rgb(var(--primary-rgb))" stopOpacity={0.4} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} />
-              <YAxis axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(var(--primary-rgb),0.04)' }} />
-              <Bar
-                dataKey="anomaly"
-                fill="url(#anomalyGrad)"
-                radius={[6, 6, 0, 0]}
-                name={language === 'pt' ? 'Anomalia %' : 'Anomaly %'}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.div>
-
-      {/* Trend area */}
-      <motion.div variants={itemVariants} className="saas-card-premium p-4 sm:p-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="section-title !mb-0">{t.performance_trend}</span>
-          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider">
-            <span className="flex items-center gap-1.5 text-emerald-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Uptime
-            </span>
-          </div>
-        </div>
-        <ResponsiveContainer width="100%" height={260}>
-          <AreaChart data={uptimeData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-            <defs>
-              <linearGradient id="uptimeGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} />
-            <YAxis axisLine={false} tickLine={false} domain={[85, 100]} />
-            <Tooltip contentStyle={tooltipStyle} />
-            <Area
-              type="monotone"
-              dataKey="uptime"
-              stroke="#10b981"
-              strokeWidth={2.5}
-              fill="url(#uptimeGrad)"
-              dot={false}
-              activeDot={{
-                r: 5,
-                fill: '#10b981',
-                stroke: 'var(--background)',
-                strokeWidth: 3,
-              }}
-              name="Uptime %"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </motion.div>
-
-      {/* Critical summary tiles */}
-      <motion.div variants={itemVariants} className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="section-title !mb-0">{t.critical_summary}</span>
-          <button
-            onClick={() => navigate('/alertas')}
-            className="text-[11px] font-semibold text-muted hover:text-primary transition-colors"
+        <>
+          <motion.div
+            variants={variants}
+            data-tour="dashboard-kpis"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
           >
-            {language === 'pt' ? 'Ver todos →' : 'View all →'}
-          </button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          {assets.slice(0, 4).map((asset, i) => {
-            const sc = statusBadge(asset.status)
-
-            return (
-              <motion.div
-                key={asset.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                whileHover={{ y: -2 }}
-                className={cn(
-                  'group relative saas-card saas-card-hover p-4 cursor-pointer',
-                  'before:content-[""] before:absolute before:left-0 before:top-3 before:bottom-3 before:w-[3px] before:rounded-r-full',
-                  sc.before,
-                )}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="min-w-0 flex-1 font-semibold text-sm text-foreground truncate">
-                    {asset.name}
-                  </h4>
-                  <span
-                    className={cn(
-                      'flex flex-shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider',
-                      sc.text,
-                    )}
-                  >
-                    <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0', sc.dot)} />
-                    {statusLabel(asset.status, language)}
-                  </span>
-                </div>
-                <p className="text-[10px] text-muted-soft uppercase tracking-wider mb-3 truncate">
-                  {asset.location}
+            <KPICard
+              title={t.uptime}
+              value={kpis?.totalUptime.toFixed(1) || '0'}
+              unit="%"
+              icon={Activity}
+              accent="success"
+            />
+            <KPICard
+              title={t.active_alerts}
+              value={kpis?.activeAlerts || 0}
+              icon={AlertCircle}
+              accent="danger"
+            />
+            <KPICard
+              title={t.anomalies}
+              value={kpis?.anomaliesDetected || 0}
+              icon={Zap}
+              accent="warning"
+            />
+            <KPICard
+              title={t.assets_online}
+              value={`${kpis?.assetsOnline || 0}/${kpis?.totalAssets || 0}`}
+              icon={Cpu}
+              accent="info"
+            />
+          </motion.div>
+          <motion.div variants={variants} className="saas-card px-4 py-3">
+            <div className="mb-2 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-muted">
+              <span>{language === 'pt' ? 'Composição da frota' : 'Fleet composition'}</span>
+              <span>
+                {assets.length} {language === 'pt' ? 'ativos' : 'assets'}
+              </span>
+            </div>
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-card-hover">
+              {statusCounts.map(({ status, count }) => (
+                <div
+                  key={status}
+                  style={{
+                    width: `${(count / assets.length) * 100}%`,
+                    background: STATUS_COLORS[status].fill,
+                  }}
+                  title={`${statusLabel(status, language)}: ${count}`}
+                />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              {statusCounts.map(({ status, count }) => (
+                <span key={status} className="text-[10px] text-muted">
+                  <b className="text-foreground-soft">{count}</b> {statusLabel(status, language)}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+          <motion.section variants={variants} className="saas-card-premium p-4 sm:p-6">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <span className="section-title !mb-0">
+                  {language === 'pt' ? 'Telemetria ao vivo' : 'Live telemetry'}
+                </span>
+                <p className="mt-1 text-[11px] text-muted">
+                  {language === 'pt'
+                    ? 'Leituras reais da frota, atualizadas sem recarregar'
+                    : 'Real fleet readings, updated without reloading'}
                 </p>
-                <div className="flex justify-between items-center pt-3 border-t border-border">
-                  <span className="text-[11px] font-bold text-foreground tabular-nums">
-                    {asset.uptime.toFixed(1)}%{' '}
-                    <span className="font-medium text-muted-soft">
-                      {language === 'pt' ? 'Disp.' : 'Avail.'}
-                    </span>
-                  </span>
-                  <span className="text-[10px] font-medium text-muted">
-                    {asset.sensors.length} {language === 'pt' ? 'sensores' : 'sensors'}
-                  </span>
-                </div>
-              </motion.div>
-            )
-          })}
-        </div>
-      </motion.div>
-      </>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  aria-label={language === 'pt' ? 'Grandeza' : 'Metric'}
+                  value={metric}
+                  onChange={(event) => setMetric(event.target.value)}
+                  className="rounded-lg border border-border bg-card-hover px-2.5 py-1 text-xs text-foreground"
+                >
+                  {metrics.map((name) => (
+                    <option key={name}>{name}</option>
+                  ))}
+                </select>
+                <WindowButtons />
+              </div>
+            </div>
+            {chartsLoading ? (
+              <ChartSkeleton height={300} />
+            ) : !liveData.length ? (
+              <EmptyChart />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={liveData} margin={{ left: -10, right: 12 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
+                  <XAxis
+                    dataKey="ts"
+                    tickFormatter={(value) => shortTime(value, language)}
+                    minTickGap={35}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    unit={sensorMeta.get(selectedRows[0]?.sensorId)?.unit}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    labelFormatter={(value) => new Date(value).toLocaleString(locale(language))}
+                  />
+                  <Legend />
+                  {series.map((tag, index) => (
+                    <Line
+                      key={tag}
+                      type="monotone"
+                      dataKey={tag}
+                      stroke={COLORS[index % COLORS.length]}
+                      dot={false}
+                      connectNulls
+                      strokeWidth={2}
+                      isAnimationActive={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </motion.section>
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <motion.section variants={variants} className="saas-card-premium p-4 sm:p-6">
+              <span className="section-title">
+                {language === 'pt' ? 'Fora de faixa no tempo' : 'Out of range over time'}
+              </span>
+              {chartsLoading ? (
+                <ChartSkeleton height={250} />
+              ) : !rangeData.length ? (
+                <EmptyChart />
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={rangeData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
+                    <XAxis
+                      dataKey="ts"
+                      tickFormatter={(value) => shortTime(value, language)}
+                      minTickGap={30}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      labelFormatter={(value) => new Date(value).toLocaleString(locale(language))}
+                    />
+                    <Legend />
+                    <Bar
+                      dataKey="warning"
+                      stackId="range"
+                      fill="#f59e0b"
+                      name={language === 'pt' ? 'Alerta' : 'Warning'}
+                    />
+                    <Bar
+                      dataKey="critical"
+                      stackId="range"
+                      fill="#ef4444"
+                      radius={[4, 4, 0, 0]}
+                      name={language === 'pt' ? 'Crítica' : 'Critical'}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </motion.section>
+            <motion.section variants={variants} className="saas-card-premium p-4 sm:p-6">
+              <span className="section-title">
+                {language === 'pt' ? 'Anomalia por ativo' : 'Anomaly by asset'}
+              </span>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={anomalyData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Bar
+                    dataKey="anomaly"
+                    fill="#8b5cf6"
+                    radius={[5, 5, 0, 0]}
+                    name={language === 'pt' ? 'Anomalia %' : 'Anomaly %'}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </motion.section>
+          </div>
+          <motion.section variants={variants} className="saas-card-premium p-4 sm:p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <span className="section-title !mb-0">
+                  {language === 'pt' ? 'Tendência da operação' : 'Operation trend'}
+                </span>
+                <p className="mt-1 text-[11px] text-muted">
+                  {language === 'pt'
+                    ? 'Conformidade horária calculada sobre a telemetria recebida'
+                    : 'Hourly conformity calculated from received telemetry'}
+                </p>
+              </div>
+              <WindowButtons long />
+            </div>
+            {chartsLoading ? (
+              <ChartSkeleton height={250} />
+            ) : !trendData.length ? (
+              <EmptyChart />
+            ) : (
+              <ResponsiveContainer width="100%" height={270}>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="conformity" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} />
+                  <XAxis
+                    dataKey="ts"
+                    tickFormatter={(value) => shortTime(value, language)}
+                    minTickGap={35}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    labelFormatter={(value) => new Date(value).toLocaleString(locale(language))}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="conformity"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    fill="url(#conformity)"
+                    name={language === 'pt' ? 'Conformidade %' : 'Conformity %'}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </motion.section>
+        </>
       )}
     </motion.div>
   )

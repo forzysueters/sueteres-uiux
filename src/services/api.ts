@@ -32,6 +32,21 @@ export type EmailDispatch =
   | { ok: true; sent: string[] }
   | { ok: false; reason: 'not_configured' | 'failed' };
 
+export type TelemetryRow = {
+  sensorId: string;
+  ts: string;
+  value: number;
+  status: 'normal' | 'warning' | 'critical' | string;
+};
+
+export type FleetTrendRow = {
+  sensorId: string;
+  assetId: string;
+  bucket: string;
+  sampleCount: number;
+  criticalCount: number;
+};
+
 /**
  * Chama uma Edge Function de e-mail sem lançar.
  *
@@ -374,6 +389,44 @@ async function persistScore(asset: Asset, result: ScoreResult): Promise<void> {
 
 // ─── API Service ──────────────────────────────────────────────────────────────
 export const apiService = {
+  /** Uma consulta alimenta telemetria e contagem de leituras fora da faixa. */
+  async getFleetTelemetry(minutes: 15 | 60): Promise<TelemetryRow[]> {
+    const since = new Date(Date.now() - minutes * 60_000).toISOString();
+    const { data, error } = await supabase
+      .from('sensor_readings')
+      .select('sensor_id, ts, value, status')
+      .gte('ts', since)
+      .order('ts', { ascending: true });
+
+    if (error) fail(error, 'Não foi possível carregar a telemetria da frota.');
+    return (data ?? [])
+      .filter((row) => row.value != null)
+      .map((row) => ({
+        sensorId: row.sensor_id,
+        ts: row.ts,
+        value: Number(row.value),
+        status: row.status ?? 'normal',
+      }));
+  },
+
+  /** A view horária viva substitui os snapshots de saúde na tendência. */
+  async getFleetTelemetryTrend(hours: 24 | 168): Promise<FleetTrendRow[]> {
+    const since = new Date(Date.now() - hours * 60 * 60_000).toISOString();
+    const { data, error } = await supabase
+      .from('v_sensor_readings_hourly')
+      .select('sensor_id, asset_id, bucket, sample_count, critical_count')
+      .gte('bucket', since)
+      .order('bucket', { ascending: true });
+
+    if (error) fail(error, 'Não foi possível carregar a tendência da frota.');
+    return (data ?? []).map((row) => ({
+      sensorId: row.sensor_id!,
+      assetId: row.asset_id!,
+      bucket: row.bucket!,
+      sampleCount: Number(row.sample_count ?? 0),
+      criticalCount: Number(row.critical_count ?? 0),
+    }));
+  },
   async getAssets(): Promise<Asset[]> {
     const { data, error } = await supabase
       .from('v_assets_full')
@@ -1223,6 +1276,47 @@ export const startRealtimeUpdates = (assetId: string, callback: (asset: Asset) =
 
   return () => {
     stopped = true;
+    clearInterval(interval);
+    void supabase.removeChannel(channel);
+  };
+};
+
+/** Canal único da frota, com lote de 1 s e poll de segurança a cada 30 s. */
+export const startFleetTelemetryUpdates = (
+  callback: (rows: TelemetryRow[]) => void,
+  poll: () => void,
+) => {
+  let queue: TelemetryRow[] = [];
+  let batchTimer: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    batchTimer = null;
+    if (!queue.length) return;
+    const rows = queue;
+    queue = [];
+    callback(rows);
+  };
+
+  const channel = supabase
+    .channel('dashboard-fleet-telemetry')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'sensor_readings' },
+      ({ new: row }) => {
+        if (row.value == null) return;
+        queue.push({
+          sensorId: String(row.sensor_id),
+          ts: String(row.ts),
+          value: Number(row.value),
+          status: String(row.status ?? 'normal'),
+        });
+        batchTimer ??= setTimeout(flush, 1_000);
+      },
+    )
+    .subscribe();
+
+  const interval = setInterval(poll, 30_000);
+  return () => {
+    if (batchTimer) clearTimeout(batchTimer);
     clearInterval(interval);
     void supabase.removeChannel(channel);
   };
