@@ -66,7 +66,7 @@ dos dados.
 
 As Edge Functions existem porque há chaves que **não podem** chegar ao navegador:
 tudo que é `VITE_*` é embutido no bundle e fica legível para qualquer visitante.
-`GEMINI_API_KEY` e `ELEVENLABS_API_KEY` são secrets do projeto Supabase, e o
+`OPENAI_API_KEY` e `ELEVENLABS_API_KEY` são secrets do projeto Supabase, e o
 front só conversa com as funções.
 
 > Esquema do banco, RLS, views e RPCs: [`supabase/README.md`](supabase/README.md).
@@ -100,8 +100,9 @@ consumida diretamente pelo frontend na tela de **Registro de Equipamento**.
 - Mapeamento dos campos do OCR (`campos`) para `MotorNameplate`: `mapToNameplate()`.
 - Fallback automático para dados simulados quando o backend de OCR está offline
   (a demo nunca quebra — o resultado vem marcado como `Simulado (offline)`).
-- Dois modos disponíveis na UI: **EasyOCR** (padrão) e **Gemini Vision** (opcional,
-  requer `GEMINI_API_KEY`).
+- Dois modos disponíveis na UI: **EasyOCR** (padrão) e **fallback de Visão**
+  (opcional, parâmetro `mode=gemini` na API do OCR por compatibilidade — hoje
+  usa a API de visão da OpenAI, requer `OPENAI_API_KEY`).
 
 ### Fluxo
 

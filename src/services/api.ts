@@ -973,10 +973,10 @@ export const apiService = {
    * Envia a pergunta, o histórico recente e o ativo em foco para a Edge
    * Function `ai-chat`, que monta o contexto real do site (telemetria,
    * alertas, predições, manutenção, documentação técnica) e delega a redação
-   * da resposta ao Gemini — preservando o contexto entre turnos da conversa.
+   * da resposta à OpenAI — preservando o contexto entre turnos da conversa.
    *
    * Se a function não estiver disponível (não implantada, sem
-   * `GEMINI_API_KEY`, ou offline), cai para o motor determinístico local
+   * `OPENAI_API_KEY`, ou offline), cai para o motor determinístico local
    * (`assistantEngine`), no mesmo padrão de fallback já usado para OCR e
    * anomalia: a demo nunca quebra, só perde a redação em linguagem natural.
    *
@@ -1058,6 +1058,22 @@ export const apiService = {
     }));
 
     return { conversationId: conversation.id, messages };
+  },
+
+  /**
+   * Transcreve um áudio gravado no navegador via Edge Function `stt`, que
+   * delega à OpenAI (Whisper) — mesma chave do `ai-chat`. Existe pra não
+   * depender do reconhecimento de voz embutido no navegador, que manda o
+   * áudio direto pro Google por fora da nossa aplicação e se mostrou
+   * instável fora do ambiente de desenvolvimento (bloqueios de rede, cota,
+   * falhas silenciosas).
+   */
+  async transcribeAudio(audioBase64: string, mimeType: string, lang: 'pt' | 'en'): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('stt', {
+      body: { audio: audioBase64, mimeType, lang },
+    });
+    if (error) throw error;
+    return (data?.text ?? '').trim();
   },
 
   /** Envia a foto da placa para o bucket de equipamentos. */

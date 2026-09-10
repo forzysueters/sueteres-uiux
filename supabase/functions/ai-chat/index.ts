@@ -3,9 +3,9 @@
 //
 // Recebe a pergunta do usuário + histórico da conversa, monta o contexto real
 // do site (telemetria, alertas, predições, manutenção, trechos de documentação
-// via RAG lexical) e delega a geração da resposta em linguagem natural ao
-// Gemini. A chave da API nunca chega ao front-end: fica em `GEMINI_API_KEY`,
-// um secret do projeto Supabase.
+// via RAG lexical) e delega a geração da resposta em linguagem natural à API
+// da OpenAI. A chave da API nunca chega ao front-end: fica em
+// `OPENAI_API_KEY`, um secret do projeto Supabase.
 //
 // Roda com a JWT do usuário autenticado (repassada pelo supabase-js), então
 // toda leitura/escrita respeita a Row Level Security já definida nas
@@ -33,11 +33,9 @@ import {
   buildContextBlock,
 } from './context.ts'
 
-// `gemini-2.0-flash` foi desativado pela Google (erro 404 em produção,
-// verificado ao vivo em 2026-08); `gemini-3.6-flash` é o substituto atual.
-// Ajustável sem deploy de código via o secret `GEMINI_MODEL` no projeto.
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
+// Ajustável sem deploy de código via o secret `OPENAI_MODEL` no projeto.
+const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') ?? 'gpt-4o-mini'
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 
@@ -100,8 +98,8 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return json({ error: 'unauthorized' }, 401)
 
-  if (!GEMINI_API_KEY) {
-    return json({ error: 'llm_unavailable', message: 'GEMINI_API_KEY não configurada no projeto Supabase.' }, 503)
+  if (!OPENAI_API_KEY) {
+    return json({ error: 'llm_unavailable', message: 'OPENAI_API_KEY não configurada no projeto Supabase.' }, 503)
   }
 
   let body: RequestBody
@@ -205,41 +203,40 @@ Deno.serve(async (req) => {
 
   const contextBlock = buildContextBlock({ assetSection, docs })
 
-  // ─── Monta a conversa para o Gemini: histórico + turno atual com contexto ─
-  const contents = [
-    ...history.map((turn) => ({
-      role: turn.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: turn.content }],
-    })),
-    { role: 'user', parts: [{ text: `${contextBlock}\n\nPergunta atual: ${question}` }] },
+  // ─── Monta a conversa para a OpenAI: sistema + histórico + turno atual ────
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...history.map((turn) => ({ role: turn.role, content: turn.content })),
+    { role: 'user', content: `${contextBlock}\n\nPergunta atual: ${question}` },
   ]
 
   let answerText: string
   try {
-    const geminiResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents,
-          generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
-        }),
+    const openaiResp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
-    )
-    if (!geminiResp.ok) {
-      const errText = await geminiResp.text()
-      console.error('[ai-chat] Gemini error:', geminiResp.status, errText)
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages,
+        temperature: 0.3,
+        max_tokens: 800,
+      }),
+    })
+    if (!openaiResp.ok) {
+      const errText = await openaiResp.text()
+      console.error('[ai-chat] OpenAI error:', openaiResp.status, errText)
       return json({ error: 'llm_unavailable', message: 'Falha ao consultar o modelo de linguagem.' }, 502)
     }
-    const geminiJson = await geminiResp.json()
-    answerText = geminiJson.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
+    const openaiJson = await openaiResp.json()
+    answerText = openaiJson.choices?.[0]?.message?.content ?? ''
     if (!answerText.trim()) {
       return json({ error: 'llm_empty_response' }, 502)
     }
   } catch (err) {
-    console.error('[ai-chat] erro ao chamar Gemini:', err)
+    console.error('[ai-chat] erro ao chamar a OpenAI:', err)
     return json({ error: 'llm_unavailable' }, 502)
   }
 
@@ -265,7 +262,7 @@ Deno.serve(async (req) => {
       content: answerText,
       asset_context: singleAsset?.id ?? null,
       citations,
-      model: GEMINI_MODEL,
+      model: OPENAI_MODEL,
       latency_ms: latencyMs,
     },
   ])

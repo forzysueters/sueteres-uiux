@@ -42,6 +42,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     ask_by_voice: 'Perguntar por voz',
     stop_listening: 'Parar de ouvir',
     voice_unavailable: 'Este navegador não reconhece voz',
+    transcribing: 'Transcrevendo…',
   },
   en: {
     role: 'Virtual assistant',
@@ -81,6 +82,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
     ask_by_voice: 'Ask by voice',
     stop_listening: 'Stop listening',
     voice_unavailable: 'This browser has no speech recognition',
+    transcribing: 'Transcribing…',
   },
 };
 

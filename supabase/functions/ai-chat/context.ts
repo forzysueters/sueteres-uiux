@@ -333,7 +333,7 @@ export function buildComparisonContextText(
   return [header, ...sections].join('\n\n')
 }
 
-/** Bloco final enviado ao Gemini junto da pergunta — separa dados do sistema de documentação, com rótulos de proveniência. */
+/** Bloco final enviado ao modelo junto da pergunta — separa dados do sistema de documentação, com rótulos de proveniência. */
 export function buildContextBlock(params: { assetSection: string; docs: DocChunk[] }): string {
   const { assetSection, docs } = params
   const lines = ['[DADOS DO SISTEMA — tempo real, fonte primária]', assetSection]

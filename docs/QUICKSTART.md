@@ -119,7 +119,7 @@ uvicorn src.api.main:app --port 8000   # http://localhost:8000
 
 ### Registering New Equipment (OCR real)
 1. Go to **Equipment** tab
-2. Choose the OCR engine: **EasyOCR** (default) or **Gemini Vision**
+2. Choose the OCR engine: **EasyOCR** (default) or **Vision fallback** (OpenAI)
 3. Upload a nameplate photo (PNG/JPG/WebP, ≤10 MB). For a quick test use the
    sample plates in `ocr/OCR-Model-main/data/templates/`
 4. The frontend calls the OCR model (port 8000); review the extracted fields,

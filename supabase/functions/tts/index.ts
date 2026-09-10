@@ -5,7 +5,7 @@
 // a chave da ElevenLabs NÃO PODE chegar ao navegador. Qualquer `VITE_*` é
 // embutida no bundle e fica legível para quem abrir o site — e uma chave de TTS
 // exposta é cota queimada por terceiros. Aqui ela vive em `ELEVENLABS_API_KEY`,
-// um secret do projeto Supabase, do mesmo jeito que a `GEMINI_API_KEY` do
+// um secret do projeto Supabase, do mesmo jeito que a `OPENAI_API_KEY` do
 // `ai-chat`.
 //
 // Usa o endpoint `/with-timestamps`, que devolve o áudio junto com o instante

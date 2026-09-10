@@ -137,7 +137,7 @@ cp server/.env.example server/.env # backend de auth
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DEFAULT_MODEL` | `easyocr` | Motor de OCR padrão |
-| `GEMINI_API_KEY` | — | Habilita o fallback/modo Gemini Vision (opcional) |
+| `OPENAI_API_KEY` | — | Habilita o fallback/modo de visão (opcional, parâmetro `mode=gemini` por compatibilidade) |
 
 ---
 

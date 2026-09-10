@@ -236,7 +236,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
 
   const MODEL_LABELS: Record<string, string> = {
     easyocr: 'EasyOCR',
-    gemini: 'Gemini Vision',
+    gemini: 'GPT Vision',
     mock: t.simulated,
     paddleocr: 'PaddleOCR',
     trocr: 'TrOCR',
@@ -305,7 +305,7 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
               <div className="inline-flex rounded-lg bg-card-hover border border-border p-0.5">
                 {([
                   { id: 'easyocr', label: 'EasyOCR' },
-                  { id: 'gemini', label: 'Gemini Vision' },
+                  { id: 'gemini', label: 'GPT Vision' },
                 ] as const).map(({ id, label }) => (
                   <button
                     key={id}
