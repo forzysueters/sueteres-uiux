@@ -272,7 +272,7 @@ export const AssetMonitorPage: React.FC = () => {
             <span className="text-border-strong">/</span>
             <span className="text-foreground font-semibold font-mono">{asset.tag}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div data-tour="asset-actions" className="flex items-center gap-2">
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button className="btn-ghost text-xs" title={t.export_hint} disabled={sendingReport}>

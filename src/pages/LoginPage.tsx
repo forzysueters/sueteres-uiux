@@ -92,7 +92,7 @@ export const LoginPage = () => {
     {
       icon: Activity,
       label: 'Monitoramento em tempo real',
-      desc: 'Sensores IoT do motor — tensão, corrente, vibração, temperatura',
+      desc: 'Sensores IoT do motor — velocidade de vibração, aceleração, temperatura',
     },
     {
       icon: Cpu,

@@ -17,6 +17,12 @@ export const TOUR_STEPS: TourStepDef[] = [
     padding: 10,
   },
   {
+    id: 'charts',
+    route: '/dashboard',
+    targets: ['[data-tour="dashboard-charts"]', '[data-tour="dashboard-kpis"]'],
+    padding: 8,
+  },
+  {
     id: 'equipment',
     route: '/equipamentos',
     // O formulário só existe no DOM com o diálogo aberto; o botão que o abre
@@ -45,6 +51,13 @@ export const TOUR_STEPS: TourStepDef[] = [
       '[data-tour="dashboard-kpis"]',
     ],
     padding: 10,
+  },
+  {
+    id: 'reports',
+    // Mesmo ativo da etapa anterior: a barra de ações só existe na tela dele.
+    route: (ctx) => (ctx.focusAssetId ? `/planta/ativo/${ctx.focusAssetId}` : '/planta'),
+    targets: ['[data-tour="asset-actions"]', '[data-tour="triage-rail"]'],
+    padding: 6,
   },
   {
     id: 'documentation',

@@ -34,7 +34,7 @@ describe('navegação do resumo do Órion', () => {
     expect(result.current.phase).toBe('chat');
     act(() => result.current.actions.restart());
     expect(mocks.navigate).toHaveBeenLastCalledWith('/dashboard');
-    expect(result.current.stepCount).toBe(7);
+    expect(result.current.stepCount).toBe(9);
   });
 
   it('não navega se o usuário fechar durante a consulta', async () => {

@@ -369,7 +369,11 @@ export const Dashboard: React.FC = () => {
               ))}
             </div>
           </motion.div>
-          <motion.section variants={variants} className="saas-card-premium p-4 sm:p-6">
+          <motion.section
+            variants={variants}
+            data-tour="dashboard-charts"
+            className="saas-card-premium p-4 sm:p-6"
+          >
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <span className="section-title !mb-0">

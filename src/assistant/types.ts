@@ -21,9 +21,11 @@ export type AssistantPhase =
 
 export type TourStepId =
   | 'dashboard'
+  | 'charts'
   | 'equipment'
   | 'monitoring'
   | 'predictions'
+  | 'reports'
   | 'documentation'
   | 'troubleshooting'
   | 'wrapup';

@@ -14,7 +14,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
       `Olá! Eu sou o ${ASSISTANT_NAME}, seu assistente virtual aqui na plataforma. ` +
       'Ela reúne, em um único lugar, o monitoramento dos seus equipamentos em tempo real ' +
       'e a inteligência artificial que antecipa falhas antes que elas parem a produção. ' +
-      'Quer que eu te mostre como funciona? Leva menos de dois minutos.',
+      'Quer que eu te mostre como funciona? Leva só alguns minutos.',
     start_tour: 'Sim, me mostre',
     later: 'Agora não',
     next: 'Continuar',
@@ -56,7 +56,7 @@ export const UI_COPY: Record<Language, Record<string, string>> = {
       `Hi! I'm ${ASSISTANT_NAME}, your virtual assistant on this platform. ` +
       'It brings together real-time monitoring of your equipment and the AI that ' +
       'anticipates failures before they stop production. ' +
-      'Would you like me to show you around? It takes less than two minutes.',
+      'Would you like me to show you around? It only takes a few minutes.',
     start_tour: 'Yes, show me',
     later: 'Not now',
     next: 'Continue',
@@ -100,6 +100,15 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
         'disponibilidade, alertas abertos, anomalias detectadas e quantos equipamentos estão ' +
         'online agora. É a primeira tela que você abre no começo do turno.',
     },
+    charts: {
+      label: 'Tempo real',
+      title: 'A telemetria chegando ao vivo',
+      speech:
+        'Logo abaixo ficam os gráficos em tempo real. Este acompanha as leituras de toda a frota ' +
+        'sem recarregar a página: você escolhe a grandeza e a janela de tempo aqui em cima. ' +
+        'Mais abaixo aparecem quando os sensores saíram da faixa, a anomalia de cada ativo ' +
+        'e a tendência de conformidade da operação.',
+    },
     equipment: {
       label: 'Equipamentos',
       title: 'Cadastro pela placa do motor',
@@ -114,8 +123,10 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       title: 'A fábrica inteira, em tempo real',
       speech:
         'Esta é a planta digital. Cada máquina aparece no lugar onde ela está de verdade no chão ' +
-        'de fábrica, pintada com a cor do seu estado atual. Clique em qualquer uma para abrir a ' +
-        'telemetria ao vivo: tensão, corrente, temperatura e vibração, atualizadas a cada dois segundos.',
+        'de fábrica, marcada com a cor do seu estado atual, e você alterna entre a planta 3D e o ' +
+        'mapa 2D. Clique em qualquer uma para abrir a telemetria ao vivo: velocidade de vibração, ' +
+        'aceleração e temperatura, com leituras novas a cada dez segundos. Quem configura a planta ' +
+        'também reposiciona as máquinas por aqui, no botão Editar planta.',
     },
     predictions: {
       label: 'Predição',
@@ -125,6 +136,15 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
         'Ele compara o comportamento de agora com a linha de base da máquina e aponta desvios ' +
         'que ninguém veria no gráfico bruto — como um aquecimento que não se explica pela carga. ' +
         'Junto dele vem a estimativa de vida útil restante e o que deu origem ao diagnóstico.',
+    },
+    reports: {
+      label: 'Relatório',
+      title: 'Do diagnóstico à ordem de serviço',
+      speech:
+        'Tudo o que você viu deste ativo vira relatório em um clique. Em Exportar, você imprime ' +
+        'ou salva o PDF, ou recebe o relatório por e-mail com o PDF anexo. E em Agendar ' +
+        'Manutenção você define o tipo, a prioridade, a data e o responsável: a ordem é aberta ' +
+        'e o responsável recebe o aviso por e-mail.',
     },
     documentation: {
       label: 'Documentação',
@@ -148,7 +168,8 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       title: 'É isso!',
       speech:
         'Pronto! Agora você já conhece as principais funcionalidades da plataforma: ' +
-        'painel, cadastro, monitoramento, predição, documentação e alertas. ' +
+        'painel, gráficos em tempo real, cadastro, monitoramento, predição, relatórios, ' +
+        'documentação e alertas. ' +
         'Sempre que precisar de ajuda, é só me chamar aqui no canto da tela.',
     },
   },
@@ -160,6 +181,15 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
         "Let's start with the Dashboard. These top indicators summarise your whole operation: " +
         'availability, open alerts, detected anomalies and how many assets are online right now. ' +
         "It's the first screen you open at the start of a shift.",
+    },
+    charts: {
+      label: 'Live',
+      title: 'Telemetry arriving live',
+      speech:
+        'Right below are the real-time charts. This one follows readings from the whole fleet ' +
+        'without reloading the page: pick the metric and the time window up here. Further down ' +
+        'you see when sensors went out of range, the anomaly score of each asset and the ' +
+        'operation conformity trend.',
     },
     equipment: {
       label: 'Equipment',
@@ -175,8 +205,10 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       title: 'The whole plant, in real time',
       speech:
         'This is the digital plant. Every machine appears where it actually stands on the shop ' +
-        'floor, painted with its current status. Click any of them to open live telemetry: ' +
-        'voltage, current, temperature and vibration, refreshed every two seconds.',
+        'floor, marked with its current status colour, and you can switch between the 3D plant ' +
+        'and the 2D map. Click any of them to open live telemetry: vibration velocity, ' +
+        'acceleration and temperature, with fresh readings every ten seconds. Whoever configures ' +
+        'the plant can also reposition machines here, with the Edit layout button.',
     },
     predictions: {
       label: 'Prediction',
@@ -186,6 +218,15 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
         "behaviour against the machine's own baseline and surfaces deviations nobody would spot " +
         'in the raw chart — such as heating that the load does not explain. Alongside it you get ' +
         'the remaining useful life estimate and what drove the diagnosis.',
+    },
+    reports: {
+      label: 'Report',
+      title: 'From diagnosis to work order',
+      speech:
+        'Everything you saw about this asset becomes a report in one click. Under Export you can ' +
+        'print or save the PDF, or get the report by email with the PDF attached. And with ' +
+        'Schedule Maintenance you set the type, priority, date and assignee: the work order is ' +
+        'opened and the assignee is notified by email.',
     },
     documentation: {
       label: 'Documentation',
@@ -207,8 +248,9 @@ export const TOUR_COPY: Record<Language, Record<TourStepId, TourStepCopy>> = {
       label: 'All set',
       title: "That's it!",
       speech:
-        'Done! You now know the main capabilities of the platform: dashboard, registration, ' +
-        'monitoring, prediction, documentation and alerts. Whenever you need help, just call me ' +
+        'Done! You now know the main capabilities of the platform: dashboard, live charts, ' +
+        'registration, monitoring, prediction, reports, documentation and alerts. Whenever you ' +
+        'need help, just call me ' +
         'from the corner of the screen.',
     },
   },
