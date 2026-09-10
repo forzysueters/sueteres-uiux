@@ -61,12 +61,12 @@ describe('limitFor — resolução por ativo', () => {
     // EXA-001 é 0,75 kW → ISO 10816-3 classe I, limites mais apertados que os
     // do compressor de 22 kW, que é classe II. Mesma grandeza, mesmo nome,
     // limite diferente — é exatamente para isso que o override por ativo existe.
-    expect(limitFor('Velocidade de Vibração', 'EXA-001')?.warn).toBe(2.8);
-    expect(limitFor('Velocidade de Vibração', 'CMP-001')?.warn).toBe(4.5);
+    expect(limitFor('Velocidade', 'EXA-001')?.warn).toBe(2.8);
+    expect(limitFor('Velocidade', 'CMP-001')?.warn).toBe(4.5);
   });
   it('cai no limite genérico quando o ativo não tem override', () => {
-    expect(limitFor('Velocidade de Vibração')?.warn).toBe(4.5);
-    expect(limitFor('Velocidade de Vibração', 'ATIVO-SEM-OVERRIDE')?.warn).toBe(4.5);
+    expect(limitFor('Velocidade')?.warn).toBe(4.5);
+    expect(limitFor('Velocidade', 'ATIVO-SEM-OVERRIDE')?.warn).toBe(4.5);
   });
   it('retorna null para grandeza desconhecida', () => {
     expect(limitFor('Grandeza Inexistente')).toBeNull();
@@ -106,14 +106,14 @@ describe('cenário dos ativos', () => {
   const casos: [string, string, number, string][] = [
     // MTR-001 — operação nominal, nada fora de faixa. Mede as mesmas três
     // grandezas dos pontos reais do Forzy Lab.
-    ['MTR-001', 'Velocidade de Vibração', 2.08, 'normal'],
+    ['MTR-001', 'Velocidade', 2.08, 'normal'],
     ['MTR-001', 'Aceleração', 0.38, 'normal'],
     ['MTR-001', 'Temperatura', 60.34, 'normal'],
 
     // MTR-002 — rolamento em degradação. Vibração e aceleração medem o MESMO
     // fenômeno (a = 2πf·v), então têm de acusar juntas: se uma entrar em
     // warning e a outra não, os limites saíram de sincronia.
-    ['MTR-002', 'Velocidade de Vibração', 5.19, 'warning'],
+    ['MTR-002', 'Velocidade', 5.19, 'warning'],
     ['MTR-002', 'Aceleração', 0.78, 'warning'],
     ['MTR-002', 'Temperatura', 79.47, 'warning'],
 
@@ -122,20 +122,20 @@ describe('cenário dos ativos', () => {
     // rotação de placa — é isso que os casos abaixo travam.
 
     // BBA-001 — bomba de 5,5 kW, classe I (2,8/4,5 mm/s) a 1450 rpm
-    ['BBA-001', 'Velocidade de Vibração', 1.94, 'normal'],
+    ['BBA-001', 'Velocidade', 1.94, 'normal'],
     ['BBA-001', 'Aceleração', 0.29, 'normal'],
     ['BBA-001', 'Temperatura', 58.4, 'normal'],
     // O mesmo 3,1 mm/s que é normal num motor de 22 kW já é alerta aqui.
-    ['BBA-001', 'Velocidade de Vibração', 3.1, 'warning'],
-    ['MTR-001', 'Velocidade de Vibração', 3.1, 'normal'],
+    ['BBA-001', 'Velocidade', 3.1, 'warning'],
+    ['MTR-001', 'Velocidade', 3.1, 'normal'],
 
     // CMP-001 — compressor de 22 kW, classe II, a 2950 rpm. Vibração severa.
-    ['CMP-001', 'Velocidade de Vibração', 8.08, 'critical'],
+    ['CMP-001', 'Velocidade', 8.08, 'critical'],
     ['CMP-001', 'Aceleração', 2.5, 'critical'],
     ['CMP-001', 'Temperatura', 81.18, 'warning'],
 
     // EXA-001 — exaustor de 0,75 kW, classe I, a 1710 rpm
-    ['EXA-001', 'Velocidade de Vibração', 0.91, 'normal'],
+    ['EXA-001', 'Velocidade', 0.91, 'normal'],
     ['EXA-001', 'Aceleração', 0.16, 'normal'],
     ['EXA-001', 'Temperatura', 55.4, 'normal'],
   ];
@@ -161,7 +161,7 @@ describe('sensorByRole — resolve a grandeza por papel, não por nome literal',
   // "Vibração", sensorByRole devolvia undefined e o viewer 3D dessas páginas
   // caía no default de vibração 0 — com o gauge ao lado mostrando o valor certo.
   it('acha a vibração pelo nome dos ativos reais e dos motores', () => {
-    const sensores = [s('Temperatura', 48), s('Velocidade de Vibração', 3.1)];
+    const sensores = [s('Temperatura', 48), s('Velocidade', 3.1)];
     expect(sensorByRole(sensores, 'vibration')?.value).toBe(3.1);
   });
 
@@ -170,11 +170,20 @@ describe('sensorByRole — resolve a grandeza por papel, não por nome literal',
     expect(sensorByRole(sensores, 'vibration')?.value).toBe(2.2);
   });
 
-  // EXA-001 tem um sensor "Velocidade" que é rotação em %, não vibração.
-  // Ele não pode ser confundido com "Velocidade de Vibração".
-  it('não confunde a velocidade do exaustor (% de rotação) com vibração', () => {
-    const sensores = [s('Velocidade', 84), s('Corrente Motor', 3.1)];
-    expect(sensorByRole(sensores, 'vibration')).toBeUndefined();
+  // 'Velocidade' passou a SER o nome da velocidade de vibração (0021), igual ao
+  // campo que o coletor manda. A ambiguidade com rotação — que existia enquanto
+  // EXA-001 tinha um sensor de rotação com esse nome — foi desfeita na 0020, e a
+  // 0021 pôs um trigger no banco que recusa 'Velocidade' em sensor que não seja
+  // de vibração. Ou seja: a garantia deixou de ser o nome longo aqui e passou a
+  // ser a restrição na origem do dado.
+  it('resolve "Velocidade" como vibração — é o nome do campo do coletor', () => {
+    const sensores = [s('Velocidade', 3.1), s('Temperatura', 48)];
+    expect(sensorByRole(sensores, 'vibration')?.value).toBe(3.1);
+  });
+
+  it('prefere o nome do coletor quando os dois estão presentes (dado antigo e novo)', () => {
+    const sensores = [s('Vibração', 2.2), s('Velocidade', 3.1)];
+    expect(sensorByRole(sensores, 'vibration')?.value).toBe(3.1);
   });
 
   it('resolve a temperatura sob os vários nomes que os ativos usam', () => {

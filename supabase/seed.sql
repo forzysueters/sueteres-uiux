@@ -174,7 +174,7 @@ from (values
   -- de direção 'band', e a Tensão dos motores era a única linha que o usava. Sem
   -- um valor tipado em algum lugar da lista, o Postgres infere text para a coluna
   -- inteira e o insert falha ("nominal_value is of type double precision").
-  ('MTR-001', 'VIB',  'Velocidade de Vibração', 'vibration',   'mm/s',   0,   20,   4.5,    7.1,  'above', null::float, 'ISO 10816-3 — zona B/C e C/D',                   1,    2.3,  0.4,  0.3),
+  ('MTR-001', 'VIB',  'Velocidade', 'vibration',   'mm/s',   0,   20,   4.5,    7.1,  'above', null::float, 'ISO 10816-3 — zona B/C e C/D',                   1,    2.3,  0.4,  0.3),
   ('MTR-001', 'ACC',  'Aceleração',             'vibration',   'm/s²',   0,    5,   0.83,   1.31, 'above', null, 'ISO 10816-3 convertida a 1760 rpm (a = 2πf·v)',         2,    0.42, 0.07, 0.06),
   ('MTR-001', 'TEMP', 'Temperatura',            'temperature', '°C',     0,  120,  75.0,   90.0,  'above', null, 'Isolamento classe F',                                  3,   62.0,  4.0,  1.5),
 
@@ -183,7 +183,7 @@ from (values
   --    da aceleração acompanha o da vibração na mesma proporção (~12%), senão
   --    os dois sensores do mesmo motor contariam histórias diferentes.
   --    f = 1465/60 = 24,42 Hz ⇒ 2πf = 153,4 s⁻¹. Nominal: 153,4 × 4,9 mm/s.
-  ('MTR-002', 'VIB',  'Velocidade de Vibração', 'vibration',   'mm/s',   0,   20,   4.5,    7.1,  'above', null, 'ISO 10816-3 — zona B/C e C/D',                          1,    4.9,  0.5,  0.6),
+  ('MTR-002', 'VIB',  'Velocidade', 'vibration',   'mm/s',   0,   20,   4.5,    7.1,  'above', null, 'ISO 10816-3 — zona B/C e C/D',                          1,    4.9,  0.5,  0.6),
   ('MTR-002', 'ACC',  'Aceleração',             'vibration',   'm/s²',   0,    5,   0.69,   1.09, 'above', null, 'ISO 10816-3 convertida a 1465 rpm (a = 2πf·v)',         2,    0.75, 0.08, 0.09),
   ('MTR-002', 'TEMP', 'Temperatura',            'temperature', '°C',     0,  120,  75.0,   90.0,  'above', null, 'Isolamento classe F',                                  3,   74.0,  4.0,  7.0),
 
