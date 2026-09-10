@@ -1,0 +1,43 @@
+/* Painel ancorado embaixo: mantém a área destacada livre acima no celular. */
+@media (max-width: 639px), (max-height: 500px) and (pointer: coarse) {
+  .orion-panel[role='dialog'] {
+    inset: auto max(8px, env(safe-area-inset-right))
+      calc(var(--orion-keyboard, 0px) + max(8px, env(safe-area-inset-bottom)))
+      auto;
+    width: min(320px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-height: min(380px, calc(var(--orion-height, 100dvh) - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  }
+  .orion-panel[data-tour-active='true'] {
+    max-height: min(260px, calc(var(--orion-height, 100dvh) - 16px));
+  }
+  .orion-header { gap: 2px; padding: 2px 8px; }
+  .orion-header > .relative { width: 32px; height: 32px; }
+  .orion-header > .relative > * { transform: scale(.7273); transform-origin: top left; }
+  .orion-header > .min-w-0 > .flex { display: none; }
+  .orion-header > .min-w-0 { padding-left: 6px; }
+  .orion-header .tracking-wider { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .orion-header button { width: 40px; height: 40px; }
+  .orion-controls { padding: 4px 10px; }
+  .orion-controls button { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+  .orion-controls .mt-2\.5 { margin-top: 0; }
+  .orion-controls .mt-2\.5 button { min-height: 32px; font-size: 10px; }
+  .orion-controls input { height: 48px; font-size: 16px; padding-right: 96px; }
+  .orion-controls button.absolute.right-9 { right: 48px; }
+  .orion-content { padding: 6px 10px; }
+  .orion-content .text-sm { font-size: 12px; line-height: 1.5; }
+  .orion-content .tracking-\[0\.16em\] { font-size: 9px; letter-spacing: .06em; }
+  .orion-progress { padding: 4px 10px 0; gap: 2px; }
+  .orion-progress > span { min-width: 0; }
+  /* O usuário pode rolar a planta sem encerrar o resumo com um toque. */
+  .orion-spotlight > svg { pointer-events: none; }
+  .orion-target-label { display: none; }
+  [data-tour] { scroll-margin-top: calc(72px + env(safe-area-inset-top)); }
+}
+
+/* No celular deitado, reserva a lateral esquerda para o ativo. */
+@media (min-width: 640px) and (max-height: 500px) and (pointer: coarse) {
+  .orion-panel[role='dialog'] { left: auto; width: min(320px, 48vw); }
+  .orion-panel[data-tour-active='true'] {
+    max-height: calc(var(--orion-height, 100dvh) - 16px - env(safe-area-inset-bottom));
+  }
+}

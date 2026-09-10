@@ -58,7 +58,7 @@ export const TourSpotlight: React.FC<TourSpotlightProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] pointer-events-none">
+    <div className="orion-spotlight fixed inset-0 z-[60] pointer-events-none">
       {/* Véu + recorte. Clicar fora encerra o tour, como em qualquer overlay. */}
       <svg className="absolute inset-0 h-full w-full pointer-events-auto" onClick={onSkip}>
         <defs>
@@ -146,7 +146,7 @@ export const TourSpotlight: React.FC<TourSpotlightProps> = ({
           initial={{ opacity: 0, y: labelBelow ? -6 : 6 }}
           animate={{ opacity: 1, y: 0, top: labelY, left: rect!.left }}
           transition={{ duration: 0.3, ease: EASE }}
-          className="absolute inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 backdrop-blur-md"
+          className="orion-target-label absolute inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 backdrop-blur-md"
           style={{
             borderColor: 'rgba(var(--primary-rgb), 0.35)',
             background: 'rgba(var(--primary-rgb), 0.12)',

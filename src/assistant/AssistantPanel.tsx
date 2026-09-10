@@ -21,6 +21,7 @@ import { ASSISTANT_NAME, t } from './copy';
 import { useSpeechToText } from './useSpeechToText';
 import { cn } from '../lib/utils';
 import type { AssistantPhase, AvatarState, Language } from './types';
+import './assistantMobile.css';
 
 export interface AssistantPanelModel {
   lang: Language;
@@ -71,10 +72,34 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
   const [asking, setAsking] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const isTour = p.phase === 'tour';
   const lastStep = p.stepIndex === p.stepCount - 1;
   const stt = useSpeechToText(lang);
   const startListening = () => stt.start((text) => setDraft((d) => (d ? `${d} ${text}` : text)));
+
+  // A área visível encolhe quando o teclado abre no celular.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const sync = () => {
+      panelRef.current?.style.setProperty('--orion-height', `${viewport?.height ?? window.innerHeight}px`);
+      panelRef.current?.style.setProperty('--orion-keyboard', `${Math.max(0, window.innerHeight - (viewport?.height ?? window.innerHeight) - (viewport?.offsetTop ?? 0))}px`);
+    };
+    sync();
+    viewport?.addEventListener('resize', sync);
+    viewport?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      viewport?.removeEventListener('resize', sync);
+      viewport?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [p.stepIndex, p.text]);
 
   useEffect(() => {
     if (asking) inputRef.current?.focus();
@@ -100,17 +125,20 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
     const q = draft.trim();
     if (!q || p.chatPending) return;
     setDraft('');
+    inputRef.current?.blur();
     p.onAsk(q);
   };
 
   return (
     <motion.div
+      ref={panelRef}
+      data-tour-active={isTour}
       initial={{ opacity: 0, y: 24, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 16, scale: 0.97 }}
       transition={{ duration: 0.32, ease: EASE }}
       className={cn(
-        'fixed z-[70] flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-panel',
+        'orion-panel fixed z-[70] flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-panel',
         'inset-x-3 sm:inset-x-auto sm:right-6 sm:w-[382px]',
         // Nunca mais alto que a janela — telas baixas e celular deitado.
         'max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)]',
@@ -120,7 +148,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
       aria-label={`${ASSISTANT_NAME} — ${t(lang, 'role')}`}
     >
       {/* ── Cabeçalho ────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 border-b border-border bg-card-hover px-4 py-3">
+      <div className="orion-header shrink-0 flex items-center gap-3 border-b border-border bg-card-hover px-4 py-3">
         <div ref={p.avatarRef} className="relative flex-shrink-0">
           <AvatarFace size={44} state={p.avatarState} orbit={false} />
         </div>
@@ -201,7 +229,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
 
       {/* ── Progresso do tour ────────────────────────────────────────────── */}
       {isTour && (
-        <div className="flex gap-1 px-4 pt-3">
+        <div className="orion-progress shrink-0 flex gap-1 px-4 pt-3" aria-label={`${p.stepIndex + 1}/${p.stepCount}`}>
           {Array.from({ length: p.stepCount }).map((_, i) => (
             <span
               key={i}
@@ -215,7 +243,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
       )}
 
       {/* ── Balão de fala ────────────────────────────────────────────────── */}
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 py-3.5">
+      <div ref={contentRef} className="orion-content min-h-0 flex-1 overflow-y-auto overscroll-contain break-words scrollbar-thin px-4 py-3.5">
         <motion.div
           key={`${p.phase}-${p.stepIndex}-${p.chatQuestion ?? ''}`}
           initial={{ opacity: 0, y: 8 }}
@@ -259,7 +287,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
       </div>
 
       {/* ── Controles ────────────────────────────────────────────────────── */}
-      <div className="border-t border-border px-4 py-3">
+      <div className="orion-controls shrink-0 border-t border-border px-4 py-3">
         {p.phase === 'greeting' && (
           <div className="flex flex-col gap-2 sm:flex-row">
             <button onClick={p.onStart} className="btn-primary flex-1 !py-2.5 !text-xs">
