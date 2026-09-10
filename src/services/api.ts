@@ -1116,6 +1116,78 @@ export const apiService = {
    * o admin rebaixando a si mesmo e a remoção do último admin ativo. A tela
    * esconde esses casos, mas a garantia não é a tela.
    */
+  /**
+   * Cria um login de acesso para outra pessoa.
+   *
+   * Delega à Edge Function `create-user` porque criar conta exige a Auth Admin
+   * API, que só responde à service role key — e essa chave ignora toda a RLS,
+   * então não pode existir no navegador. A function reconfirma no banco que
+   * quem chamou é administrador ativo antes de criar qualquer coisa.
+   *
+   * `admin` não é um papel atribuível: conceder esse papel é feito fora do
+   * produto (ver migração 0017).
+   */
+  async createUser(input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    role: Exclude<UserRole, 'admin'>;
+  }): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('create-user', { body: input });
+
+    if (error) {
+      // O corpo da function carrega o motivo; sem lê-lo, todo problema vira
+      // "Edge Function returned a non-2xx status code" na tela.
+      const ctx = (error as {
+        context?: { json?: () => Promise<{ error?: string; message?: string }> };
+      }).context;
+
+      let code: string | undefined;
+      let message: string | undefined;
+      if (typeof ctx?.json === 'function') {
+        try {
+          const detail = await ctx.json();
+          code = detail?.error;
+          message = detail?.message;
+        } catch {
+          /* corpo não-JSON: fica a mensagem genérica abaixo */
+        }
+      }
+      const BY_CODE: Record<string, string> = {
+        email_taken: 'Já existe uma conta com esse e-mail.',
+        forbidden: 'Criar usuários é exclusivo do administrador.',
+        invalid_email: 'Informe um endereço de e-mail válido.',
+        invalid_role: 'Papel inválido.',
+        name_required: 'Informe nome e sobrenome.',
+        weak_password: 'A senha deve ter pelo menos 8 caracteres.',
+      };
+
+      // Sem corpo legível, a requisição não chegou a completar — e o navegador
+      // não deixa saber por quê. Quando a function não está publicada, a gateway
+      // responde 404 SEM cabeçalho de CORS; o navegador bloqueia a resposta e o
+      // JavaScript recebe só "Failed to fetch", indistinguível de estar offline
+      // (verificado ao vivo contra o projeto). Como não dá para separar os dois,
+      // a mensagem cita a causa mais provável em vez de fingir certeza.
+      const unreachable = typeof ctx?.json !== 'function';
+      const fallback = unreachable
+        ? 'Não foi possível falar com o servidor. A causa mais comum é a function `create-user` não estar publicada (supabase functions deploy create-user); também pode ser falta de conexão.'
+        : 'Não foi possível criar o usuário.';
+
+      throw new Error((code && BY_CODE[code]) ?? message ?? fallback);
+    }
+
+    // 207: a conta nasceu, mas o papel não foi aplicado. É sucesso pela metade
+    // — fingir sucesso inteiro deixaria alguém com o papel errado sem ninguém
+    // saber.
+    if ((data as { error?: string } | null)?.error === 'profile_incomplete') {
+      throw new Error(
+        (data as { message?: string }).message ??
+          'Conta criada, mas o papel não foi aplicado. Ajuste na lista de usuários.',
+      );
+    }
+  },
+
   async updateUserAccess(
     userId: string,
     patch: { role?: UserRole; isActive?: boolean },

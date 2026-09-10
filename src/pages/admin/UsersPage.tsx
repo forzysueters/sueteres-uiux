@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, ShieldAlert, Loader2, AlertTriangle, Check, X, RefreshCw } from 'lucide-react';
+import { Users, ShieldAlert, Loader2, AlertTriangle, Check, X, RefreshCw, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiService } from '../../services/api';
 import { useAppStore } from '../../store/appStore';
@@ -10,6 +10,7 @@ import type { UserRole } from '../../types/auth';
 import type { PlatformUser } from '../../types';
 import { cn } from '../../lib/utils';
 import { PermissionMatrix } from '../../components/PermissionMatrix';
+import { NewUserDialog } from '../../components/NewUserDialog';
 
 /**
  * Papéis que ESTA TELA atribui.
@@ -35,11 +36,13 @@ export const UsersPage: React.FC = () => {
   const { language } = useAppStore();
   const me = useAuthStore((s) => s.user);
   const t = translations[language].users;
+  const tNew = translations[language].newUser;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
 
   const [users, setUsers] = useState<PlatformUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const load = () => {
     setUsers(null);
@@ -71,13 +74,24 @@ export const UsersPage: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div>
-        <h1 className="flex items-center gap-3 text-2xl sm:text-3xl">
-          <Users className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0 text-primary" />
-          <span className="min-w-0 break-words">{t.title}</span>
-        </h1>
-        <p>{t.subtitle}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-3 text-2xl sm:text-3xl">
+            <Users className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0 text-primary" />
+            <span className="min-w-0 break-words">{t.title}</span>
+          </h1>
+          <p>{t.subtitle}</p>
+        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="h-10 flex-shrink-0 px-4 rounded-lg bg-primary text-white text-xs font-bold flex items-center gap-2 transition-all hover:bg-primary/90"
+        >
+          <UserPlus size={14} />
+          {tNew.action}
+        </button>
       </div>
+
+      <NewUserDialog open={creating} onOpenChange={setCreating} onCreated={load} />
 
       {pending > 0 && (
         <div className="saas-card border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
