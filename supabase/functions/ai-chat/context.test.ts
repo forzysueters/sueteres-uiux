@@ -52,6 +52,35 @@ describe('resolveFocusAssets', () => {
     expect(r).toEqual({ assets: [], source: null })
   })
 
+  it('não herda o ativo do turno anterior quando a pergunta é sobre a planta inteira (bug real: "e qual ativo está pior?" logo após olhar um motor virava contexto de um ativo só, e o Órion respondia "aqui só tenho o MTR-001")', () => {
+    const history: ChatTurn[] = [
+      { role: 'user', content: 'qual a temperatura do MTR-001?' },
+      { role: 'assistant', content: '59 °C.' },
+    ]
+    const r = resolveFocusAssets('e qual ativo está pior no momento?', 'a3', history, ASSETS)
+    expect(r).toEqual({ assets: [], source: null })
+  })
+
+  it('escopo de planta também ignora a seleção da tela', () => {
+    expect(resolveFocusAssets('quantos equipamentos estão em alerta?', 'a1', [], ASSETS).assets).toEqual([])
+    expect(resolveFocusAssets('me dá uma visão geral da planta', 'a1', [], ASSETS).assets).toEqual([])
+    expect(resolveFocusAssets('o que devo priorizar hoje?', 'a1', [], ASSETS).assets).toEqual([])
+  })
+
+  it('uma TAG citada vence o escopo de planta — "o CMP-001 é o pior?" é sobre aquele ativo', () => {
+    const r = resolveFocusAssets('o CMP-001 é o pior da planta?', null, [], ASSETS)
+    expect(r).toEqual({ assets: [ASSETS[0]], source: 'question' })
+  })
+
+  it('anáfora com a mesma palavra "ativo" continua herdando — o gatilho exige determinante interrogativo', () => {
+    const history: ChatTurn[] = [
+      { role: 'user', content: 'como está o CMP-001?' },
+      { role: 'assistant', content: 'Crítico.' },
+    ]
+    const r = resolveFocusAssets('a temperatura desse ativo está normal?', null, history, ASSETS)
+    expect(r).toEqual({ assets: [ASSETS[0]], source: 'history' })
+  })
+
   it('resolve múltiplos ativos citados na mesma pergunta (comparação)', () => {
     const r = resolveFocusAssets('compare o CMP-001 e o MTR-002', null, [], ASSETS)
     expect(r.assets.map((a) => a.tag).sort()).toEqual(['CMP-001', 'MTR-002'])
@@ -284,6 +313,29 @@ describe('buildAssetContextText', () => {
     expect(buildAssetContextText(ctx, 'question', null)).toContain('Nenhuma placa de identificação confirmada')
   })
 
+  it('inclui o valor de TODO sensor, inclusive o que está dentro da faixa (bug real: o assistente respondia "não encontrei a temperatura" porque só sensor anormal chegava ao modelo)', () => {
+    const ctx = {
+      asset: { tag: 'CMP-001', name: 'Compressor de Ar', location: 'Hall C', status: 'critical', uptime: 81, anomaly_score: 100, next_maintenance: null, last_maintenance: null },
+      sensors: [
+        { name: 'Temp. Saída', unit: '°C', value: 92, status: 'normal', warning: 110, critical: 120 },
+        { name: 'Vibração', unit: 'mm/s', value: 8.18, status: 'critical', warning: 4.5, critical: 7.1 },
+      ],
+      active_alerts: [], predictions: [], open_maintenance: [],
+    }
+    const text = buildAssetContextText(ctx, 'question')
+    expect(text).toContain('Temp. Saída: 92 °C — dentro da faixa')
+    expect(text).toContain('Vibração: 8.18 mm/s — ACIMA DO LIMITE CRÍTICO')
+    expect(text).toContain('Sensores fora da faixa neste momento: Vibração')
+  })
+
+  it('declara a ausência de sensores em vez de omitir a seção', () => {
+    const ctx = {
+      asset: { tag: 'MTR-001', name: 'Motor', location: 'Hall A', status: 'normal', uptime: 99, anomaly_score: 2, next_maintenance: null, last_maintenance: null },
+      sensors: [], active_alerts: [], predictions: [], open_maintenance: [],
+    }
+    expect(buildAssetContextText(ctx, 'question')).toContain('Nenhum sensor ativo cadastrado')
+  })
+
   it('reporta a última manutenção concluída quando o banco tem o dado (bug real: era descartado antes)', () => {
     const ctx = {
       asset: { tag: 'MTR-002', name: 'Motor de Reserva', location: 'Hall A', status: 'warning', uptime: 95, anomaly_score: 12, next_maintenance: null, last_maintenance: '2026-06-15' },
@@ -301,6 +353,20 @@ describe('buildFleetContextText', () => {
     expect(text).toContain('Nenhum ativo específico identificado')
     expect(text).toContain('Estado crítico: CMP-001')
     expect(text).toContain('Em alerta: MTR-002')
+  })
+
+  it('traz o índice de anomalia de cada ativo, ordenado por severidade (bug real: só o balde de status chegava ao modelo, e "qual está pior?" empatava dois "em alerta")', () => {
+    const text = buildFleetContextText([
+      { id: 'a1', tag: 'MTR-001', name: 'Motor de Produção', status: 'normal', anomaly_score: 2 },
+      { id: 'a2', tag: 'MTR-002', name: 'Motor de Reserva', status: 'warning', anomaly_score: 80.9, health_index: 19.1, uptime: 100 },
+      { id: 'a3', tag: 'BBA-001', name: 'Bomba', status: 'warning', anomaly_score: 12 },
+    ])
+    expect(text).toContain('anomalia 80.9%')
+    expect(text).toContain('saúde 19/100')
+    // O mais degradado aparece antes do outro "em alerta", e ambos antes do normal.
+    const ranked = text.slice(text.indexOf('ordem de severidade'))
+    expect(ranked.indexOf('MTR-002')).toBeLessThan(ranked.indexOf('BBA-001'))
+    expect(ranked.indexOf('BBA-001')).toBeLessThan(ranked.indexOf('MTR-001'))
   })
 })
 
@@ -321,6 +387,25 @@ describe('SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toMatch(/dado observado/i)
     expect(SYSTEM_PROMPT).toMatch(/falha confirmada/i)
     expect(SYSTEM_PROMPT).toMatch(/nunca prova de "defeito confirmado"/i)
+  })
+
+  it('exige que o título do documento seja escrito na resposta — o auditor de citações casa por título, e sem isso a recomendação chega sem fonte', () => {
+    expect(SYSTEM_PROMPT).toMatch(/escreva o t[íi]tulo do documento no pr[óo]prio texto/i)
+  })
+
+  it('trata "como uso a plataforma" como escopo próprio (regressão real: o Órion recusou "como cadastro um equipamento?", que o próprio tour ensina)', () => {
+    expect(SYSTEM_PROMPT).toMatch(/A plataforma Forzy/)
+    expect(SYSTEM_PROMPT).toMatch(/nunca fora de escopo/i)
+    // O mapa precisa citar as telas de verdade, senão o passo a passo é inventado.
+    for (const rota of ['/planta', '/dashboard', '/equipamentos', '/alertas', '/assistente']) {
+      expect(SYSTEM_PROMPT).toContain(rota)
+    }
+    expect(SYSTEM_PROMPT).toMatch(/foto da placa/i)
+  })
+
+  it('recusa pergunta fora do domínio mesmo sabendo a resposta (o assistente respondia "a capital da França é Paris")', () => {
+    expect(SYSTEM_PROMPT).toMatch(/## Escopo/)
+    expect(SYSTEM_PROMPT).toMatch(/mesmo quando souber a resposta/i)
   })
 
   it('estabelece a regra de concisão explícita', () => {

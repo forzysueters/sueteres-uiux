@@ -12,7 +12,7 @@ import { MotorNameplate } from '../types'
 const OCR_API_URL =
   import.meta.env.VITE_OCR_API_URL || 'http://localhost:8000'
 
-export type OcrMode = 'easyocr' | 'gemini'
+export type OcrMode = 'easyocr' | 'gpt'
 
 // ─── Tipos espelhando src/api/schemas.py do modelo ──────────────────────────
 export interface FieldValue {
@@ -35,7 +35,7 @@ export interface OCRResponse {
   raw_text_por_zona: Record<string, string>
   validacao: ValidationResult
   processing_time_ms: number
-  model_used: 'paddleocr' | 'trocr' | 'easyocr' | 'gemini'
+  model_used: 'paddleocr' | 'trocr' | 'easyocr' | 'gpt' | 'gemini'
 }
 
 /** Resultado já mapeado para a UI, com os metadados do pipeline. */

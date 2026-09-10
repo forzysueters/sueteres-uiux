@@ -33,6 +33,13 @@ describe('useTargetRect', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
+  it('alinha o alvo acima do painel mobile e rola novamente ao trocar de ativo', () => {
+    const { rerender } = renderHook(({ step }) => useTargetRect(['[data-tour="alvo"]'], 8, true, 'start', step), { initialProps: { step: 1 } });
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'start', inline: 'nearest', behavior: 'smooth' });
+    rerender({ step: 2 });
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
   /**
    * Regressão: o alvo pisca de visibilidade enquanto a página nova anima a
    * entrada. Antes, cada readquirição disparava um `scrollIntoView` suave — a

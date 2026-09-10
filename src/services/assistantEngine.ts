@@ -136,20 +136,29 @@ function describeAsset(ctx: AssetContext): string {
     `Estado ${STATUS_LABELS[a.status] ?? a.status} · disponibilidade ${Number(a.uptime).toFixed(1)}% · índice de anomalia ${Number(a.anomaly_score).toFixed(1)}% (janela de 24 h).`,
   ]
 
-  const abnormal = ctx.sensors.filter((s) => s.status !== 'normal')
-  if (abnormal.length > 0) {
+  // Todos os sensores com valor, não só os fora da faixa: quem pergunta a
+  // temperatura de um ativo saudável quer o número, não a informação de que
+  // está tudo bem. Mesmo raciocínio do contexto da Edge Function.
+  if (ctx.sensors.length > 0) {
+    const abnormal = ctx.sensors.filter((s) => s.status !== 'normal')
     lines.push(
-      '\n**Sensores fora da faixa:**\n' +
-        abnormal
+      '\n**Leituras atuais:**\n' +
+        ctx.sensors
           .map((s) => {
             const limit = s.status === 'critical' ? s.critical : s.warning
-            const limitText = limit != null ? ` (limite ${limit})` : ''
-            return `• ${s.name}: ${s.value ?? '—'} ${s.unit}${limitText}`
+            const mark =
+              s.status === 'critical'
+                ? ` — crítico (limite ${limit})`
+                : s.status === 'warning'
+                  ? ` — em alerta (limite ${limit})`
+                  : ''
+            return `• ${s.name}: ${s.value ?? '—'} ${s.unit}${mark}`
           })
           .join('\n'),
     )
-  } else if (ctx.sensors.length > 0) {
-    lines.push(`\nOs ${ctx.sensors.length} sensores do ativo estão dentro da faixa configurada.`)
+    if (abnormal.length === 0) {
+      lines.push(`\nOs ${ctx.sensors.length} sensores do ativo estão dentro da faixa configurada.`)
+    }
   }
 
   if (ctx.active_alerts.length > 0) {

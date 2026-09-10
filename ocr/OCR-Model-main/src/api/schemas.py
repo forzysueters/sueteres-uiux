@@ -22,7 +22,7 @@ class OCRResponse(BaseModel):
     raw_text_por_zona: dict[str, str]
     validacao: ValidationResult
     processing_time_ms: float
-    model_used: Literal["paddleocr", "trocr", "easyocr", "gemini"]
+    model_used: Literal["paddleocr", "trocr", "easyocr", "gpt", "gemini"]
 
     @classmethod
     def empty(cls, image_id: str, model: str, ms: float) -> "OCRResponse":

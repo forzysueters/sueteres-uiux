@@ -60,6 +60,8 @@ export const useTargetRect = (
   selectors: string[],
   padding = 8,
   enabled = true,
+  block: ScrollLogicalPosition = 'center',
+  stepKey: number = 0,
 ): TargetRect | null => {
   const [rect, setRect] = useState<TargetRect | null>(null);
   const key = selectors.join('|');
@@ -100,7 +102,7 @@ export const useTargetRect = (
           // presa, sem responder ao clique.
           if (i < scrolledRank) {
             scrolledRank = i;
-            found.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+            found.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
           }
           return;
         }
@@ -140,7 +142,7 @@ export const useTargetRect = (
       cancelAnimationFrame(frame);
       clearInterval(safety);
     };
-  }, [key, padding, enabled]);
+  }, [key, padding, enabled, block, stepKey]);
 
   return rect;
 };

@@ -14,7 +14,7 @@ from src.preprocessing.image_enhancer import enhance_image, adaptive_enhance
 from src.preprocessing.plate_corrector import correct_perspective
 from src.postprocessing.field_extractor import FieldExtractor
 from src.postprocessing.validator import PhysicalValidator
-from src.postprocessing.vlm_fallback import GeminiFallback
+from src.postprocessing.vlm_fallback import VlmFallback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,7 +53,7 @@ app.add_middleware(
 
 extractor = FieldExtractor()
 validator = PhysicalValidator()
-gemini = GeminiFallback()
+vlm = VlmFallback()
 
 
 def _invert_if_dark(img: Image.Image) -> Image.Image:
@@ -150,14 +150,16 @@ def _infer_motor_type(fields: dict) -> str:
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    gemini_ok = "disponivel" if gemini.available() else "sem_chave"
-    return HealthResponse(status="ok", model_loaded=f"easyocr+gemini:{gemini_ok}")
+    vlm_ok = "disponivel" if vlm.available() else "sem_chave"
+    return HealthResponse(status="ok", model_loaded=f"easyocr+gpt:{vlm_ok} ({vlm.model()})")
 
 
 @app.post("/ocr/extract", response_model=OCRResponse)
 async def extract(
     image: UploadFile = File(...),
-    mode: Literal["easyocr", "gemini"] = Query(default="easyocr"),
+    # "gemini" continua aceito como apelido de "gpt": o provedor de visão mudou
+    # para a OpenAI, mas clientes antigos (e links salvos do /docs) não quebram.
+    mode: Literal["easyocr", "gpt", "gemini"] = Query(default="easyocr"),
     return_zones: bool = Query(default=True),
     preprocess: bool = Query(default=False),
 ):
@@ -179,22 +181,22 @@ async def extract(
     # Condicionamento adaptativo sempre ativo (aplica só o que a imagem precisa)
     pil = adaptive_enhance(pil)
 
-    if mode == "gemini":
-        if not gemini.available():
+    if mode in ("gpt", "gemini"):
+        if not vlm.available():
             raise HTTPException(
                 status_code=503,
-                detail="Gemini não disponível: configure GEMINI_API_KEY no .env",
+                detail="Modelo de visão indisponível: configure OPENAI_API_KEY no .env",
             )
 
         try:
-            merged = gemini.extract_all(pil)
+            merged = vlm.extract_all(pil)
         except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Gemini falhou: {exc}")
+            raise HTTPException(status_code=502, detail=f"Modelo de visão falhou: {exc}")
 
         if not merged:
             raise HTTPException(
                 status_code=502,
-                detail="Gemini retornou todos os campos nulos. Verifique a qualidade da imagem.",
+                detail="O modelo de visão retornou todos os campos nulos. Verifique a qualidade da imagem.",
             )
 
         merged = validator.normalize(merged)
@@ -210,7 +212,7 @@ async def extract(
             raw_text_por_zona={},
             validacao=ValidationResult(**val_result),
             processing_time_ms=ms,
-            model_used="gemini",
+            model_used="gpt",
         )
 
     else:  # mode == "easyocr"
@@ -227,8 +229,8 @@ async def extract(
         merged = extractor.merge_zones({0: merged_text, 1: merged_bbox})
 
         # VLM fallback quando campos críticos estão ausentes
-        if gemini.available() and gemini.needs_fallback(merged):
-            fallback = gemini.extract(pil, merged)
+        if vlm.available() and vlm.needs_fallback(merged):
+            fallback = vlm.extract(pil, merged)
             if fallback:
                 merged = extractor.merge_zones({0: merged, 1: fallback})
 

@@ -36,12 +36,12 @@ Desenvolver uma plataforma SaaS de **Digital Twin** para indústrias, integrando
 │                                                             │
 │  Supabase — banco, autenticação, storage e realtime         │
 │  ├── Postgres com Row Level Security · sem backend próprio  │
-│  ├── Edge Functions (Deno): ai-chat (Gemini) · tts (voz)    │
+│  ├── Edge Functions (Deno): ai-chat (GPT) · tts (voz)       │
 │  └── pg_cron + pg_net: coletor IoT, a cada 30s              │
 │                                                             │
 │  Modelo de OCR (Python + FastAPI) — porta 8000             │
 │  └── POST /ocr/extract: realce → EasyOCR → extração de      │
-│      campos → validação física → fallback Gemini Vision     │
+│      campos → validação física → fallback GPT Vision        │
 │                                                             │
 │  Modelo de Anomalia (Python + FastAPI) — porta 8001         │
 │  └── POST /anomaly/score: janela de leituras → health index │
@@ -55,7 +55,7 @@ Não existe backend de aplicação próprio: o frontend fala direto com o Supaba
 |---------|-------|-------|-------------------|
 | Frontend | React/Vite | 5173 | — |
 | Banco, auth e storage | Supabase (Postgres) | — | `VITE_SUPABASE_URL` |
-| Conversa do assistente | Edge Function `ai-chat` (Deno + Gemini) | — | — |
+| Conversa do assistente | Edge Function `ai-chat` (Deno + GPT) | — | — |
 | Voz do assistente | Edge Function `tts` (Deno + ElevenLabs) | — | `VITE_TTS_PROVIDER` |
 | Modelo de OCR | Python/FastAPI | 8000 | `VITE_OCR_API_URL` |
 | Modelo de anomalia | Python/FastAPI | 8001 | `VITE_ANOMALY_API_URL` |
@@ -66,7 +66,7 @@ dos dados.
 
 As Edge Functions existem porque há chaves que **não podem** chegar ao navegador:
 tudo que é `VITE_*` é embutido no bundle e fica legível para qualquer visitante.
-`GEMINI_API_KEY` e `ELEVENLABS_API_KEY` são secrets do projeto Supabase, e o
+`OPENAI_API_KEY` e `ELEVENLABS_API_KEY` são secrets do projeto Supabase, e o
 front só conversa com as funções.
 
 > Esquema do banco, RLS, views e RPCs: [`supabase/README.md`](supabase/README.md).
@@ -100,14 +100,14 @@ consumida diretamente pelo frontend na tela de **Registro de Equipamento**.
 - Mapeamento dos campos do OCR (`campos`) para `MotorNameplate`: `mapToNameplate()`.
 - Fallback automático para dados simulados quando o backend de OCR está offline
   (a demo nunca quebra — o resultado vem marcado como `Simulado (offline)`).
-- Dois modos disponíveis na UI: **EasyOCR** (padrão) e **Gemini Vision** (opcional,
-  requer `GEMINI_API_KEY`).
+- Dois modos no backend: **EasyOCR** e **GPT Vision** (`mode=gpt`, requer
+  `OPENAI_API_KEY`) — a interface usa o segundo e não expõe a escolha.
 
 ### Fluxo
 
 ```
 Captura → realce adaptativo (OpenCV) → EasyOCR (bbox + texto) →
-extração/fusão de campos → validação física → [fallback Gemini] → Registro
+extração/fusão de campos → validação física → [fallback GPT] → Registro
 ```
 
 ### Etapas OpenCV
@@ -179,7 +179,7 @@ Além disso:
 
 ### 5. Equipamentos / Registro OCR
 - Wizard em 4 etapas para cadastro via placa, integrado ao **modelo de OCR real** (FastAPI)
-- Seletor de motor de OCR: **EasyOCR** ou **Gemini Vision**
+- Motor de OCR: **GPT Vision** (fallback **EasyOCR** no backend)
 - Campos de nameplate preenchidos automaticamente a partir da extração
 - Metadados do pipeline: modelo usado, tipo de motor, tempo de processamento
 - **Alertas de validação física** (kW×cv, RPM×polos×Hz, carcaça×potência) vindos do backend
@@ -187,7 +187,7 @@ Além disso:
 
 ### 6. Assistente IA
 - Chat contextual com acesso ao ativo selecionado
-- Resposta gerada pelo **Gemini** na Edge Function `ai-chat`, a partir de contexto
+- Resposta gerada pelo **GPT** na Edge Function `ai-chat`, a partir de contexto
   real: telemetria, alertas, predições, manutenção e trechos da documentação (RAG)
 - **Citações** de documento e página junto da resposta
 - Perguntas rápidas pré-configuradas
@@ -293,7 +293,7 @@ src/
 supabase/
 ├── migrations/                # Schema versionado (0001 → 0015)
 ├── functions/
-│   ├── ai-chat/               # Conversa do assistente (Deno + Gemini + RAG)
+│   ├── ai-chat/               # Conversa do assistente (Deno + GPT + RAG)
 │   └── tts/                   # Voz do Órion (Deno + ElevenLabs)
 ├── seed.sql                   # Conjunto de demonstração
 └── README.md                  # Referência do banco: RLS, views, RPCs
@@ -389,7 +389,7 @@ uvicorn src.api.main:app --port 8000     # http://localhost:8000  (docs em /docs
 ### 4. Voz do assistente
 
 O Órion fala pela Edge Function `tts`, que guarda a chave da ElevenLabs no
-projeto Supabase — do mesmo jeito que o `ai-chat` guarda a do Gemini. **Nenhum
+projeto Supabase — do mesmo jeito que o `ai-chat` guarda a do GPT. **Nenhum
 desenvolvedor precisa da chave na própria máquina**, e nada de segredo entra no
 bundle do browser.
 
@@ -428,7 +428,27 @@ inválida — o assistente cai na voz do navegador sozinho: o tour nunca fica mu
 > `ELEVENLABS_API_KEY` no `.env.local` e `VITE_TTS_ENDPOINT=/api/tts` para o
 > front usar o middleware do `vite.config.ts` em vez da Edge Function.
 
-### 5. Qualidade e build
+### 5. Cérebro do assistente (GPT)
+
+O texto que o Órion fala é escrito pelo **GPT**, chamado de dentro da Edge
+Function `ai-chat` — a chave da OpenAI é secret do projeto Supabase e nunca
+entra no bundle:
+
+```bash
+npx supabase login
+npx supabase secrets set OPENAI_API_KEY=sk-proj-... --project-ref <project-ref>
+npx supabase functions deploy ai-chat --project-ref <project-ref> --use-api
+```
+
+Opcional: `OPENAI_MODEL` troca o modelo sem novo deploy de código (padrão
+`gpt-5.4-mini`).
+
+**Enquanto a função não estiver publicada** — ou sem a chave —, o front cai no
+motor determinístico local (`src/services/assistantEngine.ts`): responde só com
+o que está no banco, sem redação em linguagem natural. É o sintoma de "o
+assistente ficou seco".
+
+### 6. Qualidade e build
 
 ```bash
 npm run typecheck    # tsc --noEmit
@@ -506,7 +526,7 @@ Level Security do Postgres, não a interface.
 - **pg_cron + pg_net** para o coletor IoT, a cada 30 s
 
 ### Assistente conversacional
-- **Gemini** via Edge Function `ai-chat`, com contexto real do banco e RAG lexical
+- **GPT** via Edge Function `ai-chat`, com contexto real do banco e RAG lexical
 - Citação de documento e página na resposta
 - Motor determinístico local como fallback, sem LLM
 
@@ -518,7 +538,7 @@ Level Security do Postgres, não a interface.
 - **FastAPI** + **Uvicorn** (API `/ocr/extract`, `/health`)
 - **EasyOCR** (extração de texto)
 - **OpenCV** (realce adaptativo, remoção de linhas de grade, correção de perspectiva)
-- **Gemini Vision** (fallback opcional via `google-generativeai`)
+- **GPT Vision** (OpenAI, via `requests` — sem SDK extra)
 - **Pillow / NumPy** (manipulação de imagens)
 
 ---
@@ -551,7 +571,7 @@ um modelo rodando.
 | Alertas e transições | **reais** (trigger na ingestão + RLS) | — |
 | OCR da placa | **real** (FastAPI, porta 8000) | mock determinístico, marcado na UI |
 | Índice de anomalia | **real** (FastAPI, porta 8001) | mock determinístico, marcado na UI |
-| Conversa do assistente | **real** (Gemini na Edge Function `ai-chat`) | motor local, só com dados do banco |
+| Conversa do assistente | **real** (GPT na Edge Function `ai-chat`) | motor local, só com dados do banco |
 | Voz do Órion | **real** (ElevenLabs) quando configurada | voz do navegador (Web Speech API) |
 
 Pendências conhecidas, com o esquema já preparado:

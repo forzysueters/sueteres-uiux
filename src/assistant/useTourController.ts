@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { apiService } from '../services/api';
 import { TOUR_STEPS } from './tour';
+import { buildFleetSummary, fleetSummaryIntent, type SummaryStep } from './fleetSummary';
 import { TOUR_COPY, t } from './copy';
 import { useSpeech } from './useSpeech';
 import { stripMarkdown } from './RichText';
@@ -54,10 +55,23 @@ export const useTourController = () => {
   const [chatQuestion, setChatQuestion] = useState<string | null>(null);
   const [chatAnswer, setChatAnswer] = useState<string | null>(null);
   const [chatPending, setChatPending] = useState(false);
+  /**
+   * A resposta veio do motor determinístico local, não do modelo.
+   *
+   * O flag já existia em `ChatMessage` e a página cheia do assistente o mostra;
+   * aqui ele era descartado, então o painel flutuante apresentava a listagem
+   * seca do banco com a mesma cara de uma resposta redigida. Quem lê precisa
+   * saber que o Órion está sem o cérebro de linguagem — senão a queda de
+   * qualidade parece um defeito do assistente, e não uma indisponibilidade.
+   */
+  const [chatOffline, setChatOffline] = useState(false);
   const conversationId = useRef<string | null>(null);
+  const requestId = useRef(0);
+  const [summarySteps, setSummarySteps] = useState<SummaryStep[] | null>(null);
+  const steps = summarySteps ?? TOUR_STEPS;
 
-  const step = TOUR_STEPS[stepIndex];
-  const stepCopy = TOUR_COPY[language][step.id];
+  const step = steps[stepIndex] ?? steps[0];
+  const stepCopy = summarySteps?.[stepIndex]?.copy ?? TOUR_COPY[language][step.id];
 
   /** O ativo mais crítico serve de exemplo real na etapa de predição. */
   const context: TourContext = useMemo(() => {
@@ -100,22 +114,22 @@ export const useTourController = () => {
   // o "Continuar" fica instantâneo em vez de esperar a rede de novo.
   useEffect(() => {
     if (phase !== 'tour' || !engaged) return;
-    const next = TOUR_STEPS[stepIndex + 1];
-    if (next) speech.prefetch(stripMarkdown(TOUR_COPY[language][next.id].speech), language);
-  }, [phase, stepIndex, engaged, language]);
+    const next = steps[stepIndex + 1];
+    if (next) speech.prefetch(stripMarkdown(summarySteps?.[stepIndex + 1]?.copy.speech ?? TOUR_COPY[language][next.id].speech), language);
+  }, [phase, stepIndex, engaged, language, steps, summarySteps]);
 
   // ── Navegação entre etapas ─────────────────────────────────────────────
   const routeFor = useCallback(
     (index: number) => {
-      const def = TOUR_STEPS[index];
+      const def = steps[index];
       return typeof def.route === 'function' ? def.route(context) : def.route;
     },
-    [context],
+    [context, steps],
   );
 
   const goTo = useCallback(
     (index: number) => {
-      const clamped = Math.max(0, Math.min(TOUR_STEPS.length - 1, index));
+      const clamped = Math.max(0, Math.min(steps.length - 1, index));
       const route = routeFor(clamped);
       if (route && route !== location.pathname) navigate(route);
       setStepIndex(clamped);
@@ -123,25 +137,37 @@ export const useTourController = () => {
       setChatQuestion(null);
       setPhase('tour');
     },
-    [navigate, routeFor, location.pathname],
+    [navigate, routeFor, location.pathname, steps],
   );
 
   const start = useCallback(() => {
+    requestId.current++;
+    setChatPending(false);
+    setSummarySteps(null);
     setEngaged(true);
-    goTo(0);
-  }, [goTo]);
+    setStepIndex(0);
+    setChatAnswer(null);
+    setChatQuestion(null);
+    setPhase('tour');
+    navigate('/dashboard');
+  }, [navigate]);
 
   const next = useCallback(() => {
     setEngaged(true);
-    if (stepIndex >= TOUR_STEPS.length - 1) {
+    if (stepIndex >= steps.length - 1) {
       speech.cancel();
+      if (summarySteps) {
+        setChatAnswer('Resumo concluído. Você pode pedir um novo resumo para atualizar os dados ou perguntar sobre uma TAG específica.');
+        setPhase('chat');
+        return;
+      }
       writeSeen('completed');
       setSeen(true);
       setPhase('farewell');
       return;
     }
     goTo(stepIndex + 1);
-  }, [stepIndex, goTo, speech]);
+  }, [stepIndex, goTo, speech, steps, summarySteps]);
 
   const back = useCallback(() => {
     setEngaged(true);
@@ -149,6 +175,8 @@ export const useTourController = () => {
   }, [stepIndex, goTo]);
 
   const skip = useCallback(() => {
+    requestId.current++;
+    setChatPending(false);
     speech.cancel();
     writeSeen('skipped');
     setSeen(true);
@@ -165,6 +193,8 @@ export const useTourController = () => {
   }, [speech]);
 
   const close = useCallback(() => {
+    requestId.current++;
+    setChatPending(false);
     speech.cancel();
     if (!seen) {
       writeSeen('later');
@@ -181,6 +211,8 @@ export const useTourController = () => {
    * porque o usuário está trocando de contexto, não pausando.
    */
   const expand = useCallback(() => {
+    requestId.current++;
+    setChatPending(false);
     speech.cancel();
     setPhase('dormant');
     setOpen(false);
@@ -195,10 +227,7 @@ export const useTourController = () => {
     setPhase(seen ? 'chat' : 'greeting');
   }, [seen]);
 
-  const restart = useCallback(() => {
-    setEngaged(true);
-    goTo(0);
-  }, [goTo]);
+  const restart = start;
 
   const togglePause = useCallback(() => {
     if (speech.paused) speech.resume();
@@ -208,38 +237,70 @@ export const useTourController = () => {
   // ── Conversa livre ─────────────────────────────────────────────────────
   const ask = useCallback(
     async (question: string) => {
+      const currentRequest = ++requestId.current;
+      setOpen(true);
       setEngaged(true);
       speech.cancel();
       setPhase('chat');
       setChatQuestion(question);
       setChatAnswer(null);
+      setChatOffline(false);
       setChatPending(true);
       try {
+        const scope = fleetSummaryIntent(question);
+        if (scope) {
+          const freshAssets = await apiService.listAssets();
+          if (requestId.current !== currentRequest) return;
+          const summary = buildFleetSummary(freshAssets, scope);
+          setSummarySteps(summary);
+          setStepIndex(0);
+          setChatQuestion(null);
+          setOpen(true);
+          setPhase('tour');
+          navigate('/planta');
+          return;
+        }
         const reply = await apiService.getChatResponse(
           question,
           selectedAssetId ?? undefined,
           conversationId.current,
         );
+        if (requestId.current !== currentRequest) return;
         conversationId.current = reply.conversationId ?? conversationId.current;
         setChatAnswer(reply.content);
+        setChatOffline(reply.offline === true);
       } catch {
-        setChatAnswer(t(language, 'chat_error'));
+        if (requestId.current === currentRequest) {
+          setChatAnswer(t(language, 'chat_error'));
+          setChatOffline(false);
+        }
       } finally {
-        setChatPending(false);
+        if (requestId.current === currentRequest) setChatPending(false);
       }
     },
-    [language, selectedAssetId, speech],
+    [language, selectedAssetId, speech, navigate],
   );
+
+  useEffect(() => {
+    const onSummary = (event: Event) => {
+      const question = (event as CustomEvent<string>).detail;
+      if (typeof question === 'string' && fleetSummaryIntent(question)) void ask(question);
+    };
+    window.addEventListener('orion:summary', onSummary);
+    return () => window.removeEventListener('orion:summary', onSummary);
+  }, [ask]);
+
+  useEffect(() => () => { requestId.current++; }, []);
 
   // ── Convite automático para o usuário novo ─────────────────────────────
   useEffect(() => {
-    if (seen) return;
+    if (seen || open || phase !== 'dormant') return;
     const timer = window.setTimeout(() => {
       setOpen(true);
       setPhase('greeting');
     }, 1600);
     return () => clearTimeout(timer);
-  }, [seen]);
+  }, [seen, open, phase]);
 
   // A voz de nuvem tem ~2s entre pedir e tocar: enquanto isso o avatar pensa,
   // em vez de ficar parado como se nada estivesse acontecendo.
@@ -255,7 +316,7 @@ export const useTourController = () => {
     open,
     phase,
     stepIndex,
-    stepCount: TOUR_STEPS.length,
+    stepCount: steps.length,
     step,
     stepCopy,
     seen,
@@ -272,6 +333,7 @@ export const useTourController = () => {
     audioSupported: speech.supported,
     chatPending,
     chatQuestion,
+    chatOffline,
     preparing: speech.preparing,
     /** Some quando já se está na página — botão que não faz nada é ruído. */
     canExpand: location.pathname !== ASSISTANT_ROUTE,
