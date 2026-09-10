@@ -187,25 +187,27 @@ from (values
   ('MTR-002', 'ACC',  'Aceleração',             'vibration',   'm/s²',   0,    5,   0.69,   1.09, 'above', null, 'ISO 10816-3 convertida a 1465 rpm (a = 2πf·v)',         2,    0.75, 0.08, 0.09),
   ('MTR-002', 'TEMP', 'Temperatura',            'temperature', '°C',     0,  120,  75.0,   90.0,  'above', null, 'Isolamento classe F',                                  3,   74.0,  4.0,  7.0),
 
-  -- ── BBA-001 · KSB Etanorm 32-200, 5,5 kW ─────────────────────────────────
-  ('BBA-001', 'PRES', 'Pressão',           'pressure',    'bar',      0,    6,   3.5,    4.2, 'above', null,  'Pressão de recalque do circuito de refrigeração',          1,    2.5,  0.18, 0.0),
-  ('BBA-001', 'FLOW', 'Vazão',             'flow',        'L/min',    0,  250, 120.0,  100.0, 'below', null,  'Vazão mínima de projeto do circuito (145 L/min nominal)',  2,  145.0,  7.0,  0.0),
-  ('BBA-001', 'TEMP', 'Temperatura',       'temperature', '°C',       0,   90,  60.0,   75.0, 'above', null,  'Fluido de refrigeração — perda de eficiência térmica',     3,   44.0,  3.0,  0.0),
-  ('BBA-001', 'PWR',  'Potência',          'power',       'kW',       0,   10,   5.5,    6.3, 'above', null,  'P = 5,5 kW de placa, fator de serviço 1,15',               4,    5.2,  0.25, 0.0),
+  -- ── BBA-001 · KSB Etanorm 32-200, 5,5 kW → ISO 10816-3 classe I ──────────
+  --    1450 rpm ⇒ f = 24,17 Hz ⇒ 2πf = 151,8 s⁻¹. Nominal da aceleração:
+  --    151,8 × 1,9 mm/s = 0,29 m/s².
+  ('BBA-001', 'VIB',  'Velocidade',   'vibration',   'mm/s',   0,   10,   2.8,    4.5, 'above', null,  'ISO 10816-3 — classe I, zona B/C e C/D',                     1,    1.9,  0.2,  0.0),
+  ('BBA-001', 'ACC',  'Aceleração',   'vibration',   'm/s²',   0,    3,   0.43,   0.68,'above', null,  'ISO 10816-3 convertida a 1450 rpm (a = 2πf·v)',              2,    0.29, 0.04, 0.0),
+  ('BBA-001', 'TEMP', 'Temperatura',  'temperature', '°C',     0,  100,  70.0,   85.0, 'above', null,  'Mancal — graxa de rolamento, vida útil cai pela metade a cada +15 °C', 3, 58.0, 3.0, 0.0),
 
-  -- ── CMP-001 · Atlas Copco GA 22+, In = 42,0 A ────────────────────────────
-  --    Falha mecânica isolada no conjunto rotativo: só a vibração dispara.
-  ('CMP-001', 'PRES', 'Pressão de Saída',  'pressure',    'bar',      0,   12,   8.5,    9.5, 'above', null,  'Pressão de trabalho 7 bar, alívio da válvula em 9,5',      1,    7.0,  0.35, 0.0),
-  ('CMP-001', 'TIN',  'Temp. Entrada',     'temperature', '°C',       0,   60,  40.0,   50.0, 'above', null,  'Ar de admissão — acima disso a eficiência volumétrica cai',2,   28.0,  2.0,  0.0),
-  ('CMP-001', 'TOUT', 'Temp. Saída',       'temperature', '°C',       0,  140,  95.0,  110.0, 'above', null,  'Descarga — degradação do óleo do estágio',                 3,   84.0,  4.0,  6.0),
-  ('CMP-001', 'CURR', 'Corrente Motor',    'current',     'A',        0,   60,  42.0,   48.3, 'above', null,  'In = 42,0 A de placa, fator de serviço 1,15',              4,   40.5,  2.0,  0.0),
-  ('CMP-001', 'VIB',  'Vibração',          'vibration',   'mm/s',     0,   20,   4.5,    7.1, 'above', null,  'ISO 10816-3 — zona B/C e C/D',                             5,    6.4,  0.5,  2.2),
+  -- ── CMP-001 · Atlas Copco GA 22+, 22 kW → ISO 10816-3 classe II ──────────
+  --    Falha mecânica no conjunto rotativo: a vibração dispara e a aceleração
+  --    acompanha na mesma proporção — as duas medem o mesmo fenômeno, e um
+  --    drift só numa delas denunciaria que os números não vieram da máquina.
+  --    2950 rpm ⇒ f = 49,17 Hz ⇒ 2πf = 308,9 s⁻¹. Nominal: 308,9 × 6,4 mm/s.
+  ('CMP-001', 'VIB',  'Velocidade',   'vibration',   'mm/s',   0,   20,   4.5,    7.1, 'above', null,  'ISO 10816-3 — classe II, zona B/C e C/D',                    1,    6.4,  0.5,  2.2),
+  ('CMP-001', 'ACC',  'Aceleração',   'vibration',   'm/s²',   0,    8,   1.39,   2.19,'above', null,  'ISO 10816-3 convertida a 2950 rpm (a = 2πf·v)',              2,    1.98, 0.15, 0.68),
+  ('CMP-001', 'TEMP', 'Temperatura',  'temperature', '°C',     0,  120,  75.0,   90.0, 'above', null,  'Mancal — isolamento classe F',                               3,   78.0,  4.0,  6.0),
 
   -- ── EXA-001 · WEG W21 71 IE2, 0,75 kW → ISO 10816-3 classe I ─────────────
-  ('EXA-001', 'SPD',  'Velocidade',        'speed',       '%',        0,  100,  60.0,   40.0, 'below', null,  'Rotação mínima para a renovação de ar do galpão',          1,   84.0,  3.0,  0.0),
-  ('EXA-001', 'CURR', 'Corrente Motor',    'current',     'A',        0,   15,   3.2,    3.68,'above', null,  'In = 3,2 A de placa, fator de serviço 1,15',               2,    3.1,  0.2,  0.0),
-  ('EXA-001', 'TEMP', 'Temp. Mancal',      'temperature', '°C',       0,  100,  70.0,   85.0, 'above', null,  'Graxa de rolamento, vida útil cai pela metade a cada +15 °C', 3, 54.0, 3.0,  0.0),
-  ('EXA-001', 'VIB',  'Vibração',          'vibration',   'mm/s',     0,   10,   2.8,    4.5, 'above', null,  'ISO 10816-3 — classe I, zona B/C e C/D',                   4,    1.1,  0.2,  0.0)
+  --    1710 rpm ⇒ f = 28,5 Hz ⇒ 2πf = 179,1 s⁻¹. Nominal: 179,1 × 1,1 mm/s.
+  ('EXA-001', 'VIB',  'Velocidade',   'vibration',   'mm/s',   0,   10,   2.8,    4.5, 'above', null,  'ISO 10816-3 — classe I, zona B/C e C/D',                     1,    1.1,  0.2,  0.0),
+  ('EXA-001', 'ACC',  'Aceleração',   'vibration',   'm/s²',   0,    3,   0.50,   0.81,'above', null,  'ISO 10816-3 convertida a 1710 rpm (a = 2πf·v)',              2,    0.20, 0.03, 0.0),
+  ('EXA-001', 'TEMP', 'Temperatura',  'temperature', '°C',     0,  100,  70.0,   85.0, 'above', null,  'Mancal — graxa de rolamento, vida útil cai pela metade a cada +15 °C', 3, 54.0, 3.0, 0.0)
 ) as v(asset_tag, suffix, name, stype, unit, vmin, vmax, warn, crit, direction, nominal_limit, source, ord, base, noise, drift)
 join public.assets a on a.tag = v.asset_tag
 where a.plant_id = (select id from public.plants where code = 'FORZY-LAB')
