@@ -7,6 +7,7 @@ import { translations } from '../translations';
 import { statusLabel } from '../utils/plantStatus';
 import { apiService } from '../services/api';
 import { useAssetRealtime } from '../hooks/useAssetRealtime';
+import { useNextInsight } from '../hooks/useNextInsight';
 import { useAlerts } from '../hooks/useAlerts';
 import { SensorGauge } from '../components/SensorGauge';
 import { NameplateCard } from '../components/NameplateCard';
@@ -50,7 +51,7 @@ const itemVariants = {
 export const AssetMonitorPage: React.FC = () => {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
-  const { assets, setAssets, darkMode, language } = useAppStore();
+  const { assets, setAssets, updateAsset, darkMode, language } = useAppStore();
   // Corrigir a placa à mão é faixa 2: o técnico registra placa nova pelo OCR,
   // mas não reescreve os valores de uma já cadastrada.
   const { can } = usePermissions();
@@ -100,12 +101,17 @@ export const AssetMonitorPage: React.FC = () => {
   useAssetRealtime(assetId ?? null);
 
   // Load history
-  useEffect(() => {
-    if (!assetId) return;
-    setHistoryLoading(true);
-    apiService
-      .getSensorHistory(assetId, historyRange)
-      .then((data) => {
+  //
+  // `silent` recarrega sem acender o spinner: a série cresce a cada 10s com o
+  // cenário agendado (0018), e piscar o esqueleto de carregamento a cada
+  // atualização deixaria o gráfico ilegível. Só a primeira carga e a troca de
+  // janela mostram carregamento.
+  const loadHistory = React.useCallback(
+    async (silent = false) => {
+      if (!assetId) return;
+      if (!silent) setHistoryLoading(true);
+      try {
+        const data = await apiService.getSensorHistory(assetId, historyRange);
         setHistory(data);
         // A janela nova pode não ter leitura do sensor que estava aberto. Manter
         // a seleção antiga deixaria a aba pedindo "selecione um sensor acima"
@@ -113,11 +119,33 @@ export const AssetMonitorPage: React.FC = () => {
         setSelectedSensor((prev) =>
           prev && data.some((d) => d.sensorName === prev) ? prev : (data[0]?.sensorName ?? null),
         );
-      })
-      // Sem o catch a promise rejeitada deixava o spinner girando para sempre.
-      .catch(() => setHistory([]))
-      .finally(() => setHistoryLoading(false));
-  }, [assetId, historyRange]);
+      } catch {
+        // Sem o catch a promise rejeitada deixava o spinner girando para sempre.
+        if (!silent) setHistory([]);
+      } finally {
+        if (!silent) setHistoryLoading(false);
+      }
+    },
+    [assetId, historyRange],
+  );
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  // O histórico é série temporal viva, não uma foto tirada quando a tela abriu.
+  // A telemetria entra a cada 10s; 30s de intervalo mantém o gráfico andando
+  // sem transformar a página aberta num gerador de consultas.
+  useEffect(() => {
+    const id = window.setInterval(() => void loadHistory(true), 30_000);
+    return () => window.clearInterval(id);
+  }, [loadHistory]);
+
+  // Quando o avaliador publica o diagnóstico novo, releem-se ativo e série.
+  const nextInsight = useNextInsight(() => {
+    if (assetId) void apiService.getAssetById(assetId).then((a) => a && updateAsset(a));
+    void loadHistory(true);
+  });
 
   useEffect(() => {
     if (!assetId) return;
@@ -400,16 +428,41 @@ export const AssetMonitorPage: React.FC = () => {
         </span>
       </motion.div>
 
-      {/* ───────── Insight Preditivo IA (banner full-width) ───────── */}
-      {severity !== 'ok' && asset.insight && (
+      {/* ───────── Insight Preditivo IA (banner full-width) ─────────
+          O banner aparece em QUALQUER severidade, inclusive 'ok'. Escondê-lo no
+          ativo saudável fazia o diagnóstico parecer um aviso de erro que surge e
+          some, em vez do que ele é: uma leitura contínua, que também tem valor
+          quando diz "está tudo dentro do padrão". É essa continuidade que a
+          contagem regressiva ao lado torna visível. */}
+      {asset.insight && (
         <motion.div
           variants={itemVariants}
-          className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10"
+          className="rounded-xl bg-primary/5 border border-primary/10 overflow-hidden"
         >
-          <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-xs font-bold text-primary mb-1">{t.ai_insight}</p>
-            <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
+          <div className="flex items-start gap-3 p-4">
+            <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p className="text-xs font-bold text-primary">{t.ai_insight}</p>
+                <p
+                  className="text-[10px] font-semibold text-muted tabular-nums"
+                  title={t.insight_cycle}
+                >
+                  {t.next_insight}{' '}
+                  <span className="text-foreground-soft">{nextInsight.label}</span>
+                </p>
+              </div>
+              <p className={cn('text-xs leading-relaxed', insightColor)}>{asset.insight}</p>
+            </div>
+          </div>
+          {/* Barra do ciclo: enche em 5 min e zera junto com a próxima avaliação.
+              `transition-none` porque o valor já anda de segundo em segundo —
+              animar por cima faria a barra ficar sempre atrasada. */}
+          <div className="h-[2px] w-full bg-primary/10">
+            <div
+              className="h-full bg-primary/50 transition-none"
+              style={{ width: `${nextInsight.progress * 100}%` }}
+            />
           </div>
         </motion.div>
       )}

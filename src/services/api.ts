@@ -304,6 +304,14 @@ const conditionOf = (asset: Asset): number => {
   return Math.max(...relevantes.map((s) => deviationOf(s, asset.tag)));
 };
 
+/**
+ * Idade máxima de um diagnóstico do servidor para ele valer.
+ *
+ * O avaliador agendado roda de 5 em 5 minutos; 12 minutos dá folga para um
+ * ciclo perdido sem cair para o caminho do cliente à toa.
+ */
+const SERVER_SCORE_MAX_AGE_MS = 12 * 60 * 1000;
+
 // Constantes calibradas empiricamente contra o serviço de anomalia (porta 8001).
 const AN_WINDOW_POINTS = 30;         // 30 x 10s = 5 min (casa com RESAMPLE_RULE/FEATURE_WIN)
 const AN_STEP_MS = 10_000;
@@ -398,9 +406,32 @@ export const apiService = {
     if (error) fail(error, 'Não foi possível carregar os ativos.');
     const assets = (data ?? []).map(mapAsset);
 
-    // Pontua todos os ativos com o modelo real (fallback p/ mock se offline).
+    // O diagnóstico é do SERVIDOR quando ele está fresco.
+    //
+    // O avaliador roda no banco a cada 5 minutos (migração 0018) e grava saúde,
+    // severidade e insight no próprio ativo. Repontuar aqui sobrescrevia tudo
+    // isso com o resultado do navegador — e o resultado dependia de quem estava
+    // olhando: com o serviço Python local no ar, um número; sem ele, o mock,
+    // outro. Pior, `getAssetById` sempre leu o banco, então a lista da planta e
+    // a tela do ativo mostravam diagnósticos diferentes para o mesmo motor.
+    //
+    // O caminho do cliente continua existindo para quem roda sem o cenário
+    // agendado (ou com ele parado): só entra quando o servidor não tem
+    // diagnóstico recente para aquele ativo.
+    const scoredAt = new Map<string, number>(
+      (data ?? []).map((row) => [
+        String((row as Record<string, unknown>).id),
+        (row as Record<string, unknown>).scored_at
+          ? new Date(String((row as Record<string, unknown>).scored_at)).getTime()
+          : 0,
+      ]),
+    );
+
     await Promise.all(
       assets.map(async (asset) => {
+        const age = Date.now() - (scoredAt.get(asset.id) ?? 0);
+        if (asset.severity && age < SERVER_SCORE_MAX_AGE_MS) return;
+
         let result: ScoreResult;
         try {
           result = await apiService.scoreAnomaly(asset);
@@ -1387,6 +1418,9 @@ export const apiService = {
 
 // ─── Realtime ───────────────────────────────────────────────────────────────
 
+/** Piso entre duas buscas do mesmo ativo, por mais eventos que cheguem. */
+const REALTIME_MIN_INTERVAL_MS = 3000;
+
 /**
  * Acompanha um ativo. Reage a mudanças em `assets` e a novas leituras via
  * Realtime do Postgres, com um poll de segurança caso o canal não esteja
@@ -1394,8 +1428,11 @@ export const apiService = {
  */
 export const startRealtimeUpdates = (assetId: string, callback: (asset: Asset) => void) => {
   let stopped = false;
+  let lastRun = 0;
+  let pending: ReturnType<typeof setTimeout> | undefined;
 
-  const refresh = async () => {
+  const fetchNow = async () => {
+    lastRun = Date.now();
     if (stopped) return;
     try {
       const updated = await apiService.getAssetById(assetId);
@@ -1405,26 +1442,45 @@ export const startRealtimeUpdates = (assetId: string, callback: (asset: Asset) =
     }
   };
 
+  /**
+   * Rajada de eventos vira um refresh só.
+   *
+   * Cada leitura inserida acorda este canal, e com o cenário agendado (0018)
+   * são 3 sensores x 6 leituras por minuto no mesmo ativo — perto de 20 eventos
+   * por minuto, cada um disparando uma consulta completa da view. O ativo não
+   * muda 20 vezes por minuto: o que muda é a última leitura, e ela chega em
+   * bloco. Um piso de 3s entre buscas mantém o gauge vivo e corta o resto.
+   */
+  const refresh = () => {
+    if (stopped || pending) return;
+    const wait = Math.max(0, REALTIME_MIN_INTERVAL_MS - (Date.now() - lastRun));
+    pending = setTimeout(() => {
+      pending = undefined;
+      void fetchNow();
+    }, wait);
+  };
+
   const channel = supabase
     .channel(`asset-${assetId}`)
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'assets', filter: `id=eq.${assetId}` },
-      () => void refresh(),
+      () => refresh(),
     )
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'sensor_readings', filter: `asset_id=eq.${assetId}` },
-      () => void refresh(),
+      () => refresh(),
     )
     .subscribe();
 
-  const interval = setInterval(() => void refresh(), 10_000);
-  void refresh();
+  const interval = setInterval(() => refresh(), 10_000);
+  void fetchNow();
 
   return () => {
     stopped = true;
     clearInterval(interval);
+    clearTimeout(pending);
     void supabase.removeChannel(channel);
   };
 };
