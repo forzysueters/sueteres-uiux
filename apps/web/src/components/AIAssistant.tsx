@@ -283,7 +283,8 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
               type="button"
               onClick={() => {
                 if (stt.transcribing) return;
-                stt.listening ? stt.stop() : startListening();
+                if (stt.listening) stt.stop();
+                else startListening();
               }}
               disabled={isTyping}
               title={stt.listening ? t.stop_listening : stt.transcribing ? t.transcribing : t.ask_by_voice}

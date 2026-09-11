@@ -29,12 +29,34 @@ dist-ssr
 *.sw?
 
 # Environment
-# .env fica VERSIONADO com os valores públicos (URL e chave publishable do
-# Supabase, portas dos modelos) — são os mesmos que vão no bundle do browser.
-# Segredos (SUPABASE_SECRET_KEY, SUPABASE_DB_URL) vão em .env.local, que o Vite
-# carrega por cima do .env e o git ignora.
+# Somente contratos *.example são versionados.
+.env
 .env.local
+.env.*
+!.env.example
+!.env.ops.example
+!**/.env.example
 .env.*.local
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+
+# Dados e modelos gerados pelos serviços
+/services/ocr/data/raw/
+/services/ocr/data/synthetic/
+/services/ocr/data/splits/
+/services/ocr/models/
+/services/ocr/storage/
+/services/anomaly/models/*.joblib
+!/services/anomaly/models/baseline.joblib
+/services/anomaly/storage/
+
+# Estado local de ferramentas
+.claude/
 
 # Fontes 3D pesadas (CAD/GLB brutos) — só o public/models/motor.glb comprimido é versionado
 modelos-3D-motor-weg/

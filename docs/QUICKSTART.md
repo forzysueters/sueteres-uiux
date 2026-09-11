@@ -8,7 +8,6 @@
 | Serviço | Porta | Comando |
 |---------|-------|---------|
 | Frontend (React/Vite) | 5173 | `npm run dev` |
-| Backend de auth (Node/Express) | 3000 | `cd server && npm run dev` |
 | Modelo de OCR (Python/FastAPI) | 8000 | ver passo 4 |
 
 > Atalho: `start-all.bat` (Windows) / `./start-all.sh` (Linux/macOS) sobem os três juntos.
@@ -17,8 +16,7 @@
 
 ### Step 1: Configure os `.env`
 ```bash
-cp .env.example .env
-cp server/.env.example server/.env
+cp apps/web/.env.example apps/web/.env.local
 ```
 
 ### Step 2: Frontend
@@ -29,12 +27,11 @@ npm run dev          # http://localhost:5173
 
 ### Step 3: Backend de auth
 ```bash
-cd server && npm install && npm run dev   # http://localhost:3000
 ```
 
 ### Step 4: Modelo de OCR (opcional, mas necessário para OCR real)
 ```bash
-cd ocr/OCR-Model-main
+cd services/ocr
 python -m venv .venv
 .venv\Scripts\activate            # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
@@ -121,7 +118,7 @@ uvicorn src.api.main:app --port 8000   # http://localhost:8000
 1. Go to **Equipment** tab
 2. Choose the OCR engine: **EasyOCR** (default) or **Gemini Vision**
 3. Upload a nameplate photo (PNG/JPG/WebP, ≤10 MB). For a quick test use the
-   sample plates in `ocr/OCR-Model-main/data/templates/`
+   sample plates in `services/ocr/data/templates/`
 4. The frontend calls the OCR model (port 8000); review the extracted fields,
    confidence, motor type and physical-validation alerts
 5. Edit any incorrect fields

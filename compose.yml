@@ -1,0 +1,30 @@
+services:
+  web:
+    build: ./apps/web
+    ports:
+      - "5173:5173"
+    depends_on:
+      ocr:
+        condition: service_healthy
+      anomaly:
+        condition: service_healthy
+
+  ocr:
+    build: ./services/ocr
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  anomaly:
+    build: ./services/anomaly
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

@@ -13,9 +13,9 @@ do gêmeo digital (tela **Equipamentos → Registro de Equipamento**).
 └──────────────┘        OCRResponse (JSON)          └────────────────────────┘
 ```
 
-- Cliente HTTP: `src/services/ocrAPI.ts` (axios, base `VITE_OCR_API_URL`).
+- Cliente HTTP: `apps/web/src/services/ocrAPI.ts` (axios, base `VITE_OCR_API_URL`).
 - Mapeamento `campos` do OCR → `MotorNameplate`: `mapToNameplate()` no mesmo arquivo.
-- Consumo na UI: `src/components/EquipmentRegistrationForm.tsx` via `apiService.extractNameplate()`.
+- Consumo na UI: `apps/web/src/components/EquipmentRegistrationForm.tsx` via `apiService.extractNameplate()`.
 - Fallback automático para **mock** quando o backend está offline (não quebra a demo).
 
 ## 1. Subir o backend de OCR
@@ -23,7 +23,7 @@ do gêmeo digital (tela **Equipamentos → Registro de Equipamento**).
 > Requer **Python 3.10+**.
 
 ```bash
-cd ocr/OCR-Model-main
+cd services/ocr
 py -3.10 -m venv .venv
 # Windows
 .venv\Scripts\activate
@@ -33,7 +33,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # habilita o modo/fallback GPT Vision:
-cp .env.example .env   # e preencha OPENAI_API_KEY
+cp .env.example .env   # no diretório services/ocr; preencha OPENAI_API_KEY
 
 # Windows: force UTF-8 (a barra de progresso do EasyOCR usa caractere unicode
 # que quebra no console cp1252). PowerShell:  $env:PYTHONUTF8=1
@@ -66,7 +66,7 @@ VITE_OCR_USE_MOCK=false
 4. Revise os campos extraídos (confiança, tipo de motor, alertas de validação física).
 5. Confirme o registro.
 
-Imagens de teste: `ocr/OCR-Model-main/data/templates/`.
+Imagens de teste: `services/ocr/data/templates/`.
 
 ## Mapeamento de campos
 

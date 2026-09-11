@@ -6,18 +6,18 @@
 PIDS=()
 
 # ─── Modelo de OCR (FastAPI, porta 8000) ────────────────────────────────────
-if [ -x "ocr/OCR-Model-main/.venv/bin/python" ]; then
+if [ -x "services/ocr/.venv/bin/python" ]; then
   echo "🚀 Iniciando modelo de OCR..."
-  ( cd ocr/OCR-Model-main && PYTHONUTF8=1 .venv/bin/python -m uvicorn src.api.main:app --port 8000 ) &
+  ( cd services/ocr && PYTHONUTF8=1 .venv/bin/python -m uvicorn src.api.main:app --port 8000 ) &
   PIDS+=($!)
 else
-  echo "⚠️  Modelo de OCR não configurado. Veja ocr/INTEGRATION.md (o front usa mock)."
+  echo "⚠️  Modelo de OCR não configurado. Veja docs/OCR_INTEGRATION.md (o front usa mock)."
 fi
 
 # ─── Modelo de anomalia (FastAPI, porta 8001) ───────────────────────────────
-if [ -x "anomaly/Anomaly-Model-main/.venv/bin/python" ]; then
+if [ -x "services/anomaly/.venv/bin/python" ]; then
   echo "🚀 Iniciando modelo de anomalia..."
-  ( cd anomaly/Anomaly-Model-main && PYTHONUTF8=1 .venv/bin/python -m uvicorn src.api.main:app --port 8001 ) &
+  ( cd services/anomaly && PYTHONUTF8=1 .venv/bin/python -m uvicorn src.api.main:app --port 8001 ) &
   PIDS+=($!)
 else
   echo "⚠️  Modelo de anomalia não configurado (o front usa mock)."

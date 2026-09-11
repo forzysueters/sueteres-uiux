@@ -66,14 +66,12 @@ The application will open at `http://localhost:5173`
 ### Step 3b: Backend de autenticação
 
 ```bash
-cp server/.env.example server/.env
-cd server && npm install && npm run dev   # http://localhost:3000
 ```
 
 ### Step 3c: Modelo de OCR (FastAPI)
 
 ```bash
-cd ocr/OCR-Model-main
+cd services/ocr
 python -m venv .venv
 .venv\Scripts\activate              # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
@@ -83,7 +81,7 @@ uvicorn src.api.main:app --port 8000   # http://localhost:8000  (docs em /docs)
 
 > O primeiro start baixa os pesos do EasyOCR (alguns minutos). Sem este serviço,
 > a tela de Equipamentos cai para dados simulados automaticamente.
-> Detalhes da integração: `ocr/INTEGRATION.md`.
+> Detalhes da integração: `docs/OCR_INTEGRATION.md`.
 
 ### Step 4: Build for Production
 
@@ -114,8 +112,7 @@ This serves the production build locally to verify it works.
 Create the `.env` files from the examples:
 
 ```bash
-cp .env.example .env               # frontend
-cp server/.env.example server/.env # backend de auth
+cp apps/web/.env.example apps/web/.env.local # frontend
 ```
 
 ### Available Environment Variables (frontend)
@@ -132,7 +129,7 @@ cp server/.env.example server/.env # backend de auth
 | `VITE_THEME` | `dark` | UI theme (dark/light) |
 | `VITE_ENV` | `development` | Environment (development/production/staging) |
 
-### Variáveis do modelo de OCR (`ocr/OCR-Model-main/.env`)
+### Variáveis do modelo de OCR (`services/ocr/.env`)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
