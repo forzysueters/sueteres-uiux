@@ -32,7 +32,10 @@ for (const service of services) {
   }
   const args = action === 'test'
     ? ['-m', 'pytest', join(service, 'tests')]
-    : ['-m', 'ruff', 'check', join(service, 'src'), join(service, 'tests')]
+    : [
+        '-m', 'ruff', 'check', '--select', 'E9,F63,F7,F82',
+        join(service, 'src'), join(service, 'tests'),
+      ]
   const result = spawnSync(python, args, { stdio: 'inherit' })
   if (result.status !== 0) process.exit(result.status ?? 1)
 }

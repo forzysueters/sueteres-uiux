@@ -100,6 +100,11 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       open: true,
     },
+    // Mantém o contrato de deploy da raiz (Cloudflare Pages espera `dist/`).
+    build: {
+      outDir: '../../dist',
+      emptyOutDir: true,
+    },
     test: {
       globals: true,
       environment: 'jsdom',
