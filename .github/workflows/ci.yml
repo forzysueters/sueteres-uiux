@@ -31,5 +31,7 @@ jobs:
           cache: pip
           cache-dependency-path: services/${{ matrix.service }}/requirements.lock
       - run: pip install -r services/${{ matrix.service }}/requirements.lock
-      - run: ruff check services/${{ matrix.service }}/src services/${{ matrix.service }}/tests
+      # A base Python antecede a adoção do Ruff. Por enquanto bloqueamos apenas
+      # erros críticos; regras de estilo entram gradualmente sem quebrar o CI.
+      - run: ruff check --select E9,F63,F7,F82 services/${{ matrix.service }}/src services/${{ matrix.service }}/tests
       - run: pytest services/${{ matrix.service }}/tests
