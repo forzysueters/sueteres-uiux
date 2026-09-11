@@ -70,7 +70,7 @@ tudo que é `VITE_*` é embutido no bundle e fica legível para qualquer visitan
 front só conversa com as funções.
 
 > Esquema do banco, RLS, views e RPCs: [`supabase/README.md`](supabase/README.md).
-> Integração OCR ↔ frontend: [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
+> Integração OCR ↔ frontend: [`docs/OCR_INTEGRATION.md`](docs/OCR_INTEGRATION.md).
 
 ---
 
@@ -91,12 +91,12 @@ A planta simula uma unidade industrial com 4 zonas e 5 ativos monitorados:
 ## Pipeline OCR (Sprint 2 — Visão Computacional)
 
 O modelo de OCR é especializado em placas de identificação de motores **WEG
-linha W22 (IP55)** e está exposto como uma **API FastAPI** (`ocr/OCR-Model-main`),
+linha W22 (IP55)** e está exposto como uma **API FastAPI** (`services/ocr`),
 consumida diretamente pelo frontend na tela de **Registro de Equipamento**.
 
 ### Integração com o frontend
 
-- Cliente HTTP: `src/services/ocrAPI.ts` → `POST /ocr/extract` (multipart).
+- Cliente HTTP: `apps/web/src/services/ocrAPI.ts` → `POST /ocr/extract` (multipart).
 - Mapeamento dos campos do OCR (`campos`) para `MotorNameplate`: `mapToNameplate()`.
 - Fallback automático para dados simulados quando o backend de OCR está offline
   (a demo nunca quebra — o resultado vem marcado como `Simulado (offline)`).
@@ -195,7 +195,7 @@ Além disso:
 - Sem a Edge Function no ar, cai no motor determinístico local
   (`assistantEngine.ts`), que compõe a resposta só com dados do banco
 
-### 7. Órion — assistente-guia (`src/assistant/`)
+### 7. Órion — assistente-guia (`apps/web/src/assistant/`)
 
 Avatar virtual que apresenta a plataforma a quem entra nela pela primeira vez.
 Módulo isolado, montado por uma linha no `App.tsx` e desenhado em portal sobre o
@@ -286,7 +286,7 @@ src/
 ├── lib/supabase.ts           # Client tipado do Supabase
 ├── store/appStore.ts         # Estado global (Zustand)
 ├── store/authStore.ts        # Sessão e perfil (Supabase Auth)
-├── vite-env.d.ts             # Tipos do Vite (import.meta.env, imports de assets)
+├── apps/web/                 # Frontend React/Vite
 ├── types/index.ts            # Interfaces TypeScript
 └── types/database.ts         # Tipos GERADOS do schema (npm run db:types)
 
@@ -305,15 +305,15 @@ scripts/
 ├── verify-access.mjs          # Verifica a RLS ponta a ponta, por papel
 └── collector.mjs              # Painel do coletor IoT (status, teste, troca de URL)
 
-ocr/
-└── OCR-Model-main/            # Modelo de OCR (Python/FastAPI, porta 8000)
+services/
+└── ocr/                       # Modelo de OCR (Python/FastAPI, porta 8000)
     ├── src/api/main.py        # Endpoints /ocr/extract e /health
     ├── data/templates/        # Imagens de placa para teste
     └── requirements.txt
-ocr/INTEGRATION.md             # Guia de integração OCR ↔ frontend
+docs/OCR_INTEGRATION.md        # Guia de integração OCR ↔ frontend
 
-anomaly/
-└── Anomaly-Model-main/        # Modelo de anomalia (Python/FastAPI, porta 8001)
+services/
+└── anomaly/                   # Modelo de anomalia (Python/FastAPI, porta 8001)
     └── notebooks/manutencao_preditiva_motores.ipynb
 
 docs/
@@ -349,7 +349,7 @@ qualquer deploy. Quem protege os dados é a Row Level Security do Postgres.
 Necessário apenas para aplicar migrações ou repopular o seed:
 
 ```bash
-cp .env.example .env.local     # preencha SUPABASE_SECRET_KEY e SUPABASE_DB_URL
+cp .env.ops.example .env.local # preencha SUPABASE_SECRET_KEY e SUPABASE_DB_URL
 npm run db:setup               # migrações + contas de demo + seed + tipos
 ```
 
@@ -362,7 +362,7 @@ npm run db:setup               # migrações + contas de demo + seed + tipos
 | `npm run db:migrate` | Aplica `supabase/migrations/*.sql` (idempotente, reexecutável) |
 | `npm run db:users` | Cria as contas de demonstração |
 | `npm run db:seed` | Repopula ativos, sensores, 48 h de telemetria, alertas, OMs, modelos e documentos |
-| `npm run db:types` | Regenera `src/types/database.ts` do schema real |
+| `npm run db:types` | Regenera `apps/web/src/types/database.ts` do schema real |
 | `npm run db:verify` | Confere a RLS ponta a ponta, papel por papel |
 
 Para alterar o schema: crie um arquivo **novo** em `supabase/migrations/`
@@ -372,7 +372,7 @@ Para alterar o schema: crie um arquivo **novo** em `supabase/migrations/`
 ### 3. Modelo de OCR (FastAPI)
 
 ```bash
-cd ocr/OCR-Model-main
+cd services/ocr
 py -3.10 -m venv .venv
 .venv\Scripts\activate          # Windows  (Linux/macOS: source .venv/bin/activate)
 pip install -r requirements.txt
@@ -384,7 +384,7 @@ uvicorn src.api.main:app --port 8000     # http://localhost:8000  (docs em /docs
 
 > O primeiro start baixa os pesos do EasyOCR (alguns minutos). Com o backend de
 > OCR no ar, a tela de Equipamentos passa a usar o modelo real; sem ele, usa o
-> fallback simulado. Detalhes em [`ocr/INTEGRATION.md`](ocr/INTEGRATION.md).
+> fallback simulado. Detalhes em [`docs/OCR_INTEGRATION.md`](docs/OCR_INTEGRATION.md).
 
 ### 4. Voz do assistente
 
@@ -444,7 +444,7 @@ Opcional: `OPENAI_MODEL` troca o modelo sem novo deploy de código (padrão
 `gpt-5.4-mini`).
 
 **Enquanto a função não estiver publicada** — ou sem a chave —, o front cai no
-motor determinístico local (`src/services/assistantEngine.ts`): responde só com
+motor determinístico local (`apps/web/src/services/assistantEngine.ts`): responde só com
 o que está no banco, sem redação em linguagem natural. É o sintoma de "o
 assistente ficou seco".
 
@@ -548,12 +548,12 @@ Level Security do Postgres, não a interface.
 | # | Requisito | Onde está |
 |---|-----------|-----------|
 | 1 | Contexto da planta e documentação de ativos | `docs/CHALLENGE_CONTEXT.md` e a seção *Planta Industrial* acima |
-| 2 | Visão geral visual (PlantFloorMap SVG) | `src/components/PlantFloorMap.tsx` |
+| 2 | Visão geral visual (PlantFloorMap SVG) | `apps/web/src/components/PlantFloorMap.tsx` |
 | 3 | Tabela de identificação de ativos | seção *Planta Industrial* acima |
-| 4 | Documentação de integração futura (OCR → OPC-UA) | `ocr/INTEGRATION.md` |
-| 5 | Imagens sintéticas de placas | `ocr/OCR-Model-main/data/templates/` |
-| 6 | Pipeline OpenCV, 9 etapas | `src/preprocessing/` e a seção *Etapas OpenCV* acima |
-| 7 | Protótipo OCR com EasyOCR | `ocr/OCR-Model-main/src/` |
+| 4 | Documentação de integração futura (OCR → OPC-UA) | `docs/OCR_INTEGRATION.md` |
+| 5 | Imagens sintéticas de placas | `services/ocr/data/templates/` |
+| 6 | Pipeline OpenCV, 9 etapas | `services/ocr/src/preprocessing/` e a seção *Etapas OpenCV* acima |
+| 7 | Protótipo OCR com EasyOCR | `services/ocr/src/` |
 | 8 | Avaliação (accuracy, CER) | `scripts/eval_real_images.py` e a seção *Resultados* acima |
 
 ---

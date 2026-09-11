@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Gera src/types/database.ts a partir do schema real do Postgres.
+ * Gera apps/web/src/types/database.ts a partir do schema real do Postgres.
  *
  * Equivalente a `supabase gen types typescript`, porém por introspecção via
  * conexão direta — não exige Docker nem a CLI do Supabase.
@@ -29,7 +29,7 @@ if (!DB_URL) {
   process.exit(1)
 }
 
-const OUT = path.resolve(process.cwd(), 'src/types/database.ts')
+const OUT = path.resolve(process.cwd(), 'apps/web/src/types/database.ts')
 
 const client = new pg.Client({ connectionString: DB_URL, ssl: { rejectUnauthorized: false } })
 await client.connect()

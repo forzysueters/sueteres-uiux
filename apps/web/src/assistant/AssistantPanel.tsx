@@ -406,7 +406,8 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = (p) => {
                     type="button"
                     onClick={() => {
                       if (stt.transcribing) return;
-                      stt.listening ? stt.stop() : startListening();
+                      if (stt.listening) stt.stop();
+                      else startListening();
                     }}
                     disabled={p.chatPending}
                     aria-label={stt.listening ? t(lang, 'stop_listening') : t(lang, 'ask_by_voice')}

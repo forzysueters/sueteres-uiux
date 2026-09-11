@@ -13,27 +13,27 @@ echo.
 
 REM --- Modelo de OCR (FastAPI, porta 8000) - so se o venv existir ---
 echo [1/3] Modelo de OCR (porta 8000)...
-if not exist "%ROOT%ocr\OCR-Model-main\.venv\Scripts\python.exe" goto sem_ocr
-cd /d "%ROOT%ocr\OCR-Model-main"
+if not exist "%ROOT%services\ocr\.venv\Scripts\python.exe" goto sem_ocr
+cd /d "%ROOT%services\ocr"
 REM Aspas aparam o espaco: PYTHONUTF8 aceita apenas 0 ou 1. Herdado pela janela abaixo.
 set "PYTHONUTF8=1"
 start "Forzy OCR" cmd /k ".venv\Scripts\python.exe -m uvicorn src.api.main:app --port 8000"
 goto ocr_ok
 :sem_ocr
 echo       OCR nao configurado (venv ausente) - front usa fallback simulado.
-echo       Setup: ocr\INTEGRATION.md
+echo       Setup: docs\OCR_INTEGRATION.md
 :ocr_ok
 
 REM --- Modelo de Anomalia (FastAPI, porta 8001) - so se o venv existir ---
 echo [2/3] Modelo de Anomalia (porta 8001)...
-if not exist "%ROOT%anomaly\Anomaly-Model-main\.venv\Scripts\python.exe" goto sem_anom
-cd /d "%ROOT%anomaly\Anomaly-Model-main"
+if not exist "%ROOT%services\anomaly\.venv\Scripts\python.exe" goto sem_anom
+cd /d "%ROOT%services\anomaly"
 set "PYTHONUTF8=1"
 start "Forzy Anomaly" cmd /k ".venv\Scripts\python.exe -m uvicorn src.api.main:app --port 8001"
 goto anom_ok
 :sem_anom
 echo       Anomalia nao configurada (venv ausente) - front usa fallback simulado.
-echo       Setup: criar venv em anomaly\Anomaly-Model-main e instalar requirements.txt
+echo       Setup: rode npm run python:setup na raiz
 :anom_ok
 
 REM --- Frontend (Vite, porta 5173) ---
