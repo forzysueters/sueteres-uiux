@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useState, useRef, useEffect } from 'react';
+import React, { forwardRef, useImperativeHandle, useState, useRef, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Send, User, Sparkles, MessageSquarePlus, FileText, Volume2, Square, Mic, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
@@ -39,12 +39,12 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
   } = useAppStore();
   const t = translations[language].assistant;
   const locale = language === 'pt' ? 'pt-BR' : 'en-US';
-  const GREETING: ChatMessage = {
+  const GREETING = useMemo<ChatMessage>(() => ({
     id: 'init',
     role: 'assistant',
     content: t.greeting,
     timestamp: new Date().toISOString(),
-  };
+  }), [t.greeting]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -86,7 +86,7 @@ export const AIAssistant = forwardRef<AIAssistantHandle>((_props, ref) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [GREETING, addChatMessage, setConversationId]);
 
   useEffect(() => {
     if (scrollRef.current) {

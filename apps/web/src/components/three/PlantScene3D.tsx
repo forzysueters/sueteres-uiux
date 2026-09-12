@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import * as THREE from 'three';
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { Asset } from '../../types';
 import { useAppStore } from '../../store/appStore';
 import { translations } from '../../translations';
@@ -63,7 +64,7 @@ function CameraRig({
   focusAsset: Asset | null;
   bounds: ViewBounds;
   nonce: number;
-  controlsRef: React.MutableRefObject<any>;
+  controlsRef: React.MutableRefObject<OrbitControlsImpl | null>;
 }) {
   const { camera, size } = useThree();
   const animating = useRef(false);
@@ -135,7 +136,7 @@ export function PlantScene3D({
   const palette = darkMode ? DARK_FLOOR : LIGHT_FLOOR;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const [inView, setInView] = useState(true);
   const [visible, setVisible] = useState(!document.hidden);
   const [dpr, setDpr] = useState(1.5);

@@ -22,7 +22,15 @@ for (const service of services) {
     const [command, prefix] = systemPython()
     let result = spawnSync(command, [...prefix, '-m', 'venv', join(service, '.venv')], { stdio: 'inherit' })
     if (result.status !== 0) process.exit(result.status ?? 1)
-    result = spawnSync(python, ['-m', 'pip', 'install', '-r', join(service, 'requirements.lock')], { stdio: 'inherit' })
+    result = spawnSync(
+      python,
+      [
+        '-m', 'pip', 'install',
+        '-r', join(service, 'requirements.lock'),
+        '-r', join(service, 'requirements-dev.txt'),
+      ],
+      { stdio: 'inherit' },
+    )
     if (result.status !== 0) process.exit(result.status ?? 1)
     continue
   }

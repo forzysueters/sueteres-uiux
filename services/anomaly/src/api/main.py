@@ -1,6 +1,6 @@
 """Microserviço FastAPI de detecção de anomalia — Forzy Digital Twin.
 
-Espelha o padrão do serviço de OCR do Forzy (``ocr/OCR-Model-main/src/api/main.py``):
+Espelha o padrão do serviço de OCR do Forzy (``services/ocr/src/api/main.py``):
 serviço Python/FastAPI independente, consumido pelo frontend via HTTP.
 
 Usa **um único modelo** pré-treinado (``models/baseline.joblib``, gerado por ``train_baseline.py``)

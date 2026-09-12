@@ -23,6 +23,7 @@ Somente arquivos `*.example` são versionados. Nunca coloque chaves secretas em 
 Fixtures pequenas e o baseline necessário para a demonstração podem ser versionados. Dados brutos,
 novos modelos treinados e conteúdo de `storage/` são artefatos locais e permanecem ignorados. Artefatos
 grandes devem usar armazenamento de objetos ou um registry de modelos, e não o histórico Git.
+O inventário e as pendências de proveniência estão em [`docs/DATA_AND_MODELS.md`](docs/DATA_AND_MODELS.md).
 
 ## Comandos da raiz
 

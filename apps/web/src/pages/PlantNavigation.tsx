@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store/appStore';
@@ -57,7 +57,7 @@ export const PlantNavigation: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadAssets = () => {
+  const loadAssets = useCallback(() => {
     setLoading(true);
     apiService
       .getAssets()
@@ -67,11 +67,11 @@ export const PlantNavigation: React.FC = () => {
       })
       .catch((err) => setError(err instanceof Error ? err.message : t.load_error))
       .finally(() => setLoading(false));
-  };
+  }, [setAssets, t.load_error]);
 
   useEffect(() => {
     loadAssets();
-  }, []);
+  }, [loadAssets]);
 
   const areas = ['all', ...Array.from(new Set(assets.map(a => a.area)))];
   const editor = usePlantLayoutEditor(assets, editMode);

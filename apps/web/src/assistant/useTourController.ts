@@ -6,7 +6,7 @@ import { TOUR_STEPS } from './tour';
 import { buildFleetSummary, fleetSummaryIntent, type SummaryStep } from './fleetSummary';
 import { TOUR_COPY, t } from './copy';
 import { useSpeech } from './useSpeech';
-import { stripMarkdown } from './RichText';
+import { stripMarkdown } from './markdown';
 import type { AssistantPhase, AvatarState, TourContext } from './types';
 
 const SEEN_KEY = 'forzy.assistant.tour.v1';
@@ -41,6 +41,7 @@ export const useTourController = () => {
   const location = useLocation();
   const { language, assets, selectedAssetId } = useAppStore();
   const speech = useSpeech();
+  const { speak, cancel, prefetch } = speech;
 
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<AssistantPhase>('dormant');
@@ -105,18 +106,18 @@ export const useTourController = () => {
   const textKey = `${phase}-${stepIndex}-${chatAnswer ?? ''}-${language}`;
   useEffect(() => {
     if (!open || !engaged || chatPending) return;
-    speech.speak(stripMarkdown(current.text), language);
-    return () => speech.cancel();
+    speak(stripMarkdown(current.text), language);
+    return () => cancel();
     // `current.text` deriva de textKey; observar a chave evita refalar à toa.
-  }, [textKey, open, engaged, chatPending]);
+  }, [textKey, open, engaged, chatPending, current.text, language, speak, cancel]);
 
   // Enquanto a etapa atual é narrada, o áudio da próxima já vai sendo baixado —
   // o "Continuar" fica instantâneo em vez de esperar a rede de novo.
   useEffect(() => {
     if (phase !== 'tour' || !engaged) return;
     const next = steps[stepIndex + 1];
-    if (next) speech.prefetch(stripMarkdown(summarySteps?.[stepIndex + 1]?.copy.speech ?? TOUR_COPY[language][next.id].speech), language);
-  }, [phase, stepIndex, engaged, language, steps, summarySteps]);
+    if (next) prefetch(stripMarkdown(summarySteps?.[stepIndex + 1]?.copy.speech ?? TOUR_COPY[language][next.id].speech), language);
+  }, [phase, stepIndex, engaged, language, steps, summarySteps, prefetch]);
 
   // ── Navegação entre etapas ─────────────────────────────────────────────
   const routeFor = useCallback(

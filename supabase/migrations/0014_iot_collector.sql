@@ -104,14 +104,14 @@ create trigger collector_sources_set_updated_at
   before update on public.collector_sources
   for each row execute function public.set_updated_at();
 
-insert into public.collector_sources (code, name, url, payload_key, notes)
+insert into public.collector_sources (code, name, url, payload_key, is_enabled, notes)
 values
   ('s1', 'Forzy Lab — ponto de medição 1',
-   'https://reseller-prescribed-facing-dept.trycloudflare.com/get_s1', 'dados1',
-   'Quick tunnel do trycloudflare: a URL muda a cada reinício do cloudflared.'),
+   'https://example.invalid/get_s1', 'dados1', false,
+   'Configure a URL ativa fora do Git antes de habilitar a fonte.'),
   ('s2', 'Forzy Lab — ponto de medição 2',
-   'https://reseller-prescribed-facing-dept.trycloudflare.com/get_s2', 'dados2',
-   'Quick tunnel do trycloudflare: a URL muda a cada reinício do cloudflared.')
+   'https://example.invalid/get_s2', 'dados2', false,
+   'Configure a URL ativa fora do Git antes de habilitar a fonte.')
 on conflict (code) do update
   set name = excluded.name, payload_key = excluded.payload_key, notes = excluded.notes;
 

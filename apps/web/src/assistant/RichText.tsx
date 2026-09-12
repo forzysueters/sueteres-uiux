@@ -187,20 +187,3 @@ export const RichText: React.FC<RichTextProps> = ({ text, className }) => {
  * Sem isto o sintetizador tropeça nos asteriscos e emenda os itens da lista
  * numa frase só — cada linha vira uma sentença, com a pausa que a leitura pede.
  */
-export const stripMarkdown = (source: string): string =>
-  source
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) =>
-      line
-        .replace(HEADING, '$1')
-        .replace(BULLET, '$1')
-        .replace(ORDERED, '$1')
-        .replace(/`([^`]+)`/g, '$1')
-        .replace(/\*\*([^*]+)\*\*/g, '$1')
-        .replace(/\*([^*\n]+)\*/g, '$1')
-        .trim(),
-    )
-    .filter(Boolean)
-    .map((line) => (/[.!?:;,]$/.test(line) ? line : `${line}.`))
-    .join(' ');

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, CheckCircle2, Bot, AlertCircle, Sparkles, Loader2, RefreshCw, Zap, Tag, Shield, Cpu, Timer, MapPin, Link2, PlusCircle, Lock, GaugeCircle } from 'lucide-react';
 import { apiService } from '../services/api';
@@ -121,9 +121,9 @@ export const EquipmentRegistrationForm: React.FC<EquipmentRegistrationFormProps>
     }
   };
 
-  const onDrop = useCallback((accepted: File[]) => {
+  const onDrop = (accepted: File[]) => {
     if (accepted[0]) processFile(accepted[0]);
-  }, [mode]);
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

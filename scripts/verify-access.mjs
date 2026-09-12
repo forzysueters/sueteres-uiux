@@ -34,7 +34,7 @@ loadEnv()
 
 const URL_BASE = (process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
-const PW = process.env.DEMO_PASSWORD || 'password123'
+const PW = process.env.DEMO_PASSWORD
 
 /**
  * Candidatos por papel: o que estiver na env primeiro, depois a conta que o
@@ -50,8 +50,8 @@ const ACCOUNTS = {
   technician: [process.env.DEMO_TECHNICIAN, 'technician@industrial.com'],
 }
 
-if (!URL_BASE || !KEY) {
-  console.error('Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no .env.')
+if (!URL_BASE || !KEY || !PW) {
+  console.error('Defina VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY e DEMO_PASSWORD no .env.local.')
   process.exit(1)
 }
 

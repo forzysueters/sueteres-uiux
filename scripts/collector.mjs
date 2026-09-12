@@ -149,13 +149,17 @@ try {
         const base = valor.replace(/\/+$/, '')
         await client.query(
           `update public.collector_sources
-              set url = $1 || '/get_' || code
+              set url = $1 || '/get_' || code, is_enabled = true
             where code in ('s1','s2')`,
           [base],
         )
       } else {
-        await client.query(`update public.collector_sources set url = $1 where code = $2`, [valor, alvo])
+        await client.query(
+          `update public.collector_sources set url = $1, is_enabled = true where code = $2`,
+          [valor, alvo],
+        )
       }
+      await client.query(`update public.collector_config set is_enabled = true where id = true`)
       console.table((await client.query(`select code, url from public.collector_sources order by code`)).rows)
       console.log('\nURL atualizada. O próximo tick do cron já usa a nova.')
       break

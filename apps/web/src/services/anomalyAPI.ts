@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
 /**
- * Cliente do serviço de detecção de anomalia de motores (FastAPI — pasta `anomaly/`).
+ * Cliente do serviço de detecção de anomalia de motores (FastAPI em `services/anomaly`).
  *
  * Backend: `uvicorn src.api.main:app` → http://localhost:8001
  * Endpoint principal: POST /anomaly/score  (JSON: janela de leituras de um ativo)
@@ -13,7 +13,7 @@ const ANOMALY_API_URL =
 
 export type Severity = 'ok' | 'info' | 'alerta' | 'critico'
 
-// ─── Tipos espelhando anomaly/Anomaly-Model-main/src/schemas.py ──────────────
+// Tipos espelhando services/anomaly/src/schemas.py.
 export interface Reading {
   timestamp: string
   sensors: Record<string, number>

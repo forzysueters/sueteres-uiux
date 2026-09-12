@@ -17,7 +17,7 @@ export const useAlerts = (assetId?: string) => {
 
   useEffect(() => {
     apiService.getAlerts().then(setAlerts);
-  }, []);
+  }, [setAlerts]);
 
   const handleResolve = useCallback(
     async (alertId: string) => {
