@@ -125,6 +125,17 @@ export const useSpeech = () => {
     setState((s) => ({ ...s, paused: false }));
   }, [engine]);
 
+  const prefetch = useCallback((text: string, lang: Language) => {
+    if (!muted) engine.prefetch?.(text, lang);
+  }, [engine, muted]);
+
+  const toggleMuted = useCallback(() => {
+    setMuted((current) => {
+      if (!current) cancel();
+      return !current;
+    });
+  }, [cancel]);
+
   // Sair da página no meio de uma frase deixaria a voz tocando sozinha.
   useEffect(() => cancel, [cancel]);
 
@@ -133,15 +144,8 @@ export const useSpeech = () => {
     muted,
     supported: engine.available,
     /** Aquece o áudio da próxima etapa enquanto a atual toca. */
-    prefetch: (text: string, lang: Language) => {
-      if (!muted) engine.prefetch?.(text, lang);
-    },
-    toggleMuted: () => {
-      setMuted((m) => {
-        if (!m) cancel();
-        return !m;
-      });
-    },
+    prefetch,
+    toggleMuted,
     speak,
     pause,
     resume,

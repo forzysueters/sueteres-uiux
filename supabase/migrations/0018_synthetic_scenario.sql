@@ -23,7 +23,7 @@
 -- Os números são gerados, não medidos. O que NÃO é inventado são as regras de
 -- decisão: os limiares de severidade (85/65/45), a composição das penalidades
 -- por "OR probabilístico", o suavizador exponencial do índice de saúde e o
--- formato do texto do insight vêm do modelo real em `anomaly/Anomaly-Model-main`
+-- formato do texto do insight vêm do modelo real em `services/anomaly`
 -- (src/config.py, src/model/baseline.py, src/model/insight.py). O que fica de
 -- fora é a Isolation Forest treinada: floresta não roda em SQL, então a
 -- penalidade de anomalia é reproduzida analiticamente a partir da posição do

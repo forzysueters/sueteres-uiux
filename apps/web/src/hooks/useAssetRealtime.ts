@@ -23,5 +23,5 @@ export const useAssetRealtime = (assetId: string | null, onUpdate?: (asset: Asse
       cleanupRef.current?.();
       cleanupRef.current = null;
     };
-  }, [assetId]);
+  }, [assetId, onUpdate, updateAsset]);
 };

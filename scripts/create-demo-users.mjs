@@ -33,7 +33,11 @@ if (!SUPABASE_URL || !SECRET_KEY) {
   process.exit(1)
 }
 
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'password123'
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD
+if (!DEMO_PASSWORD || DEMO_PASSWORD.length < 12) {
+  console.error('Defina DEMO_PASSWORD com pelo menos 12 caracteres no .env.local.')
+  process.exit(1)
+}
 
 const users = [
   {

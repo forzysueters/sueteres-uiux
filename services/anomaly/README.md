@@ -3,7 +3,7 @@
 Microserviço Python/FastAPI que detecta anomalias de operação e calcula um **Índice de Saúde (0–100)**
 a partir de leituras de sensores (velocidade, aceleração, temperatura). Foi extraído do protótipo de
 pesquisa (`notebooks/manutencao_preditiva_motores.ipynb`) e empacotado como um serviço independente,
-no mesmo padrão do serviço de OCR do [Forzy Digital Twin](../) (`ocr/OCR-Model-main/`), porém na
+no mesmo padrão do serviço de OCR do [Forzy Digital Twin](../ocr), porém na
 porta **8001**.
 
 Usa **um único modelo pré-treinado** (`models/baseline.joblib`), aprendido a partir do histórico
@@ -45,7 +45,8 @@ tests/               # pytest (features, baseline, API)
 ```bash
 py -3.10 -m venv .venv
 source .venv/Scripts/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.lock
+pip install -r requirements-dev.txt  # somente desenvolvimento/testes
 
 # (opcional) re-treinar o modelo a partir de data/ — já vem treinado no repo:
 python train_baseline.py
@@ -104,13 +105,9 @@ reproduzem essa validação com o modelo empacotado: o detector dispara alerta s
 superaquecimento claramente anômalo, **mesmo sem a temperatura cruzar um limite absoluto** — algo que
 um alarme de limite fixo não detectaria.
 
-## Integração com o Forzy (trabalho no repo principal)
+## Integração com o Forzy
 
-1. Colocar esta pasta no monorepo (ex.: `anomaly/Anomaly-Model-main/`), espelhando `ocr/OCR-Model-main/`.
-2. Adicionar o serviço ao `start-all.bat` / `start-all.sh` na porta 8001.
-3. Criar `src/services/anomalyAPI.ts` no frontend (análogo a `ocrAPI.ts`) apontando para `http://localhost:8001`.
-4. Mapear `ScoreResponse` para os componentes existentes: `health_index`/`severity` no `SensorGauge` e no "score de anomalia" do Dashboard; `severity`/`insight` na `AlertsPage` e no "insight preditivo de IA".
-5. Reconciliar nomes de campo com `src/types/index.ts` do Forzy (as severidades já usam `critico`/`alerta`/`info`).
+O serviço já faz parte do monorepo em `services/anomaly`, é iniciado pelos scripts `start-all` na porta 8001 e é consumido pelo frontend em `apps/web/src/services/anomalyAPI.ts`. A URL pode ser alterada por `VITE_ANOMALY_API_URL`.
 
 ## Limitações (honestas)
 

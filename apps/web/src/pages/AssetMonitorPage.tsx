@@ -93,7 +93,7 @@ export const AssetMonitorPage: React.FC = () => {
       })
       .catch((err) => setAssetsError(err instanceof Error ? err.message : t.load_error))
       .finally(() => setAssetsLoading(false));
-  }, []);
+  }, [assets.length, setAssets, t.load_error]);
 
   const asset = assets.find((a) => a.id === assetId);
 

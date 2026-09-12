@@ -1,586 +1,212 @@
-# Forzy Digital Twin — Plataforma Industrial de Manutenção Preditiva
+# Forzy Digital Twin
 
-Sistema de Gêmeo Digital para monitoramento industrial inteligente: planta em 3D,
-manutenção preditiva, pipeline de Visão Computacional para rastreabilidade de
-ativos via OCR e assistente de IA com tour guiado por voz.
+Plataforma web para monitoramento industrial, manutenção preditiva e cadastro de equipamentos por OCR. O projeto integra uma interface React, dois serviços FastAPI e uma infraestrutura Supabase com autenticação, RLS, telemetria, alertas e Edge Functions.
 
----
+## Visão geral
 
-## Objetivo
-
-Desenvolver uma plataforma SaaS de **Digital Twin** para indústrias, integrando:
-- Monitoramento em tempo real de ativos industriais (motores, bombas, compressores, exaustores)
-- **Planta em 3D** navegável, com as máquinas nas posições reais do chão de fábrica
-- Análise preditiva com modelos de ML para detecção de anomalias
-- **Pipeline OCR** para extração automática de dados de placas de identificação (nameplate)
-- **Assistente de IA** que responde sobre a operação e a documentação técnica, e um
-  **avatar-guia** que apresenta a plataforma a quem chega
-- Rastreabilidade completa: imagem → pré-processamento → OCR → cadastro → histórico
-
----
-
-## Arquitetura
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    FORZY DIGITAL TWIN                        │
-│                                                             │
-│  Frontend (React 18 + Vite + TypeScript + Tailwind CSS)     │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │
-│  │Dashboard │ │  Planta  │ │  Alertas │ │ Equipamentos │  │
-│  │   KPIs   │ │SVG + 3D  │ │Realtime  │ │  OCR Register│  │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘  │
-│                                                             │
-│  State: Zustand | Routing: React Router v7 | Charts: Recharts│
-│  Animation: Framer Motion | 3D: three.js / R3F              │
-│                                                             │
-│  Supabase — banco, autenticação, storage e realtime         │
-│  ├── Postgres com Row Level Security · sem backend próprio  │
-│  ├── Edge Functions (Deno): ai-chat (GPT) · tts (voz)       │
-│  └── pg_cron + pg_net: coletor IoT, a cada 30s              │
-│                                                             │
-│  Modelo de OCR (Python + FastAPI) — porta 8000             │
-│  └── POST /ocr/extract: realce → EasyOCR → extração de      │
-│      campos → validação física → fallback GPT Vision        │
-│                                                             │
-│  Modelo de Anomalia (Python + FastAPI) — porta 8001         │
-│  └── POST /anomaly/score: janela de leituras → health index │
-└─────────────────────────────────────────────────────────────┘
+```text
+Navegador (React/Vite)
+  ├─ Supabase: dados, Auth, Storage e Realtime
+  ├─ Serviço OCR: leitura de placas WEG W22
+  ├─ Serviço de anomalia: índice de saúde e severidade
+  └─ Edge Functions: chat, voz, transcrição, usuários e e-mails
 ```
 
-Não existe backend de aplicação próprio: o frontend fala direto com o Supabase
-(dados, login, arquivos) e com os dois serviços de modelo via HTTP.
+| Componente | Diretório | Porta |
+| --- | --- | ---: |
+| Aplicação web | `apps/web` | 5173 |
+| OCR | `services/ocr` | 8000 |
+| Detecção de anomalias | `services/anomaly` | 8001 |
+| Banco e funções | `supabase` | remoto |
 
-| Serviço | Stack | Porta | Variável no front |
-|---------|-------|-------|-------------------|
-| Frontend | React/Vite | 5173 | — |
-| Banco, auth e storage | Supabase (Postgres) | — | `VITE_SUPABASE_URL` |
-| Conversa do assistente | Edge Function `ai-chat` (Deno + GPT) | — | — |
-| Voz do assistente | Edge Function `tts` (Deno + ElevenLabs) | — | `VITE_TTS_PROVIDER` |
-| Modelo de OCR | Python/FastAPI | 8000 | `VITE_OCR_API_URL` |
-| Modelo de anomalia | Python/FastAPI | 8001 | `VITE_ANOMALY_API_URL` |
-
-Os dois modelos são opcionais para rodar a aplicação: sem eles o front cai num
-fallback simulado, marcado como tal na interface. O Supabase, não — é a fonte
-dos dados.
-
-As Edge Functions existem porque há chaves que **não podem** chegar ao navegador:
-tudo que é `VITE_*` é embutido no bundle e fica legível para qualquer visitante.
-`OPENAI_API_KEY` e `ELEVENLABS_API_KEY` são secrets do projeto Supabase, e o
-front só conversa com as funções.
-
-> Esquema do banco, RLS, views e RPCs: [`supabase/README.md`](supabase/README.md).
-> Integração OCR ↔ frontend: [`docs/OCR_INTEGRATION.md`](docs/OCR_INTEGRATION.md).
-
----
-
-## Planta Industrial
-
-A planta simula uma unidade industrial com 4 zonas e 5 ativos monitorados:
-
-| TAG | Nome | Tipo | Área | Localização | Fabricante | Modelo | Nº Série |
-|-----|------|------|------|-------------|------------|--------|----------|
-| MTR-001 | Motor Principal Linha A | Motor | Hall A | Linha de Produção A — Posto 1 | WEG | W22 IE3 | WEG2024-MTR001 |
-| MTR-002 | Motor Secundário Linha A | Motor | Hall A | Linha de Produção A — Posto 2 | Siemens | SIMOTICS SD | SIE2023-MTR002 |
-| BBA-001 | Bomba de Circulação | Bomba | Hall B | Sistema Hidráulico — Bomba Principal | KSB | Etanorm 32-200 | SN-KSB-20220615 |
-| CMP-001 | Compressor de Ar | Compressor | Hall C | Central de Ar Comprimido | Atlas Copco | GA 22+ | SN-AC-20211210 |
-| EXA-001 | Exaustor de Cobertura | Exaustor | Cobertura | Área Técnica — Cobertura Norte | WEG | W21 71 IE2 | SN-WEG-20230301 |
-
----
-
-## Pipeline OCR (Sprint 2 — Visão Computacional)
-
-O modelo de OCR é especializado em placas de identificação de motores **WEG
-linha W22 (IP55)** e está exposto como uma **API FastAPI** (`services/ocr`),
-consumida diretamente pelo frontend na tela de **Registro de Equipamento**.
-
-### Integração com o frontend
-
-- Cliente HTTP: `apps/web/src/services/ocrAPI.ts` → `POST /ocr/extract` (multipart).
-- Mapeamento dos campos do OCR (`campos`) para `MotorNameplate`: `mapToNameplate()`.
-- Fallback automático para dados simulados quando o backend de OCR está offline
-  (a demo nunca quebra — o resultado vem marcado como `Simulado (offline)`).
-- Dois modos no backend: **EasyOCR** e **GPT Vision** (`mode=gpt`, requer
-  `OPENAI_API_KEY`) — a interface usa o segundo e não expõe a escolha.
-
-### Fluxo
-
-```
-Captura → realce adaptativo (OpenCV) → EasyOCR (bbox + texto) →
-extração/fusão de campos → validação física → [fallback GPT] → Registro
-```
-
-### Etapas OpenCV
-
-1. **Grayscale** — Conversão para escala de cinza
-2. **Resize** — Normalização para 1200px (Lanczos4)
-3. **Deskew** — Correção de rotação via Hough Lines
-4. **Denoise** — Non-local Means Denoising
-5. **CLAHE** — Equalização adaptativa de contraste
-6. **Sharpening** — Unsharp Mask
-7. **Binarização** — Threshold Otsu
-8. **Morfologia** — Close + Open para remoção de ruído residual
-9. **Crop ROI** — Recorte da região de interesse com padding
-
-### Resultados
-
-| Métrica | Sem pré-proc. | Com pipeline | Melhoria |
-|---------|--------------|--------------|---------|
-| Accuracy Rate | ~55% | ~83% | +28% |
-| Character Error Rate | ~35% | ~12% | -23% |
-| Confiança OCR | ~72% | ~87% | +15% |
-
----
+Uma descrição dos limites de cada componente está em [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Funcionalidades
 
-### 1. Dashboard
-- KPIs em tempo real (disponibilidade, alertas, anomalias)
-- Gráficos de distribuição de status da frota
-- Score de anomalia por ativo
+- Dashboard de KPIs, séries temporais e estado da frota.
+- Planta industrial 2D/3D com navegação e edição de layout.
+- Monitoramento por ativo, sensores e limites operacionais.
+- Alertas e ordens de manutenção com controle de acesso.
+- Cadastro de equipamentos usando OCR, OpenCV e fallback opcional de visão.
+- Índice de saúde calculado pelo serviço de anomalias.
+- Assistente Órion com contexto do banco, GPT, voz e transcrição.
+- Interface responsiva, bilíngue e com temas claro/escuro.
 
-### 2. Planta / Gêmeo Digital
+## Pré-requisitos
 
-Três modos de visualização, alternáveis na barra de ferramentas:
+- Node.js 22 (versão registrada em `.nvmrc`).
+- npm.
+- Python 3.10–3.12 para executar os modelos localmente.
+- Docker com Compose, opcional.
+- Um projeto Supabase para dados reais.
 
-- **Planta 3D** (padrão) — cena three.js/R3F com os halls e as máquinas nas
-  posições reais; clique isola um hall, duplo clique abre o ativo. Ao lado, a
-  **régua de triagem**: a lista ordenada por urgência, que responde "o que está
-  ruim agora?" sem depender de enxergar nenhuma máquina. Cai para o mapa 2D
-  automaticamente quando não há WebGL.
-- **Mapa 2D** — blueprint SVG com hotspots por TAG, pulso para crítico/alerta,
-  tooltip ao passar o mouse e o **fluxo de inspeção** (setas tracejadas e badges
-  numerados com a sequência recomendada).
-- **Grade** — posicionamento por coordenadas; no celular vira lista de uma coluna.
+## Início rápido
 
-Além disso:
+1. Instale as dependências Node:
 
-- **Editor de layout** — "Editar planta" libera o arrasto das máquinas na cena
-  3D. Cada uma ocupa espaço proporcional ao equipamento, sobreposição é bloqueada,
-  e mudar de hall pede confirmação. Salvar grava as posições no banco.
-- **Remoção e reativação de ativos** — desativar guarda o histórico
-  (`is_active = false`); o painel de inativos permite trazer de volta.
-- Navegação hierárquica: Área → Ativo → Monitoramento Completo.
+   ```bash
+   npm ci
+   ```
 
-### 3. Monitoramento de Ativo (`/planta/ativo/:id`)
-- Página dedicada com breadcrumb `Planta / Área / TAG`
-- Gauges de sensores em tempo real (atualização a cada 2s)
-- Histórico de sensores com seletor de período (1h/6h/24h/7d)
-- Insight preditivo de IA baseado no score de anomalia
-- NameplateCard com dados OCR e confiança
-- Histórico de alertas do ativo com ação de resolução
+2. Crie a configuração pública do frontend:
 
-### 4. Alertas
-- Acessível pelo **sino no canto superior direito**, com contador de alertas abertos
-- Sistema de alertas em tempo real com severidade (crítico/alerta/info)
-- Filtro por status, severidade e busca por texto/TAG
-- Insights ML associados
-- Resolução inline
+   ```bash
+   cp apps/web/.env.example apps/web/.env.local
+   ```
 
-### 5. Equipamentos / Registro OCR
-- Wizard em 4 etapas para cadastro via placa, integrado ao **modelo de OCR real** (FastAPI)
-- Motor de OCR: **GPT Vision** (fallback **EasyOCR** no backend)
-- Campos de nameplate preenchidos automaticamente a partir da extração
-- Metadados do pipeline: modelo usado, tipo de motor, tempo de processamento
-- **Alertas de validação física** (kW×cv, RPM×polos×Hz, carcaça×potência) vindos do backend
-- Confiança OCR média por extração
+   No PowerShell:
 
-### 6. Assistente IA
-- Chat contextual com acesso ao ativo selecionado
-- Resposta gerada pelo **GPT** na Edge Function `ai-chat`, a partir de contexto
-  real: telemetria, alertas, predições, manutenção e trechos da documentação (RAG)
-- **Citações** de documento e página junto da resposta
-- Perguntas rápidas pré-configuradas
-- Persistência de mensagens via Zustand
-- Sem a Edge Function no ar, cai no motor determinístico local
-  (`assistantEngine.ts`), que compõe a resposta só com dados do banco
+   ```powershell
+   Copy-Item apps/web/.env.example apps/web/.env.local
+   ```
 
-### 7. Órion — assistente-guia (`apps/web/src/assistant/`)
+3. Preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` com as credenciais públicas do ambiente fornecido para a avaliação.
 
-Avatar virtual que apresenta a plataforma a quem entra nela pela primeira vez.
-Módulo isolado, montado por uma linha no `App.tsx` e desenhado em portal sobre o
-`body` — não altera layout, menu ou funcionalidade de nenhuma tela.
+4. Inicie o frontend:
 
-- **Avatar** em SVG vetorial, nítido de 32 a 320 px, que herda a cor de destaque
-  do tema. Quatro estados: repouso, falando, pensando, ouvindo.
-- **Tour de sete etapas** — painel, cadastro por placa, monitoramento, predição,
-  documentação e alertas. Cada etapa navega para a rota real e acende o elemento
-  que está explicando, com holofote (máscara SVG) e um traço ligando o avatar ao
-  alvo. Os alvos são declarados por `data-tour` nas telas.
-- **Voz** — narração por TTS com o texto do balão acendendo junto da fala.
-- **Controles** — continuar, voltar, pausar narração, ligar/desligar áudio, pular
-  e fechar. `Esc` encerra.
-- **Pergunta livre** — usa o mesmo motor de IA do Assistente, com o Markdown da
-  resposta renderizado de verdade (negrito, ênfase, listas).
-- Aparece sozinho no primeiro acesso; depois disso, só se for chamado.
+   ```bash
+   npm run dev
+   ```
 
-### 8. Interface
-- **Dois idiomas** (pt-BR / en-US) em toda a aplicação, trocáveis em Configurações
-- **Tema claro e escuro**, com acento laranja (Forzy) ou roxo
-- **Responsivo de 320 px para cima** — nenhuma tela exige rolagem horizontal
-- Conta e perfil: edição de dados e troca de senha
+A aplicação fica disponível em `http://localhost:5173`. Sem os serviços Python, OCR e anomalia usam respostas simuladas identificadas na interface; operações simuladas não são persistidas.
 
----
-
-## Estrutura de Arquivos
-
-```
-src/
-├── assistant/                # Órion — assistente-guia (módulo isolado)
-│   ├── AvatarFace.tsx        # O personagem, em SVG animado
-│   ├── AssistantProvider.tsx # Único ponto de integração (portal sobre o body)
-│   ├── AssistantLauncher.tsx # Estado minimizado
-│   ├── AssistantPanel.tsx    # Estado expandido: balão + controles
-│   ├── TourSpotlight.tsx     # Holofote e traço de indicação
-│   ├── RichText.tsx          # Markdown do modelo → nós React (sem innerHTML)
-│   ├── useTourController.ts  # Máquina de estados: fase, etapa, narração, conversa
-│   ├── useTargetRect.ts      # Resolve e acompanha o elemento destacado
-│   ├── useSpeech.ts          # Ponte React ↔ voz
-│   ├── speech.ts             # Motores de voz (Web Speech e ElevenLabs)
-│   ├── tour.ts / copy.ts     # Roteiro (estrutura) e textos (pt/en), separados
-│   └── types.ts / index.ts   # Contratos e barril de exportação
-├── components/
-│   ├── PlantFloorMap.tsx     # Mapa 2D da planta (SVG interativo)
-│   ├── PlantAlertRail.tsx    # Régua de triagem ao lado da cena 3D
-│   ├── PlantLayoutToolbar.tsx# Painel flutuante do modo de edição de layout
-│   ├── HallChangeDialog.tsx  # Confirma mudança de hall ao arrastar
-│   ├── AssetRemovalDialog.tsx / InactiveAssetsPanel.tsx  # Desativar e reativar
-│   ├── EquipmentRegistrationForm.tsx  # Wizard de cadastro por placa (OCR)
-│   ├── NameplateCard.tsx / NameplateEditor.tsx  # Placa: leitura e edição
-│   ├── SensorGauge.tsx       # Gauge de sensor com threshold
-│   ├── HealthGauge.tsx       # Índice de saúde (arco animado)
-│   ├── TimeSeriesChart.tsx   # Série temporal (Recharts)
-│   ├── AlertItem.tsx         # Item de alerta com insight de ML
-│   ├── AIAssistant.tsx       # Chat de IA contextual
-│   ├── Cards.tsx             # KPICard e AssetTile
-│   ├── Dialog.tsx            # Modal padrão (Radix)
-│   ├── SkeletonLoaders.tsx / ErrorBoundary.tsx
-│   └── three/                # Cena 3D (three.js / React Three Fiber)
-│       ├── PlantScene3D.tsx  # Cena da planta com halls e ativos
-│       ├── MotorViewer.tsx / MotorModel.tsx / MachineGeometry.tsx
-│       ├── PlantFloor.tsx / AssetMarker.tsx / EditOverlay.tsx
-│       └── plantLayout.ts / plantGrid.ts   # Geometria e grade (TS puro, testável)
-├── hooks/
-│   ├── useAssetRealtime.ts   # Atualização em tempo real via store
-│   ├── useAlerts.ts          # Carregamento e resolução de alertas
-│   ├── usePlantLayoutEditor.ts  # Estado do editor de layout (arrasto e validação)
-│   └── useMediaQuery.ts      # Breakpoint em React, para layouts que mudam de forma
-├── pages/
-│   ├── Dashboard.tsx         # KPIs e gráficos da operação
-│   ├── PlantNavigation.tsx   # Planta em 3D / mapa 2D / grade
-│   ├── AssetMonitorPage.tsx  # Página completa de monitoramento do ativo
-│   ├── AlertsPage.tsx        # Gestão de alertas
-│   ├── EquipmentPage.tsx     # Registro via OCR
-│   ├── AssistantPage.tsx     # Assistente IA
-│   ├── SettingsPage.tsx      # Tema, acento e idioma
-│   ├── AccountPage.tsx       # Perfil e senha
-│   └── LoginPage.tsx         # Autenticação
-├── services/
-│   ├── api.ts                # Fachada de serviços (Supabase + OCR + anomalia + chat)
-│   ├── ocrAPI.ts             # Cliente HTTP do modelo de OCR + mapeamento de campos
-│   ├── anomalyAPI.ts         # Cliente HTTP do modelo de anomalia
-│   ├── sensorLimits.ts       # Limites por grandeza (carregados do banco)
-│   └── assistantEngine.ts    # Fallback do assistente, só com dados do banco
-├── translations/index.ts     # Textos da interface (pt-BR / en-US)
-├── utils/                    # plantStatus, webgl, helpers
-├── lib/supabase.ts           # Client tipado do Supabase
-├── store/appStore.ts         # Estado global (Zustand)
-├── store/authStore.ts        # Sessão e perfil (Supabase Auth)
-├── apps/web/                 # Frontend React/Vite
-├── types/index.ts            # Interfaces TypeScript
-└── types/database.ts         # Tipos GERADOS do schema (npm run db:types)
-
-supabase/
-├── migrations/                # Schema versionado (0001 → 0015)
-├── functions/
-│   ├── ai-chat/               # Conversa do assistente (Deno + GPT + RAG)
-│   └── tts/                   # Voz do Órion (Deno + ElevenLabs)
-├── seed.sql                   # Conjunto de demonstração
-└── README.md                  # Referência do banco: RLS, views, RPCs
-
-scripts/
-├── db.mjs                     # Aplica migrações e seed
-├── create-demo-users.mjs      # Contas de demonstração (Auth Admin API)
-├── gen-types.mjs              # Gera os tipos a partir do schema real
-├── verify-access.mjs          # Verifica a RLS ponta a ponta, por papel
-└── collector.mjs              # Painel do coletor IoT (status, teste, troca de URL)
-
-services/
-└── ocr/                       # Modelo de OCR (Python/FastAPI, porta 8000)
-    ├── src/api/main.py        # Endpoints /ocr/extract e /health
-    ├── data/templates/        # Imagens de placa para teste
-    └── requirements.txt
-docs/OCR_INTEGRATION.md        # Guia de integração OCR ↔ frontend
-
-services/
-└── anomaly/                   # Modelo de anomalia (Python/FastAPI, porta 8001)
-    └── notebooks/manutencao_preditiva_motores.ipynb
-
-docs/
-├── CHALLENGE_CONTEXT.md            # Contexto do challenge (requisitos, briefing)
-├── SETUP.md                        # Guia de instalação e configuração
-├── QUICKSTART.md                   # Guia rápido para rodar os serviços
-├── endpoints_api.md                # Endpoints IoT do Forzy Lab
-├── sprint_1.md / sprint_2.md       # Entregáveis por sprint
-└── transcricao_desafio_inicial.md  # Briefing original
-```
-
----
-
-## Execução
-
-> **Atalho:** `start-all.bat` (Windows) ou `./start-all.sh` (Linux/macOS) sobem o
-> frontend e os modelos de uma vez. Os modelos só sobem se o venv correspondente
-> existir; sem eles o front usa o fallback simulado.
-
-### 1. Rodar a aplicação
+Para configurar também os ambientes Python:
 
 ```bash
-npm install
-npm run dev          # http://localhost:5173
+npm run python:setup
+./start-all.sh       # Linux/macOS
 ```
 
-Só isso. O `.env` do repositório já traz a URL e a chave publishable do
-Supabase — são valores públicos, os mesmos que vão no bundle do browser de
-qualquer deploy. Quem protege os dados é a Row Level Security do Postgres.
+No Windows, execute `start-all.bat` depois do bootstrap.
 
-### 2. Mexer no banco (opcional)
+## Docker Compose
 
-Necessário apenas para aplicar migrações ou repopular o seed:
+O Compose usa `apps/web/.env.local`, criado no passo 2 do início rápido. Preencha esse arquivo sem alterar o contrato versionado em `.env.example`:
 
 ```bash
-cp .env.ops.example .env.local # preencha SUPABASE_SECRET_KEY e SUPABASE_DB_URL
-npm run db:setup               # migrações + contas de demo + seed + tipos
+docker compose up --build
 ```
 
-> ⚠️ É um projeto Supabase **compartilhado**. `npm run db:seed` recria os dados
-> de demonstração para todo o time: alertas resolvidos voltam e equipamentos
-> cadastrados via OCR naquela planta são descartados.
+Os serviços possuem health checks e o frontend aguarda OCR e anomalia ficarem saudáveis.
 
-| Comando | O que faz |
-|---|---|
-| `npm run db:migrate` | Aplica `supabase/migrations/*.sql` (idempotente, reexecutável) |
-| `npm run db:users` | Cria as contas de demonstração |
-| `npm run db:seed` | Repopula ativos, sensores, 48 h de telemetria, alertas, OMs, modelos e documentos |
-| `npm run db:types` | Regenera `apps/web/src/types/database.ts` do schema real |
-| `npm run db:verify` | Confere a RLS ponta a ponta, papel por papel |
+## Configuração
 
-Para alterar o schema: crie um arquivo **novo** em `supabase/migrations/`
-(nunca edite uma migração já publicada), rode `npm run db:migrate` e
-`npm run db:types`, e commite a migração junto dos tipos regenerados.
+Somente arquivos de exemplo são versionados:
 
-### 3. Modelo de OCR (FastAPI)
+| Arquivo | Finalidade |
+| --- | --- |
+| `apps/web/.env.example` | Configuração pública do frontend |
+| `services/ocr/.env.example` | Modelo de visão opcional do OCR |
+| `services/anomaly/.env.example` | Porta, CORS e parâmetros do detector |
+| `supabase/.env.example` | Inventário de secrets das Edge Functions |
+| `.env.ops.example` | Operações administrativas locais |
+
+Nunca coloque segredos em variáveis `VITE_*`: elas fazem parte do bundle do navegador. Credenciais de avaliação devem ser entregues por um canal separado e rotacionadas ao final.
+
+## Banco e usuários de demonstração
+
+Os comandos administrativos exigem `.env.local` na raiz:
+
+```bash
+cp .env.ops.example .env.local
+npm run db:migrate
+npm run db:users
+npm run db:seed
+npm run db:types
+npm run db:verify
+```
+
+`DEMO_PASSWORD` é obrigatório, deve ter pelo menos 12 caracteres e não possui valor padrão. O seed altera o ambiente compartilhado; não o execute contra produção.
+
+As migrações versionadas vão de `0001` a `0022`. O modelo de dados, RLS, RPCs e coletor estão documentados em [supabase/README.md](supabase/README.md).
+
+## Qualidade
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+npm run check
+```
+
+- O frontend possui testes unitários e de componentes com Vitest.
+- OCR e anomalia possuem testes com pytest.
+- A CI executa lint, testes e build web, os testes das Edge Functions e os testes dos dois serviços Python.
+- O Ruff bloqueia inicialmente erros críticos; a adoção integral das regras é incremental.
+
+## OCR
+
+O pipeline principal aplica pré-processamento OpenCV, EasyOCR, extração de campos e validação física. Quando configurado, um modelo de visão pode completar campos críticos ausentes.
 
 ```bash
 cd services/ocr
-py -3.10 -m venv .venv
-.venv\Scripts\activate          # Windows  (Linux/macOS: source .venv/bin/activate)
-pip install -r requirements.txt
-
-# Windows: force UTF-8, senão o download do modelo EasyOCR quebra na barra de progresso
-set PYTHONUTF8=1                # PowerShell: $env:PYTHONUTF8=1
-uvicorn src.api.main:app --port 8000     # http://localhost:8000  (docs em /docs)
+python -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
+pip install -r requirements.lock
+uvicorn src.api.main:app --port 8000
 ```
 
-> O primeiro start baixa os pesos do EasyOCR (alguns minutos). Com o backend de
-> OCR no ar, a tela de Equipamentos passa a usar o modelo real; sem ele, usa o
-> fallback simulado. Detalhes em [`docs/OCR_INTEGRATION.md`](docs/OCR_INTEGRATION.md).
+API: `GET /health` e `POST /ocr/extract`. Consulte [docs/OCR_INTEGRATION.md](docs/OCR_INTEGRATION.md).
 
-### 4. Voz do assistente
+O script `services/ocr/scripts/eval_real_images.py` permite avaliar um conjunto identificado de imagens. O repositório não declara métricas globais de accuracy/CER sem vincular dataset, amostra e saída reproduzível.
 
-O Órion fala pela Edge Function `tts`, que guarda a chave da ElevenLabs no
-projeto Supabase — do mesmo jeito que o `ai-chat` guarda a do GPT. **Nenhum
-desenvolvedor precisa da chave na própria máquina**, e nada de segredo entra no
-bundle do browser.
+## Detecção de anomalias
 
-Publicar a função (uma vez, por quem tem acesso ao projeto). A CLI não precisa
-ser instalada — o `npx` baixa na hora:
+O serviço recebe uma janela de leituras, calcula atributos de operação e retorna índice de saúde, severidade, resíduo térmico e insight.
 
 ```bash
-npx supabase login
-npx supabase secrets set ELEVENLABS_API_KEY=sk_... --project-ref <project-ref>
-npx supabase functions deploy tts --project-ref <project-ref> --use-api
+cd services/anomaly
+python -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
+pip install -r requirements.lock
+uvicorn src.api.main:app --port 8001
 ```
 
-O `--use-api` empacota a função no servidor do Supabase. Sem ele a CLI tenta
-usar Docker local, que nem todo mundo da equipe tem instalado.
-
-Confira se publicou — o retorno deve sair de `404` para `401` (existe, e exige
-login, que é o correto):
-
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<project-ref>.supabase.co/functions/v1/tts
-```
-
-Feito isso, qualquer máquina que rode `npm run dev` — e qualquer deploy do
-front — já ouve a voz de nuvem, sem configurar nada.
-
-**Enquanto a função não estiver publicada**, o assistente cai sozinho na
-**Web Speech API** do navegador: não custa nada, funciona offline, e soa
-robótico. É esse o sintoma de "a voz só funciona numa máquina".
-
-Ajustes sem mexer em código: `VITE_TTS_PROVIDER` (`elevenlabs` ou vazio, para
-forçar a voz do navegador) no `.env`, e os secrets `ELEVENLABS_VOICE_ID` /
-`ELEVENLABS_MODEL_ID` no Supabase. Se a nuvem falhar — rede, cota, chave
-inválida — o assistente cai na voz do navegador sozinho: o tour nunca fica mudo.
-
-> Para mexer na integração offline, existe um proxy local: ponha
-> `ELEVENLABS_API_KEY` no `.env.local` e `VITE_TTS_ENDPOINT=/api/tts` para o
-> front usar o middleware do `vite.config.ts` em vez da Edge Function.
-
-### 5. Cérebro do assistente (GPT)
-
-O texto que o Órion fala é escrito pelo **GPT**, chamado de dentro da Edge
-Function `ai-chat` — a chave da OpenAI é secret do projeto Supabase e nunca
-entra no bundle:
-
-```bash
-npx supabase login
-npx supabase secrets set OPENAI_API_KEY=sk-proj-... --project-ref <project-ref>
-npx supabase functions deploy ai-chat --project-ref <project-ref> --use-api
-```
-
-Opcional: `OPENAI_MODEL` troca o modelo sem novo deploy de código (padrão
-`gpt-5.4-mini`).
-
-**Enquanto a função não estiver publicada** — ou sem a chave —, o front cai no
-motor determinístico local (`apps/web/src/services/assistantEngine.ts`): responde só com
-o que está no banco, sem redação em linguagem natural. É o sintoma de "o
-assistente ficou seco".
-
-### 6. Qualidade e build
-
-```bash
-npm run typecheck    # tsc --noEmit
-npm run test         # vitest (watch) · test:run para uma passada única
-npm run format       # prettier
-npm run build        # tsc -b && vite build
-```
-
-Os testes cobrem a geometria da planta (`plantGrid`), os limites de sensor
-(`sensorLimits`), a coerência dos dados (`coherence`) e a montagem de contexto do
-assistente (`ai-chat/context`).
-
-### 6. Coletor IoT (operação)
-
-A coleta roda dentro do Postgres (pg_cron, ver `0014_iot_collector.sql`) e não
-depende de nenhuma máquina ligada. O script é só o painel:
-
-```bash
-npm run collector:status              # saúde por endpoint + últimas capturas
-npm run collector:test                # força uma coleta agora, fora da janela
-npm run collector -- url both <BASE>  # troca a URL quando o túnel muda
-```
-
----
-
-## Acesso e cadastro
-
-O cadastro espontâneo (`/auth/v1/signup`) está aberto no projeto Supabase, mas
-uma conta criada assim nasce como **visualizador inativo**: `is_active = false`
-faz `can_read()` e `has_role()` recusarem tudo, então ela não enxerga nenhum
-dado até um administrador liberar. O papel vem de `app_metadata`, que só a chave
-secreta escreve — pedir `{"role":"admin"}` no signup não tem efeito.
-
-Para eliminar o cadastro espontâneo de vez: painel do Supabase →
-Authentication → Sign In / Providers → desmarcar *Allow new users to sign up*.
-
-## Credenciais de Acesso
-
-Contas de demonstração criadas por `npm run db:users`. Senha `password123` para
-todas. O papel define o que cada uma pode fazer — e quem garante isso é a Row
-Level Security do Postgres, não a interface.
-
-| E-mail | Papel | Pode |
-|---|---|---|
-| `admin@industrial.com` | admin | tudo, inclusive papéis e auditoria |
-| `engineer@industrial.com` | engineer | ativos, sensores, modelos de ML |
-| `technician@industrial.com` | technician | alertas, manutenção, cadastro de equipamento |
-| `viewer@industrial.com` | viewer | somente leitura |
-
----
-
-## Tecnologias
-
-### Frontend
-- **React 18** + **Vite** + **TypeScript**
-- **Tailwind CSS** para estilização
-- **Zustand** para estado global
-- **React Router v7** com rotas parametrizadas
-- **Recharts** para gráficos de série temporal
-- **Framer Motion** para animações
-- **Radix UI** para primitivos acessíveis
-- **Lucide React** para ícones
-- **three.js / React Three Fiber** para a planta e o motor em 3D
-- **Web Speech API** / **ElevenLabs** para a voz do assistente
-- Interface bilíngue (pt-BR / en-US), tema claro/escuro e layout responsivo
-
-### Banco, autenticação e storage
-- **Supabase** (Postgres gerenciado)
-- **Row Level Security** com quatro papéis, trilha de auditoria e consentimento LGPD
-- **Supabase Auth** (sessão persistida e token renovado pelo SDK)
-- **Realtime** em ativos, alertas e leituras
-- **Storage** para fotos de placa, manuais, plantas baixas e avatares
-- **pgvector** preparado para o RAG do assistente (a busca em uso é lexical)
-- **Edge Functions** (Deno) para o que exige chave secreta: `ai-chat` e `tts`
-- **pg_cron + pg_net** para o coletor IoT, a cada 30 s
-
-### Assistente conversacional
-- **GPT** via Edge Function `ai-chat`, com contexto real do banco e RAG lexical
-- Citação de documento e página na resposta
-- Motor determinístico local como fallback, sem LLM
-
-### Modelo de anomalia (Sprint 2)
-- **FastAPI** + **Uvicorn** (API `/anomaly/score`)
-- Janela de leituras → health index, severidade e resíduo térmico
-
-### Modelo de OCR (Visão Computacional — Sprint 2)
-- **FastAPI** + **Uvicorn** (API `/ocr/extract`, `/health`)
-- **EasyOCR** (extração de texto)
-- **OpenCV** (realce adaptativo, remoção de linhas de grade, correção de perspectiva)
-- **GPT Vision** (OpenAI, via `requests` — sem SDK extra)
-- **Pillow / NumPy** (manipulação de imagens)
-
----
-
-## Sprint 2 — Entregáveis de Visão Computacional
-
-| # | Requisito | Onde está |
-|---|-----------|-----------|
-| 1 | Contexto da planta e documentação de ativos | `docs/CHALLENGE_CONTEXT.md` e a seção *Planta Industrial* acima |
-| 2 | Visão geral visual (PlantFloorMap SVG) | `apps/web/src/components/PlantFloorMap.tsx` |
-| 3 | Tabela de identificação de ativos | seção *Planta Industrial* acima |
-| 4 | Documentação de integração futura (OCR → OPC-UA) | `docs/OCR_INTEGRATION.md` |
-| 5 | Imagens sintéticas de placas | `services/ocr/data/templates/` |
-| 6 | Pipeline OpenCV, 9 etapas | `services/ocr/src/preprocessing/` e a seção *Etapas OpenCV* acima |
-| 7 | Protótipo OCR com EasyOCR | `services/ocr/src/` |
-| 8 | Avaliação (accuracy, CER) | `scripts/eval_real_images.py` e a seção *Resultados* acima |
-
----
+API: `GET /health` e `POST /anomaly/score`. O baseline usado na demonstração está versionado em `services/anomaly/models/baseline.joblib`.
 
 ## O que é real e o que é fallback
 
-Distinção importante para a apresentação: nem tudo que aparece na tela vem de
-um modelo rodando.
+| Camada | Fonte | Quando indisponível |
+| --- | --- | --- |
+| Dados e autenticação | Supabase | A aplicação não acessa dados |
+| OCR | Serviço FastAPI | Resultado simulado e não persistível |
+| Anomalia | Serviço FastAPI | Resultado simulado identificado |
+| Chat | Edge Function com GPT | Motor determinístico local |
+| Voz | Edge Function com ElevenLabs | Web Speech API |
+| Transcrição | Edge Function STT | Entrada manual continua disponível |
 
-| Camada | Estado | Sem o serviço no ar |
-|---|---|---|
-| Dados, autenticação, storage | **real** (Supabase) | a aplicação não sobe — não há fallback |
-| Telemetria do Forzy Lab | **real** (coletor pg_cron, janela seg–qua 12h–14h) | a série para de crescer; o histórico fica |
-| Telemetria histórica | **real** (48 h no Postgres, geradas pelo seed) | — |
-| Alertas e transições | **reais** (trigger na ingestão + RLS) | — |
-| OCR da placa | **real** (FastAPI, porta 8000) | mock determinístico, marcado na UI |
-| Índice de anomalia | **real** (FastAPI, porta 8001) | mock determinístico, marcado na UI |
-| Conversa do assistente | **real** (GPT na Edge Function `ai-chat`) | motor local, só com dados do banco |
-| Voz do Órion | **real** (ElevenLabs) quando configurada | voz do navegador (Web Speech API) |
+## Estrutura
 
-Pendências conhecidas, com o esquema já preparado:
+```text
+apps/web/             React, Vite, testes e assets
+services/ocr/         API e pipeline OCR
+services/anomaly/     API, baseline e notebook de anomalias
+supabase/             Migrações, seed e Edge Functions
+scripts/              Administração do banco e coletor
+tools/                Validação de ambiente e tarefas Python
+docs/                 Contexto, sprints e guias técnicos
+.github/workflows/    Integração contínua
+```
 
-- **Embeddings do RAG** — `document_chunks.embedding` (pgvector) e
-  `match_document_chunks` existem; a recuperação em uso é lexical
-  (`search_document_chunks`, sobre tsvector).
-- **OPC-UA/MQTT** — o coletor atual lê os endpoints HTTP do Forzy Lab. A RPC
-  `ingest_readings` já recebe lote e faz a conversão 4-20 mA, então plugar um
-  gateway industrial é trocar a origem, não o caminho.
-- **`npm run lint`** — o projeto tem `.eslintrc.cjs` e o ESLint 9 instalado exige
-  `eslint.config.js`. Migração pendente, independente do banco.
+## Documentação
+
+- [Arquitetura](ARCHITECTURE.md)
+- [Quick start](docs/QUICKSTART.md)
+- [Setup e deploy](docs/SETUP.md)
+- [Integração OCR](docs/OCR_INTEGRATION.md)
+- [Contexto do desafio](docs/CHALLENGE_CONTEXT.md)
+- [Banco e RLS](supabase/README.md)
+- [Dados e modelos](docs/DATA_AND_MODELS.md)
+- [Sprint 1](docs/sprint_1.md), [Sprint 2](docs/sprint_2.md) e [Sprint 3](docs/sprint_3.md)
+
+## Limitações conhecidas
+
+- O detector usa um baseline compartilhado e é mais confiável para desvios térmicos claros do que para deriva marginal.
+- O RAG está preparado para embeddings, mas a recuperação atual é lexical.
+- A origem IoT do laboratório depende de endpoints operacionais fornecidos fora do Git.
+- Não há suíte E2E nem threshold de cobertura obrigatório neste momento.
+
+## Licenciamento
+
+Os serviços importados preservam seus respectivos arquivos `LICENSE`. A licença do produto integrado deve ser definida pelos responsáveis antes de distribuição pública; compartilhar para avaliação privada não concede direitos adicionais.

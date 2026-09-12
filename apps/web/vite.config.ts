@@ -1,4 +1,5 @@
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { loadEnv, type Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
 // SWC em vez de Babel: @vitejs/plugin-react@4 ainda não declara suporte a
 // vite@8, o que fazia `npm install` abortar com ERESOLVE em clone novo.
 import react from '@vitejs/plugin-react-swc'
@@ -111,5 +112,5 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       css: true,
     },
-  } as any
+  }
 })

@@ -1,6 +1,9 @@
 services:
   web:
-    build: ./apps/web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    env_file: ./apps/web/.env.local
     ports:
       - "5173:5173"
     depends_on:

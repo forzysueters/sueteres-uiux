@@ -389,47 +389,37 @@ não para construir o sensor de produção.
 
 ---
 
-## 10. Stack Tecnológica Recomendada
+## 10. Stack tecnológica implementada
 
 | Camada | Tecnologia | Justificativa |
 |--------|-----------|---------------|
-| Backend | **Python + FastAPI** | Async, ótimo para ML |
-| Frontend | **React + Vite + TypeScript + Tailwind** | (já em uso neste repo) |
-| Banco relacional | **PostgreSQL + TimescaleDB** | Séries temporais nativas |
-| Banco vetorial | **ChromaDB** | RAG simples e eficiente |
-| ML | **scikit-learn + XGBoost** | Iteração rápida |
-| Deep Learning | **PyTorch** (se necessário) | Autoencoder para anomalias |
-| OCR | **EasyOCR + Claude/GPT-4 Vision** | Combo |
-| LLM | **LangChain + OpenAI/Anthropic** | RAG + tools |
-| IoT | **OPC-UA + MQTT + AWS IoT** | Padrão industrial |
-| Real-time | **WebSocket (FastAPI)** | Dados ao vivo |
-| Auth | **JWT + bcrypt** | Simples e seguro |
-| Infra | **Docker Compose** | Reprodutível para demo |
-| CI/CD | **GitHub Actions** | Automação básica |
-
-> **Nota deste repo:** o frontend atual já está em **React 18 + Vite +
-> TypeScript + Tailwind**, com `react-router-dom`, `zustand`, `recharts`,
-> `lucide-react`, `axios`, `framer-motion`, `react-hook-form`, `zod`,
-> `@tanstack/react-query`, `react-helmet-async`, `sonner`, `@radix-ui/*` e
-> tooling completo (ESLint/Prettier/Vitest/Testing-Library).
+| Backend de modelos | **Python + FastAPI** | APIs independentes para OCR e anomalias |
+| Frontend | **React 18 + Vite + TypeScript + Tailwind** | Interface web e visualização 2D/3D |
+| Dados e autenticação | **Supabase/PostgreSQL** | Auth, RLS, Storage, RPCs e Realtime |
+| Busca contextual | **PostgreSQL + pgvector** | Estrutura vetorial pronta; recuperação atual lexical |
+| ML | **scikit-learn** | Isolation Forest e Ridge no baseline de anomalias |
+| OCR | **EasyOCR + OpenCV** | Pipeline principal com fallback opcional de visão |
+| LLM | **Edge Function + OpenAI** | Chat contextual com fallback determinístico |
+| IoT | **pg_cron + pg_net** | Coleta HTTP dos endpoints disponibilizados pelo laboratório |
+| Infra | **Docker Compose** | Execução local dos três componentes |
+| CI/CD | **GitHub Actions + Cloudflare Pages** | Verificações e deploy web |
 
 ---
 
-## 11. Estrutura de Pastas Sugerida (Solução End-to-End)
+## 11. Estrutura de pastas implementada
 
 ```
-digital-twin-forz/
-├── docs/                # User stories, arquitetura, governança, manual
-├── backend/             # FastAPI (routers, services, ml/, db/)
-├── frontend/            # React (já existente neste repo)
-├── iot/                 # Arduino + ingestão MQTT/OPC-UA + raw_converter
-├── ml_notebooks/        # EDA, baseline, anomalia, predição, OCR
-├── llm/                 # RAG pipeline, prompts, agent com tools
-├── infra/               # docker-compose, nginx, .env.example
+sueteres-uiux/
+├── apps/web/             # React, Vite, testes e assets
+├── services/ocr/         # Pipeline OCR e API FastAPI
+├── services/anomaly/     # Detector, baseline, dados e notebook
+├── supabase/             # Migrações, seed e Edge Functions
+├── scripts/              # Administração do banco e coletor IoT
+├── tools/                # Bootstrap Python e validação de ambiente
+├── docs/                 # Contexto, operação e integração
+├── compose.yml
 └── README.md
 ```
-
-Ver `d:/Desktop/forzy/estutura.md` para árvore completa com todos os arquivos.
 
 ---
 
@@ -597,13 +587,13 @@ nem dados simulados na camada de persistência.
 - LLM do agente conversacional; a recuperação atual é lexical, com pgvector
   instalado e pronto para embeddings.
 
-### Credenciais demo do front
-| Role | Email | Senha |
+### Perfis de avaliação
+| Perfil | Entrega da credencial | Escopo principal |
 |------|-------|-------|
-| Admin | `admin@industrial.com` | `password123` |
-| Engineer | `engineer@industrial.com` | `password123` |
-| Technician | `technician@industrial.com` | `password123` |
-| Viewer | `viewer@industrial.com` | `password123` |
+| Admin | credencial temporária fornecida separadamente | acesso administrativo |
+| Engineer | credencial temporária fornecida separadamente | operação e análise |
+| Technician | credencial temporária fornecida separadamente | manutenção atribuída |
+| Viewer | credencial temporária fornecida separadamente | somente leitura |
 
 ---
 
