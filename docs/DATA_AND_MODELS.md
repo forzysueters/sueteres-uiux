@@ -6,6 +6,7 @@ Este inventário torna explícitos os artefatos binários ou de dados necessári
 | --- | --- | --- | --- |
 | `services/anomaly/data/History_32026-05-19T11-46-10-920.csv` | Histórico saudável usado pelo detector | Entrada de `train_baseline.py` | Confirmar origem, autorização e ausência de dados pessoais antes de distribuição pública |
 | `services/anomaly/models/baseline.joblib` | Baseline carregado pela API | `python train_baseline.py` | Derivado do CSV acima; registrar versão do código e ambiente em uma nova geração |
+| `services/anomaly/models/classifier.joblib` | Classificador supervisionado servido pela API e pelo worker da frota | `python train_classifier.py` (data augmentation do CSV acima, semente fixa 42) | Derivado do CSV acima; métricas e famílias de aumento em `models/model_card.json` |
 | `services/anomaly/notebooks/manutencao_preditiva_motores.ipynb` | Pesquisa e validação exploratória | Executável com dependências científicas compatíveis | Revisar outputs e metadados antes de publicação |
 | `apps/web/public/models/motor.glb` | Representação 3D na planta | Não há pipeline de geração no repositório | Autoria/licença externa precisa ser confirmada antes de redistribuição pública |
 

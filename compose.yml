@@ -22,6 +22,14 @@ services:
       timeout: 5s
       retries: 10
 
+  anomaly-worker:
+    build: ./services/anomaly
+    command: ["python", "-m", "src.worker"]
+    env_file:
+      - path: ./.env.local
+        required: false
+    restart: unless-stopped
+
   anomaly:
     build: ./services/anomaly
     ports:

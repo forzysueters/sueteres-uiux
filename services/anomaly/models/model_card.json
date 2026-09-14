@@ -1,0 +1,120 @@
+{
+  "name": "Classificador de Severidade de Ativos",
+  "version": "2.0.0",
+  "algorithm": "HistGradientBoostingClassifier + HistGradientBoostingRegressor",
+  "trained_at": "2026-09-14T11:10:10.010252+00:00",
+  "training_rows": 38000,
+  "feature_names": [
+    "velocity_mean",
+    "velocity_max",
+    "velocity_min",
+    "velocity_std",
+    "velocity_p90",
+    "velocity_last",
+    "velocity_slope",
+    "velocity_frac_warn",
+    "velocity_frac_crit",
+    "velocity_present",
+    "acceleration_mean",
+    "acceleration_max",
+    "acceleration_min",
+    "acceleration_std",
+    "acceleration_p90",
+    "acceleration_last",
+    "acceleration_slope",
+    "acceleration_frac_warn",
+    "acceleration_frac_crit",
+    "acceleration_present",
+    "temperature_mean",
+    "temperature_max",
+    "temperature_min",
+    "temperature_std",
+    "temperature_p90",
+    "temperature_last",
+    "temperature_slope",
+    "temperature_frac_warn",
+    "temperature_frac_crit",
+    "temperature_present",
+    "vibration_max",
+    "all_max"
+  ],
+  "augmentation_families": {
+    "real": 4000,
+    "reposicionada": 4000,
+    "cenario": 4000,
+    "cenario_fronteira": 4000,
+    "rampa_termica": 4000,
+    "deriva_vibracao": 4000,
+    "picos": 4000,
+    "perda_amostras": 4000,
+    "canal_ausente": 4000,
+    "distorcao_temporal": 2000
+  },
+  "metrics": {
+    "holdout": {
+      "acuracia": 0.9946,
+      "f1_macro": 0.9932,
+      "mae_saude": 0.211,
+      "matriz_confusao": [
+        [
+          2142,
+          6,
+          0,
+          0
+        ],
+        [
+          3,
+          1259,
+          10,
+          0
+        ],
+        [
+          0,
+          8,
+          1289,
+          8
+        ],
+        [
+          0,
+          0,
+          6,
+          2869
+        ]
+      ]
+    },
+    "motor_nao_visto": {
+      "acuracia": 1.0,
+      "mae_saude": 0.105
+    },
+    "cenario_planta": {
+      "concordancia": 1.0,
+      "por_perfil": {
+        "ok": 1.0,
+        "info": 1.0,
+        "alerta": 1.0,
+        "critico": 1.0
+      }
+    },
+    "nao_supervisionado": {
+      "algorithm": "KMeans(k=4) sobre atributos padronizados",
+      "amostras": 12000,
+      "ari_vs_rotulo_normativo": 0.435,
+      "concordancia_grupo_nomeado": 0.62,
+      "saude_media_por_grupo": {
+        "critico": 30.9,
+        "info": 59.9,
+        "ok": 83.8,
+        "alerta": 59.7
+      }
+    }
+  },
+  "model_card": {
+    "purpose": "Classificar a severidade (ok/info/alerta/crítico) e estimar o Índice de Saúde de qualquer ativo a partir da janela de 5 min de velocidade de vibração, aceleração e temperatura.",
+    "training_data": "38000 janelas geradas por data augmentation de ~4 h de log IO-Link de dois motores do Forzy Lab (recortes reais projetados em 3 classes de limite ISO, dinâmica real reposicionada, rampa térmica, deriva de vibração, picos, perda de amostras, canal ausente, distorção temporal e o cenário simulado da planta).",
+    "labeling": "Etapa não supervisionada (K-Means, 4 grupos) confirma a estrutura; o rótulo final vem da régua normativa ISO 10816-3 / isolamento classe F, a mesma do avaliador da migração 0018.",
+    "limitations": "Não há falha real rotulada: o modelo aprende a régua normativa sobre dinâmicas reais e degradações injetadas, não modos de falha observados. RUL é heurística derivada da saúde.",
+    "biases": "Dinâmica de base vem de dois motores de bancada em 4 h de uma sessão; regimes de partida e cargas diferentes estão sub-representados.",
+    "intended_use": "Triagem de condição para priorizar inspeção humana.",
+    "out_of_scope": "Diagnóstico de causa raiz ou parada automática de produção."
+  }
+}

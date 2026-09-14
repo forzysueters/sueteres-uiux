@@ -6,11 +6,48 @@ pesquisa (`notebooks/manutencao_preditiva_motores.ipynb`) e empacotado como um s
 no mesmo padrão do serviço de OCR do [Forzy Digital Twin](../ocr), porém na
 porta **8001**.
 
-Usa **um único modelo pré-treinado** (`models/baseline.joblib`), aprendido a partir do histórico
-saudável em `data/` (os dois motores empilhados como exemplos de operação normal). O mesmo modelo é
-aplicado a qualquer ativo — não há treino por ativo.
+Dois modelos pré-treinados, versionados em `models/`:
 
-## Como funciona
+| Modelo | Arquivo | Uso |
+|---|---|---|
+| **Classificador supervisionado** (principal) | `classifier.joblib` · `model_card.json` | Diagnóstico da planta: severidade + Índice de Saúde de qualquer ativo com limites cadastrados |
+| Baseline não supervisionado | `baseline.joblib` | Janelas sem limites, em unidade bruta dos motores do dataset |
+
+## Classificador supervisionado (`train_classifier.py`)
+
+O log IO-Link tem ~4 h de dois motores saudáveis e nenhum rótulo. O pipeline:
+
+1. **Data augmentation** (`src/model/augment.py`), 38 mil janelas de 5 min em 10 famílias: recortes
+   reais projetados em 3 classes de limite ISO, dinâmica real reposicionada em outro nível de
+   severidade, rampa térmica, deriva de vibração, picos intermitentes, perda de amostras, canal
+   ausente, distorção temporal e o cenário da planta simulada (fórmula de `synthetic_tick`).
+2. **Etapa não supervisionada**: K-Means (k=4) sobre os atributos, nomeado pela saúde média e
+   comparado ao rótulo normativo.
+3. **Rotulagem** pela régua normativa (`src/model/normative.py`): posição do valor entre os limites
+   do sensor, penalidade por canal, "OR probabilístico" e cortes 85/65/45 — a mesma do avaliador SQL.
+4. **HistGradientBoosting** para severidade e para o Índice de Saúde, sobre 32 atributos por janela.
+
+Métricas da geração atual (reproduzíveis com `python train_classifier.py`):
+
+| Avaliação | Resultado |
+|---|---|
+| Holdout estratificado (20%) | acurácia 0,995 · F1 macro 0,993 · MAE saúde 0,21 |
+| Motor não visto (treino só m1, teste m2) | acurácia 1,000 · MAE saúde 0,11 |
+| Perfis do cenário da planta (ok/info/alerta/crítico) | concordância 1,000 em todos |
+| K-Means × rótulo normativo | ARI 0,44 — separa bem ok e crítico; info e alerta se misturam sem supervisão |
+
+A última linha é o motivo da etapa supervisionada: sem rótulo, os dados sozinhos não distinguem
+"desvio leve" de "desvio relevante".
+
+### Na aplicação
+
+`python -m src.worker` lê a janela de cada ativo no Supabase (`model_scoring_window`), classifica e
+publica (`publish_model_score`, migração 0023). O avaliador SQL da 0018 cede o ativo enquanto houver
+predição do classificador com menos de 7 min, e reassume se o worker parar. No Docker Compose, o
+serviço `anomaly-worker` roda esse laço. O front também envia `limits` no `POST /anomaly/score`,
+então o caminho do navegador usa o mesmo classificador.
+
+## Baseline não supervisionado
 
 Detecção **não supervisionada**: o modelo aprende o comportamento *normal* e mede o quanto cada novo
 ponto se afasta dessa referência.
