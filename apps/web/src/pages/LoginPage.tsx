@@ -25,6 +25,7 @@ export const LoginPage = () => {
     password: '',
   })
   const [localError, setLocalError] = useState<string | null>(null)
+  const [showDemo, setShowDemo] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [resetSending, setResetSending] = useState(false)
 
@@ -55,6 +56,17 @@ export const LoginPage = () => {
     } catch (err: unknown) {
       setLocalError(err instanceof Error ? err.message : 'Falha no acesso. Tente novamente.')
     }
+  }
+
+  const demoCredentials = [
+    { role: 'Administrador (Forzy)', email: 'admin@industrial.com', password: 'password123' },
+    { role: 'Engenheiro', email: 'engineer@industrial.com', password: 'password123' },
+    { role: 'Técnico de Manutenção', email: 'technician@industrial.com', password: 'password123' },
+  ]
+
+  const handleDemoLogin = (email: string, password: string) => {
+    setLocalError(null)
+    setCredentials({ email, password })
   }
 
   const handleForgotPassword = async () => {
@@ -314,6 +326,45 @@ export const LoginPage = () => {
                 </button>
               </form>
 
+              <button
+                type="button"
+                onClick={() => setShowDemo(!showDemo)}
+                className="w-full mt-7 pt-5 border-t border-white/5 text-center text-[11px] font-medium text-white/40 hover:text-white/70 transition-colors"
+              >
+                {showDemo ? '— Ocultar credenciais de demonstração —' : '— Ver credenciais de demonstração —'}
+              </button>
+
+              {showDemo && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-4 space-y-2 overflow-hidden"
+                >
+                  {demoCredentials.map((cred) => (
+                    <button
+                      key={cred.email}
+                      onClick={() => handleDemoLogin(cred.email, cred.password)}
+                      type="button"
+                      className="w-full text-left p-3 bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 rounded-xl transition-all group"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white/90 group-hover:text-amber-400 transition-colors">
+                            {cred.role}
+                          </p>
+                          <p className="text-[11px] text-white/40 font-mono break-all">
+                            {cred.email}
+                          </p>
+                        </div>
+                        <ArrowRight
+                          size={14}
+                          className="flex-shrink-0 text-white/30 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all"
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
             </div>
           </div>
 
