@@ -6,7 +6,7 @@ fastapi==0.112.0
 uvicorn[standard]==0.30.6
 pydantic==2.8.2
 python-multipart==0.0.9
-aiofiles==24.1.0
+aiofiles==25.1.0
 python-dotenv==1.0.1
 tqdm==4.66.4
 PyYAML==6.0.1
