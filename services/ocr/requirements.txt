@@ -4,7 +4,7 @@ opencv-python
 Pillow
 fastapi==0.112.0
 uvicorn[standard]==0.30.6
-pydantic==2.8.2
+pydantic==2.13.5
 python-multipart==0.0.9
 aiofiles==24.1.0
 python-dotenv==1.0.1
