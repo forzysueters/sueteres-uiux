@@ -20,6 +20,36 @@ versionado em `migrations/` e aplicado por `npm run db:migrate`.
 | `0011_document_search.sql` | Busca textual em português nos documentos, contexto consolidado do ativo |
 | `0012_main_integration.sql` | Coordenadas da planta, diagnóstico do modelo de anomalia, direção do limite por grandeza |
 | `0013_signup_hardening.sql` | Papel passa a vir de `app_metadata`; cadastro espontâneo nasce inativo |
+| `0023_supervised_model_scoring.sql` | Classificador supervisionado registrado; `model_scoring_window`/`publish_model_score` para o worker; avaliador SQL vira fallback |
+| `0024_orion_channels.sql` | Órion por WhatsApp e avisos de alerta por e-mail/WhatsApp: vínculo do número, sessões, fila `orion_notifications`, dispatcher em `pg_cron` (desligado por padrão) |
+
+## Canais do Órion (e-mail e WhatsApp)
+
+Arquitetura pronta e inerte até os provedores serem configurados.
+
+```
+alerts INSERT ─trigger─▶ orion_notifications ─cron 1 min─▶ orion-notify ─▶ Brevo (e-mail)
+                                                                        └▶ WhatsApp Cloud API
+WhatsApp (Meta) ─webhook─▶ whatsapp-webhook ─▶ _shared/orion.ts ─▶ mesma resposta do chat da tela
+```
+
+| Peça | Onde |
+|---|---|
+| Núcleo de resposta compartilhado (tela e WhatsApp) | `functions/_shared/orion.ts` |
+| Cliente WhatsApp Cloud API: assinatura HMAC, parse do webhook, texto/template, markdown → WhatsApp | `functions/_shared/whatsapp.ts` |
+| Webhook de entrada (identidade pelo número vinculado, idempotência, comandos `ajuda`/`parar`) | `functions/whatsapp-webhook` |
+| Dispatcher de avisos (e-mail com `alertEmail`, WhatsApp com texto na janela de 24 h ou template fora dela) | `functions/orion-notify` |
+
+E-mails transacionais que já estavam em produção: `send-maintenance-email` (confirmação de OM) e
+`send-asset-report` (relatório do ativo com PDF), ambos via `_shared/brevo.ts`.
+
+Para ligar:
+
+1. Secrets: `ORION_NOTIFY_SECRET`, `APP_URL`, `BREVO_*` e `WHATSAPP_*` (ver `supabase/.env.example`).
+2. `supabase functions deploy orion-notify --no-verify-jwt` e `supabase functions deploy whatsapp-webhook --no-verify-jwt`.
+3. No painel da Meta, callback `https://<ref>.supabase.co/functions/v1/whatsapp-webhook` com o `WHATSAPP_VERIFY_TOKEN`, assinando `messages`; aprovar o template `forzy_alerta_ativo` (Utility, 4 variáveis, botão de URL).
+4. `update public.orion_notify_config set enabled = true, function_url = '…/orion-notify', secret = '<ORION_NOTIFY_SECRET>';`
+5. Vincular o número do usuário: `profiles.whatsapp_phone` (E.164 só dígitos), `whatsapp_opt_in = true` e `user_settings.notify_whatsapp = true`.
 
 ## Modelo de dados
 

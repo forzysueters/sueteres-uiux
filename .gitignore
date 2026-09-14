@@ -53,6 +53,7 @@ __pycache__/
 /services/ocr/storage/
 /services/anomaly/models/*.joblib
 !/services/anomaly/models/baseline.joblib
+!/services/anomaly/models/classifier.joblib
 /services/anomaly/storage/
 
 # Estado local de ferramentas

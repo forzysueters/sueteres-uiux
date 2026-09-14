@@ -89,6 +89,11 @@ const T = {
     next: 'Próxima',
     attached_pdf: 'O relatório completo em A4 segue anexo neste e-mail.',
     generated_at: 'Gerado em',
+    alert_title: 'Aviso do Órion',
+    alert_lead: 'Um alerta foi aberto em um ativo que você acompanha.',
+    severity: 'Severidade',
+    triggered_at: 'Disparado em',
+    open_asset: 'Abrir o ativo no Forzy',
     footer: 'Forzy — Gêmeo Digital Industrial. Mensagem automática, não responda.',
     none: '—',
     status: { normal: 'Normal', warning: 'Atenção', critical: 'Crítico', offline: 'Offline', info: 'Info' },
@@ -130,6 +135,11 @@ const T = {
     next: 'Next',
     attached_pdf: 'The full A4 report is attached to this email.',
     generated_at: 'Generated at',
+    alert_title: 'Orion notice',
+    alert_lead: 'An alert was opened on an asset you follow.',
+    severity: 'Severity',
+    triggered_at: 'Triggered at',
+    open_asset: 'Open the asset in Forzy',
     footer: 'Forzy — Industrial Digital Twin. Automated message, do not reply.',
     none: '—',
     status: { normal: 'Normal', warning: 'Warning', critical: 'Critical', offline: 'Offline', info: 'Info' },
@@ -268,6 +278,61 @@ export function maintenanceEmail(
   return {
     subject: `${title} · ${data.orderNumber} · ${data.assetTag}`,
     html: layout({ title, lead, body, lang }),
+  }
+}
+
+// ─────────────────────────── aviso de alerta (Órion) ────────────────────────
+
+export interface AlertEmailData {
+  assetId: string
+  assetTag: string
+  assetName: string
+  location?: string | null
+  severity: 'info' | 'warning' | 'critical'
+  title: string
+  message: string
+  insight?: string | null
+  healthIndex?: number | null
+  triggeredAt: string
+  /** Base do app (sem barra final). Sem ela o e-mail sai sem botão. */
+  appUrl?: string | null
+}
+
+export function alertEmail(data: AlertEmailData, lang: Language): { subject: string; html: string } {
+  const t = dict(lang)
+  const label = (t.status as Record<string, string>)[data.severity] ?? data.severity
+  const link = data.appUrl ? `${data.appUrl}/planta/ativo/${encodeURIComponent(data.assetId)}` : null
+
+  const body = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+      style="border:1px solid ${C.line};border-left:4px solid ${STATUS_COLOR[data.severity]};border-radius:10px;margin-bottom:6px;">
+      <tr><td style="padding:14px 16px;font-family:${FONT};">
+        <p style="margin:0 0 6px;">${pill(data.severity, label)}</p>
+        <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:${C.ink};">${esc(data.title)}</p>
+        <p style="margin:0;font-size:13px;line-height:1.55;color:${C.soft};">${esc(data.message)}</p>
+      </td></tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${row(t.asset, `${esc(data.assetTag)} — ${esc(data.assetName)}`)}
+      ${data.location ? row(t.location, esc(data.location)) : ''}
+      ${data.healthIndex != null && isFinite(data.healthIndex) ? row(t.health, `${Math.round(data.healthIndex)}/100`) : ''}
+      ${row(t.triggered_at, esc(formatDateTime(data.triggeredAt, lang)))}
+    </table>
+    ${data.insight ? `
+      ${sectionTitle(t.insight)}
+      <p style="margin:0;padding:12px 14px;background:#fafafa;border:1px solid ${C.line};border-radius:8px;
+        font-size:13px;line-height:1.6;color:${C.soft};font-family:${FONT};">${esc(data.insight)}</p>` : ''}
+    ${link ? `
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px;">
+        <tr><td style="border-radius:8px;background:${C.brand};">
+          <a href="${esc(link)}" style="display:inline-block;padding:11px 18px;font-size:13px;font-weight:700;
+            color:#ffffff;text-decoration:none;font-family:${FONT};">${esc(t.open_asset)}</a>
+        </td></tr>
+      </table>` : ''}`
+
+  return {
+    subject: `${label} · ${data.assetTag} · ${data.title}`,
+    html: layout({ title: t.alert_title, lead: t.alert_lead, body, lang }),
   }
 }
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,12 @@ class Reading(BaseModel):
     )
 
 
+class ChannelLimit(BaseModel):
+    warn: float
+    crit: float
+    direction: Literal["above", "below"] = "above"
+
+
 class ScoreRequest(BaseModel):
     asset_tag: Optional[str] = Field(
         None,
@@ -26,6 +32,11 @@ class ScoreRequest(BaseModel):
         ...,
         min_length=1,
         description="Janela de leituras recentes (ex.: últimos 10-30 min) do ativo.",
+    )
+    limits: Optional[Dict[str, ChannelLimit]] = Field(
+        None,
+        description="Limites de alerta/crítico por canal. Com eles, o diagnóstico sai do "
+                    "classificador supervisionado; sem eles, do baseline não supervisionado.",
     )
 
 
@@ -41,6 +52,11 @@ class ScoreResponse(BaseModel):
         None, description="Resíduo térmico atual (real - esperado), °C, se houver modelo térmico"
     )
     sustained: bool = Field(..., description="Desvio sustentado abaixo do limiar de atenção")
+    model_used: Literal["classifier", "baseline"] = "baseline"
+    model_version: Optional[str] = None
+    probabilities: Optional[Dict[str, float]] = None
+    confidence: Optional[float] = None
+    rul_days: Optional[int] = None
 
 
 class HealthResponse(BaseModel):
@@ -49,3 +65,5 @@ class HealthResponse(BaseModel):
     version: str
     model_loaded: bool
     model_trained_at: Optional[str] = None
+    classifier_loaded: bool = False
+    classifier_version: Optional[str] = None

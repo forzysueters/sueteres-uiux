@@ -11,7 +11,7 @@
     "typecheck": "npm run typecheck --workspace @forzy/web",
     "lint": "npm run lint --workspace @forzy/web && npm run python:lint",
     "test": "npm run test:run --workspace @forzy/web && npm run test:edge && npm run python:test",
-    "test:edge": "npm exec --workspace @forzy/web -- vitest run --root ../.. --maxWorkers=1 supabase/functions/_shared/email-template.test.ts supabase/functions/ai-chat/context.test.ts",
+    "test:edge": "npm exec --workspace @forzy/web -- vitest run --root ../.. --maxWorkers=1 supabase/functions/_shared/email-template.test.ts supabase/functions/_shared/orion-channels.test.ts supabase/functions/ai-chat/context.test.ts",
     "check": "npm run env:check && npm run lint && npm run test && npm run build",
     "format": "npm run format --workspace @forzy/web",
     "env:check": "node tools/check-env.mjs",

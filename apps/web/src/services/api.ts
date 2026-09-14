@@ -7,10 +7,10 @@ import {
   ocrAPI, OcrNetworkError, OcrMode, NameplateResult,
 } from './ocrAPI';
 import {
-  anomalyAPI, AnomalyNetworkError, Reading, ScoreRequest, ScoreResult, Severity,
+  anomalyAPI, AnomalyNetworkError, Channel, Reading, ScoreRequest, ScoreResult, Severity,
 } from './anomalyAPI';
 import {
-  statusFor, sensorByRole, deviationOf, registerSensorLimits,
+  statusFor, sensorByRole, deviationOf, registerSensorLimits, limitFor,
 } from './sensorLimits';
 import { assetStatusFromSensors } from '../utils/plantStatus';
 import { supabase, describeSupabaseError } from '../lib/supabase';
@@ -87,13 +87,6 @@ async function invokeEmail(fn: string, body: Record<string, unknown>): Promise<E
     return { ok: false, reason: 'failed' };
   }
 }
-
-const seededRandom = (seed: number) => {
-  const x = Math.sin(seed + 1) * 10000;
-  return x - Math.floor(x);
-};
-const makeSeed = (str: string) =>
-  Array.from(str).reduce((acc, c) => acc + c.charCodeAt(0), 0);
 
 const SENSOR_COLORS: Record<string, string> = {
   'Tensão': '#3b82f6',
@@ -327,41 +320,40 @@ const conditionOf = (asset: Asset): number => {
  */
 const SERVER_SCORE_MAX_AGE_MS = 12 * 60 * 1000;
 
-// Constantes calibradas empiricamente contra o serviço de anomalia (porta 8001).
-const AN_WINDOW_POINTS = 30;         // 30 x 10s = 5 min (casa com RESAMPLE_RULE/FEATURE_WIN)
+const AN_WINDOW_POINTS = 30;         // 30 x 10s = 5 min, a janela do classificador
 const AN_STEP_MS = 10_000;
-const AN_BASE_VELOCITY = 6.8;        // mm/s — carga saudável (faixa de treino)
-const AN_BASE_ACCEL = 0.04;          // g
-const AN_TEMP_HEALTHY = 34;          // °C que ~zera o resíduo térmico p/ a carga base
-const AN_THERMAL_SPAN = 25;          // °C de offset térmico no desvio máximo
-const AN_VEL_ANOM_SPAN = 2.5;        // mm/s de anomalia de velocidade no desvio máximo
+
+const VIBRATION_CHANNEL: Record<string, Channel> = {
+  'Velocidade': 'velocity',
+  'Velocidade de Vibração': 'velocity',
+  'Vibração': 'velocity',
+  'Aceleração': 'acceleration',
+};
 
 /**
- * Constrói uma janela de leituras para o modelo a partir da condição atual dos
- * sensores. As constantes AN_* posicionam essa condição na faixa numérica em
- * que o modelo foi treinado — o que atravessa é a severidade, não a unidade.
+ * Janela para o classificador com as leituras e os limites reais do ativo. O
+ * modelo trabalha na posição do valor entre os limites de cada sensor, então
+ * não há conversão de unidade no meio. A janela repete a leitura corrente: o
+ * caminho do navegador só entra quando o worker da frota não publicou nada
+ * recente, e ali o objetivo é um diagnóstico coerente com o que está na tela.
  */
 const buildReadings = (asset: Asset): ScoreRequest => {
-  const dev = conditionOf(asset);
-  const seed = makeSeed(asset.tag);
-  const now = Date.now();
-  const readings: Reading[] = [];
-  for (let i = 0; i < AN_WINDOW_POINTS; i++) {
-    const ts = new Date(now - (AN_WINDOW_POINTS - 1 - i) * AN_STEP_MS).toISOString();
-    const n = (k: number) => seededRandom(seed + i * 7.3 + k) - 0.5; // ruído centrado
-    const velocity = AN_BASE_VELOCITY + dev * AN_VEL_ANOM_SPAN * (0.5 + n(1)) + n(2) * 0.15;
-    const acceleration = AN_BASE_ACCEL * (1 + dev * 0.8) + n(3) * 0.004;
-    const temperature = AN_TEMP_HEALTHY + dev * AN_THERMAL_SPAN + n(4) * 0.5;
-    readings.push({
-      timestamp: ts,
-      sensors: {
-        velocity: parseFloat(velocity.toFixed(3)),
-        acceleration: parseFloat(Math.max(0, acceleration).toFixed(4)),
-        temperature: parseFloat(temperature.toFixed(2)),
-      },
-    });
+  const sensors: Partial<Record<Channel, number>> = {};
+  const limits: NonNullable<ScoreRequest['limits']> = {};
+  const temperature = sensorByRole(asset.sensors, 'temperature');
+  for (const sensor of asset.sensors) {
+    const channel = sensor === temperature ? 'temperature' : VIBRATION_CHANNEL[sensor.name];
+    const limit = limitFor(sensor.name, asset.tag);
+    if (!channel || !limit || limit.direction === 'band' || channel in sensors) continue;
+    sensors[channel] = sensor.value;
+    limits[channel] = { warn: limit.warn, crit: limit.crit, direction: limit.direction };
   }
-  return { asset_tag: asset.tag, readings };
+  const now = Date.now();
+  const readings: Reading[] = Array.from({ length: AN_WINDOW_POINTS }, (_, i) => ({
+    timestamp: new Date(now - (AN_WINDOW_POINTS - 1 - i) * AN_STEP_MS).toISOString(),
+    sensors: sensors as Record<string, number>,
+  }));
+  return { asset_tag: asset.tag, readings, limits };
 };
 
 const severityFromHealth = (h: number): Severity => {

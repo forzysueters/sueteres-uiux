@@ -19,9 +19,19 @@ export interface Reading {
   sensors: Record<string, number>
 }
 
+export type Channel = 'velocity' | 'acceleration' | 'temperature'
+
+export interface ChannelLimit {
+  warn: number
+  crit: number
+  direction: 'above' | 'below'
+}
+
 export interface ScoreRequest {
   asset_tag?: string
   readings: Reading[]
+  /** Com limites, o diagnóstico sai do classificador supervisionado. */
+  limits?: Partial<Record<Channel, ChannelLimit>>
 }
 
 export interface ScoreResponse {
@@ -34,6 +44,11 @@ export interface ScoreResponse {
   insight: string
   thermal_residual?: number | null
   sustained: boolean
+  model_used?: 'classifier' | 'baseline'
+  model_version?: string | null
+  probabilities?: Partial<Record<Severity, number>> | null
+  confidence?: number | null
+  rul_days?: number | null
 }
 
 /**
